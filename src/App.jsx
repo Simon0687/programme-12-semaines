@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
-import { SCHEMA_VERSION } from "./schema.js";
+import { SCHEMA_VERSION, migrate } from "./schema.js";
 
 /* =========================================================
    Programme 12 semaines — Simon
@@ -355,8 +355,19 @@ export default function Programme() {
         if (!STORE) { setStorageOk(false); return; }
         const r = await STORE.get(KEY, false);
         if (r && r.value) {
-          const parsed = JSON.parse(r.value);
-          setState({ logs: parsed.logs || {}, cardio: parsed.cardio || {}, checkin: parsed.checkin || {} });
+          const res = migrate(JSON.parse(r.value));
+          if (res.ok) {
+            setState({ logs: res.data.logs || {}, cardio: res.data.cardio || {}, checkin: res.data.checkin || {} });
+            if (res.migrated) {
+              skipSave.current = false; // Q2 : réécrire la forme migrée dès ce chargement
+              showToast("Journal mis à jour vers le nouveau format.");
+            }
+          } else {
+            // Q1 : journal écrit par une version plus récente — ne rien charger,
+            // et le garde-fou de la sauvegarde empêche de l'écraser.
+            setStorageOk(false);
+            showToast("Ce journal vient d'une version plus récente de l'appli. Mets l'appli à jour.");
+          }
         }
       } catch (e) { /* première utilisation : clé absente */ }
       finally { setLoaded(true); }
@@ -365,6 +376,7 @@ export default function Programme() {
 
   useEffect(() => {
     if (!loaded) return;
+    if (!storageOk) return; // Q1 : stockage indisponible ou journal trop récent — ne pas écraser
     if (skipSave.current) { skipSave.current = false; return; }
     const t = setTimeout(async () => {
       try {
@@ -374,7 +386,7 @@ export default function Programme() {
       } catch (e) { setStorageOk(false); setSaveStatus("Non enregistré"); }
     }, 600);
     return () => clearTimeout(t);
-  }, [state, loaded]);
+  }, [state, loaded, storageOk]);
 
   useEffect(() => {
     if (!timer) return;
@@ -487,8 +499,13 @@ export default function Programme() {
     try {
       const parsed = JSON.parse(ioText);
       if (!parsed.logs) throw new Error("format");
-      setState({ logs: parsed.logs || {}, cardio: parsed.cardio || {}, checkin: parsed.checkin || {} });
-      showToast("Données importées");
+      const res = migrate(parsed);
+      if (!res.ok) {
+        showToast("Ce fichier a été créé par une version plus récente de l'appli. Mets l'appli à jour, puis réimporte.");
+        return;
+      }
+      setState({ logs: res.data.logs || {}, cardio: res.data.cardio || {}, checkin: res.data.checkin || {} });
+      showToast(res.migrated ? "Journal mis à jour vers le nouveau format." : "Données importées");
     } catch (e) { showToast("JSON invalide"); }
   };
 
