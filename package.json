@@ -4,23 +4,32 @@
   "description": "Programme d'entraînement 12 semaines — Simon",
   "type": "module",
   "scripts": {
-    "dev": "esbuild src/main.jsx --bundle --watch --servedir=public --loader:.jsx=jsx --jsx=automatic",
+    "dev": "esbuild src/main.jsx --bundle --watch=forever --servedir=public --outfile=public/dist/app.js --loader:.jsx=jsx --jsx=automatic --define:process.env.NODE_ENV='\"development\"'",
+    "dev:css": "tailwindcss -c tailwind.config.js -i input.css -o public/dist/app.css --watch",
     "build": "npm run build:js && npm run build:css",
     "build:js": "esbuild src/main.jsx --bundle --minify --format=iife --loader:.jsx=jsx --jsx=automatic --define:process.env.NODE_ENV='\"production\"' --outfile=public/dist/app.js",
     "build:css": "tailwindcss -c tailwind.config.js -i input.css -o public/dist/app.css --minify",
     "test": "echo 'Tests: none yet' && exit 0",
-    "predeploy": "npm run build"
+    "predeploy": "npm run build",
+    "release": "standard-version",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major"
   },
-  "keywords": ["training", "fitness", "12-week"],
+  "keywords": [
+    "training",
+    "fitness",
+    "12-week"
+  ],
   "author": "Simon",
   "license": "MIT",
   "devDependencies": {
     "esbuild": "^0.21.0",
+    "standard-version": "^9.5.0",
     "tailwindcss": "^3.4.0"
   },
   "dependencies": {
+    "lucide-react": "^0.383.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "lucide-react": "^0.383.0"
+    "react-dom": "^18.2.0"
   }
 }
