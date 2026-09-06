@@ -1,8 +1,8 @@
 node_modules/
-public/dist/
 *.log
 .env
 .env.local
 .DS_Store
 .cache/
 .vercel/
+public/dist/
