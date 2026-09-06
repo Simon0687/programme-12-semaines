@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
+import { SCHEMA_VERSION } from "./schema.js";
 
 /* =========================================================
    Programme 12 semaines — Simon
@@ -27,6 +28,8 @@ const num = (s) => {
   return Number.isNaN(n) ? null : n;
 };
 const fmt = (n) => (n == null ? "—" : String(Math.round(n * 100) / 100).replace(".", ","));
+/* Objet à écrire dans le stockage / l'export : schemaVersion frère de logs/cardio/checkin. */
+const withVersion = (state) => ({ schemaVersion: SCHEMA_VERSION, logs: state.logs, cardio: state.cardio, checkin: state.checkin });
 const roundTo = (x, inc) => (inc ? Math.round(x / inc) * inc : x);
 const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -366,7 +369,7 @@ export default function Programme() {
     const t = setTimeout(async () => {
       try {
         if (!STORE) throw new Error("no storage");
-        const r = await STORE.set(KEY, JSON.stringify(state), false);
+        const r = await STORE.set(KEY, JSON.stringify(withVersion(state)), false);
         setSaveStatus(r ? "Enregistré" : "Enregistrement échoué");
       } catch (e) { setStorageOk(false); setSaveStatus("Non enregistré"); }
     }, 600);
@@ -692,8 +695,8 @@ export default function Programme() {
             <Section title="Données : sauvegarde et restauration">
               <p>{storageOk ? "Le journal est enregistré automatiquement sur cet appareil." : "Stockage automatique indisponible ici."} Avant une mise à jour du fichier, exporte le JSON et colle-le dans le chat ou garde-le : il se réimporte ci-dessous.</p>
               <div className="flex gap-2 flex-wrap">
-                <Btn small onClick={() => copy(JSON.stringify(state))}><Copy size={14} />Exporter le JSON</Btn>
-                <Btn small onClick={() => setIoText(JSON.stringify(state))}>Afficher le JSON</Btn>
+                <Btn small onClick={() => copy(JSON.stringify(withVersion(state)))}><Copy size={14} />Exporter le JSON</Btn>
+                <Btn small onClick={() => setIoText(JSON.stringify(withVersion(state)))}>Afficher le JSON</Btn>
                 <Btn small onClick={importData} disabled={!ioText}>Importer le JSON collé</Btn>
               </div>
               <textarea value={ioText} onChange={(e) => setIoText(e.target.value)} rows={4} placeholder="Colle ici un JSON exporté pour le réimporter" className="w-full p-2 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400" />
