@@ -28,10 +28,8 @@ Issue: https://github.com/Simon0687/programme-12-semaines/issues/1
   - the `{ schemaVersion, data: { ... } }` envelope shape - deferred to #6 (see
     follow-ups);
   - building out the test suite for the progression logic - stays in #2;
-  - a persistent inline error line for import failures - separate improvement
-    issue (see follow-ups);
-  - a pre-migration backup copy of the journal - separate improvement issue (see
-    follow-ups);
+  - a persistent inline error line for import failures - issue #7;
+  - a pre-migration backup copy of the journal - issue #8;
   - turning export/import into real file download/upload;
   - renaming the `prog12_simon_v1` key.
 
@@ -121,12 +119,12 @@ progression logic.
 - **Annotate issue #6:** adopt the `{ schemaVersion, data: { ... } }` envelope
   when the stored format is reshaped there, instead of keeping `schemaVersion` as
   a bare sibling. One deliberate reshape rather than two.
-- **New improvement issue:** replace the transient toast for a rejected import
-  with a persistent inline message in the Plan import panel, so a missed rejection
-  no longer looks like "nothing happened".
-- **New improvement issue:** before the first post-migration save, keep a copy of
-  the pre-migration journal under a backup key, so a buggy migration shipped by
-  #3+ stays recoverable.
+- **Issue #7:** replace the transient toast for a rejected import with a
+  persistent inline message in the Plan import panel, so a missed rejection no
+  longer looks like "nothing happened".
+- **Issue #8:** before the first post-migration save, keep a copy of the
+  pre-migration journal under a backup key, so a buggy migration shipped by #3+
+  stays recoverable.
 - Real per-version migration functions arrive with #3, #4, #5; the v2 shape and a
   mandatory migration with #6.
 - Export/import is still clipboard + textarea; making it a downloadable/uploadable
@@ -142,7 +140,7 @@ sections above:
 1. `schemaVersion` placement -> sibling field now, envelope deferred to #6.
 2. `migrate()` tests -> minimal runner online in this issue, suite built out in #2.
 3. "File too new" message -> actionable wording (cause + fix).
-4. Rejected-import feedback -> toast for now, persistent inline line tracked as a
-   follow-up improvement issue.
+4. Rejected-import feedback -> toast for now, persistent inline line tracked as
+   issue #7.
 5. Migration performed -> one-time toast now; pre-migration backup safeguard
-   tracked as a follow-up improvement issue.
+   tracked as issue #8.
