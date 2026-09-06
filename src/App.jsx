@@ -392,6 +392,7 @@ export default function Programme() {
     SESSIONS.forEach((s) => { m[s.id] = !!(state.logs[`w${week}_${s.id}`] && state.logs[`w${week}_${s.id}`].done); });
     return m;
   }, [state, week]);
+  const weekDoneCount = useMemo(() => Object.values(doneMap).filter(Boolean).length, [doneMap]);
 
   useEffect(() => {
     const byDay = week === curWeek ? SESSIONS.find((s) => s.day === weekday) : null;
@@ -706,7 +707,14 @@ export default function Programme() {
         <nav className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700">
           <div className="max-w-md mx-auto grid grid-cols-4">
             {[["seance", "Séance"], ["semaine", "Semaine"], ["bilan", "Bilan"], ["plan", "Plan"]].map(([id, label]) => (
-              <button key={id} onClick={() => setTab(id)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${tab === id ? "text-amber-400 font-medium" : "text-slate-400"}`}>{label}</button>
+              <button key={id} onClick={() => setTab(id)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${tab === id ? "text-amber-400 font-medium" : "text-slate-400"}`}>
+                {label}
+                {id === "semaine" && (
+                  <span className={`ml-1 rounded-full px-1.5 py-0.5 text-xs ${weekDoneCount === 5 ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-800 text-slate-300"}`}>
+                    {weekDoneCount}/5
+                  </span>
+                )}
+              </button>
             ))}
           </div>
         </nav>
