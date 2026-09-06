@@ -9,7 +9,7 @@
     "build": "npm run build:js && npm run build:css",
     "build:js": "esbuild src/main.jsx --bundle --minify --format=iife --loader:.jsx=jsx --jsx=automatic --define:process.env.NODE_ENV='\"production\"' --outfile=public/dist/app.js",
     "build:css": "tailwindcss -c tailwind.config.js -i input.css -o public/dist/app.css --minify",
-    "test": "echo 'Tests: none yet' && exit 0",
+    "test": "node --test",
     "predeploy": "npm run build",
     "release": "standard-version",
     "release:minor": "standard-version --release-as minor",
