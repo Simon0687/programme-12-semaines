@@ -1,1 +1,1 @@
-module.exports = { content: ["./App.jsx", "./index.html"], theme: { extend: {} }, plugins: [] };
+module.exports = { content: ["./src/**/*.{jsx,js}", "./public/index.html"], theme: { extend: {} }, plugins: [] };

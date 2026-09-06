@@ -1,5 +1,5 @@
-const CACHE = "prog12-v1";
-const FILES = ["./", "./index.html", "./app.js", "./app.css", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
+const CACHE = "prog12-v2";
+const FILES = ["./", "./index.html", "./dist/app.js", "./dist/app.css", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
 });
