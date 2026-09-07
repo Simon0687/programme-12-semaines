@@ -4,13 +4,14 @@ import { SCHEMA_VERSION, migrate } from "./schema.js";
 import { V, SLOTS, SESSIONS, CORE, WARM, cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./program.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned } from "./progression.js";
 import { PLAN, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
+import { startDate } from "./profile.js";
 
 /* =========================================================
    Programme 12 semaines — Simon
    Départ lundi 7 septembre 2026. Données conservées via window.storage.
    ========================================================= */
 
-const START = new Date(2026, 8, 7);
+const START = startDate();
 const KEY = "prog12_simon_v1";
 const STORE = (() => {
   if (typeof window !== "undefined" && window.storage) return window.storage;
