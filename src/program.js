@@ -1,11 +1,55 @@
 /* =========================================================
    Données du programme 12 semaines — Simon
 
-   Le catalogue d'exercices (V), les créneaux bloc 1 / bloc 2 (SLOTS),
-   la structure des séances (SESSIONS) et les blocs d'abdos (CORE).
-   Extrait de App.jsx sans changement de forme (#2), pour que la logique
-   de progression soit testable hors navigateur. Le reste de la
-   séparation données / vue est le travail de #3.
+   Source unique de la structure du programme. Aucun import React :
+   chargeable par `node --test` (via progression.js) comme par App.jsx.
+   Extrait de App.jsx sans changement de forme (#2 : V, SLOTS, SESSIONS,
+   CORE ; #3 : WARM, cardioPlan, CARDIO_ITEMS, MOB_DAYS). La prose de
+   l'onglet Plan et les notes éditoriales de phaseOf() restent à sortir
+   dans #4 ; les données personnelles (date de départ, charges `start`)
+   dans #5.
+
+   ---------------------------------------------------------
+   V[id] — catalogue d'exercices (variantes)
+     name     libellé affiché
+     incr     pas de charge pour la progression, en kg. Absent => pas de
+              charge suivie (sideplank « time », abwheel « reps »).
+     start    charge de travail en S1, en kg. Absent => rampe « Paliers »
+              (≈ 50 → 75 → 100 % de la charge devinée).
+     perHand  charge par main (haltères) ; l'affichage ajoute « / main ».
+     unit     "kg" (implicite, barre/machine/poulie)
+              | "bw"    poids du corps, lest éventuel en kg
+              | "time"  tenue en secondes, pas de charge
+              | "reps"  répétitions au poids du corps, pas de charge
+              | "carry" port lesté chronométré (kg + secondes)
+     side     exécuté par côté ; l'affichage ajoute « par côté ».
+     cue      consigne technique.
+
+   SLOTS[id] — créneau d'une séance ; une variante s'y rattache par bloc
+     reps     [min, max] : répétitions, ou secondes si la variante
+              rattachée est "time" / "carry".
+     rest     repos en secondes.
+     key      exercice clé : dernière série AMRAP en S12, repris au Bilan.
+     fail     dernière série à l'échec autorisée dès S3 (jamais en S7).
+     b1       id de variante pour les semaines 1–6.
+     b2       id de variante pour les semaines 7–12.
+              (le choix b1/b2 se fait dans blockOf() — progression.js)
+
+   SESSIONS[] — séances, dans l'ordre d'affichage
+     id / name / sub   identifiant, titre, groupes musculaires
+     day               jour conseillé (1 = lundi … 6 = samedi)
+     warm              clé WARM ("upper" | "lower")
+     ex                [[slotId, nombre de séries dures], …]
+     core              clé CORE
+
+   CORE[id]  — bloc d'abdos : { label, ex: [[slotId, nSéries], …] }
+   WARM[k]   — protocole d'échauffement ("upper" | "lower") -> texte
+   cardioPlan(w) -> { z2, intervals | null, mob } : chaînes affichées.
+                    intervals est null en S1, S7 et S12.
+   CARDIO_ITEMS[] — lignes de la check-list cardio : { id, label, when }.
+                    id "int" = intervalles, masquée quand
+                    cardioPlan(w).intervals est null.
+   MOB_DAYS[] — libellés des 3 jours de mobilité (cases à cocher).
    ========================================================= */
 
 /* ---------- Variantes (exercices) ---------- */
@@ -93,3 +137,28 @@ export const CORE = {
   coreB: { label: "Abdos B — relevé de jambes + anti-flexion latérale", ex: [["hlr", 2], ["sideplank", 2]] },
   coreC: { label: "Abdos C — anti-extension + portés", ex: [["abwheel", 2], ["carry", 2]] },
 };
+
+/* ---------- Échauffement ---------- */
+export const WARM = {
+  upper: "5–10 min : rotations externes à l'élastique 2 × 15 ; open book ou extension thoracique sur rouleau, 10 par côté ; glissés au mur 10 ; puis montée en charge sur le premier exercice : 50 % × 8, 70 % × 4, 85 % × 2.",
+  lower: "5–10 min : cat-camel 10 ; 90/90 hanches 1 min par côté ; dorsiflexion cheville au mur 10 par côté ; pont fessier 15 ; McGill court (curl-up 5, planche latérale 15 s par côté, bird dog 5 par côté) ; montée en charge sur le squat ou le hip thrust : 50 % × 6, 70 % × 4, 85 % × 2.",
+};
+
+/* ---------- Cardio et mobilité ---------- */
+export const cardioPlan = (w) => {
+  const z2 = w === 7 ? 30 : Math.min(60, 35 + 5 * Math.floor((w - 1) / 2));
+  const intervals = w >= 2 && w <= 6 ? "4 × 4 min en Z4 (~150–165 bpm), 3 min récup entre, 5 min échauffement et retour au calme. Cadence 24–28, drag factor modéré."
+    : w >= 8 && w <= 11 ? "5 × 4 min en Z4 (~150–165 bpm), 3 min récup, cadence 24–28." : null;
+  return {
+    z2: `${z2} min Z2 : ~105–115 W, 130–138 bpm, cadence 18–20, drag factor 110–120.${w === 1 ? " Recalibrer : allure où tu peux parler, dérive de FC < 5 % sur 30 min à puissance fixe, sinon −5 W." : ""}`,
+    intervals,
+    mob: "10–15 min : McGill Big 3 en pyramide descendante (curl-up modifié, planche latérale, bird dog ; 6-4-2 tenues de 8–10 s), 90/90 + couch stretch, extension et rotation thoracique, CARs d'épaule + rotation externe.",
+  };
+};
+
+export const CARDIO_ITEMS = [
+  { id: "z2a", label: "Rameur Z2", when: "mercredi, après Haut B (ou le soir)" },
+  { id: "int", label: "Rameur intervalles", when: "jeudi" },
+  { id: "z2b", label: "Rameur Z2", when: "dimanche" },
+];
+export const MOB_DAYS = ["mardi", "jeudi", "dimanche"];
