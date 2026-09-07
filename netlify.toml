@@ -9,4 +9,4 @@
 
 [build.environment]
   # `node --test` is stable from Node 20. Raise to match the dashboard if needed.
-  NODE_VERSION = "20"
+  NODE_VERSION = "24"
