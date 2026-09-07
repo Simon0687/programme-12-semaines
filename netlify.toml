@@ -1,0 +1,12 @@
+# Netlify build configuration.
+# The test suite gates the deploy: `npm test` must pass before `npm run build`
+# runs, so a drift in the progression logic (or the schema migrations) fails
+# the branch preview and production build instead of shipping silently.
+
+[build]
+  command = "npm test && npm run build"
+  publish = "public"
+
+[build.environment]
+  # `node --test` is stable from Node 20. Raise to match the dashboard if needed.
+  NODE_VERSION = "20"
