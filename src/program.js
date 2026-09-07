@@ -4,10 +4,10 @@
    Source unique de la structure du programme. Aucun import React :
    chargeable par `node --test` (via progression.js) comme par App.jsx.
    Extrait de App.jsx sans changement de forme (#2 : V, SLOTS, SESSIONS,
-   CORE ; #3 : WARM, cardioPlan, CARDIO_ITEMS, MOB_DAYS). La prose de
-   l'onglet Plan et les notes éditoriales de phaseOf() restent à sortir
-   dans #4 ; les données personnelles (date de départ, charges `start`)
-   dans #5.
+   CORE ; #3 : WARM, cardioPlan, CARDIO_ITEMS, MOB_DAYS ; #4 :
+   CARDIO_DAY_NOTES). La prose de l'onglet Plan et les notes de phaseOf()
+   sont sorties dans src/plan.js (#4). Les données personnelles (date de
+   départ, charges `start`) restent à sortir dans #5.
 
    ---------------------------------------------------------
    V[id] — catalogue d'exercices (variantes)
@@ -50,6 +50,9 @@
                     id "int" = intervalles, masquée quand
                     cardioPlan(w).intervals est null.
    MOB_DAYS[] — libellés des 3 jours de mobilité (cases à cocher).
+   CARDIO_DAY_NOTES[jour] — fragment cardio ajouté à la ligne « Aujourd'hui »
+                    de la Séance (jour : 0 = dimanche … 6 = samedi ;
+                    jours sans cardio absents).
    ========================================================= */
 
 /* ---------- Variantes (exercices) ---------- */
@@ -162,3 +165,10 @@ export const CARDIO_ITEMS = [
   { id: "z2b", label: "Rameur Z2", when: "dimanche" },
 ];
 export const MOB_DAYS = ["mardi", "jeudi", "dimanche"];
+
+export const CARDIO_DAY_NOTES = {
+  0: "rameur Z2 + mobilité",
+  2: " puis mobilité",
+  3: " puis rameur Z2",
+  4: "rameur intervalles + mobilité",
+};

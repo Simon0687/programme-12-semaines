@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
 import { SCHEMA_VERSION, migrate } from "./schema.js";
-import { V, SLOTS, SESSIONS, CORE, WARM, cardioPlan, CARDIO_ITEMS, MOB_DAYS } from "./program.js";
+import { V, SLOTS, SESSIONS, CORE, WARM, cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./program.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned } from "./progression.js";
+import { PLAN, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 
 /* =========================================================
    Programme 12 semaines — Simon
@@ -326,7 +327,7 @@ export default function Programme() {
     if (dayIdx < 0) return `Le programme commence lundi ${dateLabel(START)}. Aujourd'hui : ${DAYNAMES[weekday]} ${dateLabel(today)}.`;
     if (dayIdx >= 84) return "Les 12 semaines sont terminées : bilan et programme suivant.";
     const s = SESSIONS.find((x) => x.day === weekday);
-    const extra = weekday === 3 ? " puis rameur Z2" : weekday === 4 ? "rameur intervalles + mobilité" : weekday === 0 ? "rameur Z2 + mobilité" : weekday === 2 ? " puis mobilité" : "";
+    const extra = CARDIO_DAY_NOTES[weekday] || "";
     return `Aujourd'hui, ${DAYNAMES[weekday]} ${dateLabel(today)} : ${s ? `${s.name} (${s.sub})${extra}` : extra}.`;
   })();
 
@@ -377,7 +378,7 @@ export default function Programme() {
               <div>
                 <div className="pb-2">
                   <div className="text-xl font-semibold">{session.name} <span className="text-slate-400 font-normal text-base">— {session.sub}</span></div>
-                  <div className="text-sm text-slate-400">Jour conseillé : {DAYNAMES[session.day]}. {setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week)} séries dures + abdos. {phase.note}</div>
+                  <div className="text-sm text-slate-400">Jour conseillé : {DAYNAMES[session.day]}. {setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week)} séries dures + abdos. {PHASE_NOTES[phase.id]}</div>
                   {log.done && <div className="mt-2 text-sm text-emerald-400 inline-flex items-center gap-1"><Check size={15} />Validée le {log.date}. <button onClick={reopen} className="underline text-slate-300 ml-1 focus:outline-none">Rouvrir</button></div>}
                 </div>
                 <Section title="Échauffement">{WARM[session.warm]}</Section>
@@ -409,7 +410,7 @@ export default function Programme() {
 
         {tab === "semaine" && (
           <div className="px-4">
-            <p className="text-sm text-slate-300 mt-3">{phase.note}</p>
+            <p className="text-sm text-slate-300 mt-3">{PHASE_NOTES[phase.id]}</p>
             <div className="mt-3 divide-y divide-slate-700 border-y border-slate-700">
               {SESSIONS.map((s) => {
                 const l = state.logs[`w${week}_${s.id}`];
@@ -456,72 +457,8 @@ export default function Programme() {
 
         {tab === "plan" && (
           <div className="px-4">
-            <p className="text-sm text-slate-300 mt-3">Référence du programme. Les modifications se font dans le chat, le fichier est régénéré.</p>
-            <Section title="Structure des 12 semaines" open>
-              <table className="w-full text-sm">
-                <tbody>
-                  {[["S1", "Calibration, 2–3 RIR"], ["S2–S6", "Bloc 1, 1 RIR, double progression"], ["S7", "Décharge (volume −50 %, charges −15 %, 3–4 RIR) et calibration des variantes du bloc 2"], ["S8–S11", "Bloc 2, 1 RIR"], ["S12", "Bloc 2, dernière série AMRAP sur les exercices clés, mesures, re-baseline"]].map(([a, b]) => (
-                    <tr key={a} className="border-t border-slate-700"><td className="py-1.5 pr-3 text-slate-400 whitespace-nowrap align-top">{a}</td><td className="py-1.5">{b}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-              <p>Ancres conservées sur les deux blocs : développé couché, squat, hip thrust. Tout le reste change de variante en S7. Point volume à la fin de S4 : on décide ensemble s'il faut ajouter des séries sur les groupes prioritaires dès S5.</p>
-            </Section>
-            <Section title="Volume par semaine, et où il se fait">
-              <table className="w-full text-sm">
-                <tbody>
-                  {[
-                    ["Delt latéraux", "5", "Haut A 2 + Haut C 3"],
-                    ["Delt postérieurs", "4", "Haut A 2 + Haut B 2"],
-                    ["Delt antérieurs", "3", "Haut C 3 (développé assis) + les presses pecs"],
-                    ["Pecs", "8", "Haut A 6 (couché 3, incliné 3) + Haut C 2 (pec deck)"],
-                    ["Biceps", "5", "Haut B 2 + Haut C 3"],
-                    ["Triceps", "5", "Haut A 2 + Haut C 3"],
-                    ["Dos", "7", "Haut B 5 (tractions 3, rowing 2) + Bas B 2 (tirage serré)"],
-                    ["Quadriceps", "5", "Bas A 3 (squat) + Bas B 2 (presse)"],
-                    ["Ischios et fessiers", "6", "Bas A 3 (leg curl) + Bas B 3 (hip thrust)"],
-                    ["Mollets", "6", "Bas A 3 + Bas B 3"],
-                    ["Abdos chargés", "10", "2 séries à chaque séance (crunch, relevé de jambes, ab wheel)"],
-                    ["Gainage anti-mouvement", "10", "2 séries à chaque séance (Pallof, planche latérale, carry) + McGill en mobilité"],
-                  ].map(([g, n, o]) => (
-                    <tr key={g} className="border-t border-slate-700"><td className="py-1.5 pr-2">{g}</td><td className="py-1.5 pr-2 text-amber-400 text-right">{n}</td><td className="py-1.5 text-slate-400">{o}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-              <p>Une « série dure » = une série de travail menée à 1 RIR (ou à l'échec). Les séries d'échauffement ne comptent pas. Lecture : les delt latéraux font 5 séries dures par semaine, réparties sur 2 séances.</p>
-            </Section>
-            <Section title="Règles de progression">
-              <p>Double progression. Quand toutes les séries d'un exercice atteignent le haut de la fourchette à ≤ 1 RIR, la charge monte à la séance suivante : barre +2,5 kg haut du corps, +5 kg bas du corps ; haltères +2 kg ; machines et poulies +5 kg ou le plus petit incrément disponible. Si 2 séries ou plus tombent sous le bas de la fourchette, on garde la charge ; si ça se répète, −5 %. L'appli calcule la charge prévue à partir de tes séances validées.</p>
-              <p>Calibration (S1 et S7) : toutes les séries au haut de la fourchette avec ≥ 3 RIR → +5 % ; une série sous le bas de la fourchette → −5 %.</p>
-              <p>Sur les isolations, une rep, une demi-rep ou une exécution plus stricte à charge égale comptent comme un progrès. Tractions : lest +2,5 kg dès 3 × 8 à ≤ 1 RIR. Relevé de jambes : genoux fléchis → jambes tendues → haltère entre les pieds. Planche latérale : +5 s par côté.</p>
-              <p>Repos : 2–3 min sur les gros mouvements, 1–2 min sur les isolations, 1 min sur les abdos. Descente 2–4 s, montée forte. Concentrique dynamique, pas de ralentissement pour « sentir ».</p>
-            </Section>
-            <Section title="Décharge : déclencheurs et recette">
-              <p>Déclencheurs : baisse de performance sur ≥ 2 exercices clés pendant 2 séances de suite malgré sommeil et alimentation corrects ; douleur articulaire ≥ 3/10 qui persiste plus de 48 h ou augmente ; sommeil &lt; 6 h plusieurs nuits ; FC de repos ou HRV dégradées 3 jours ou plus ; RIR ressenti qui dérive.</p>
-              <p>Décharge complète : mêmes exercices, volume −50 %, charges −10 à −20 %, 3–4 RIR, cardio Z2 facile, une semaine. Allègement ciblé (une articulation qui se plaint) : on retire uniquement les exercices qui la sollicitent, on garde le reste, on remplace par une variante indolore. Toute douleur nouvelle = arrêt de l'exercice concerné, avis médical si elle persiste.</p>
-            </Section>
-            <Section title="Plan de repli (séances manquées)">
-              <p>4 séances : Haut A, Haut B, Haut C, plus une seule séance jambes fusionnée (squat 3, hip thrust 2, leg curl 2, mollets 3, abdos B).</p>
-              <p>3 séances : Haut A, Haut C, plus « tirage + jambes » (tractions 3, rowing appuyé 2, squat 3, leg curl 2, mollets 2, abdos B).</p>
-              <p>2 séances : Haut C, plus un full body (squat 3, tractions 3, développé couché 3, élévations latérales 2, leg curl 2, abdos A).</p>
-              <p>On ne rattrape jamais la semaine suivante, on reprend le plan. Les groupes prioritaires ne sautent pas deux semaines de suite : si une semaine a été réduite, la suivante commence par Haut C.</p>
-            </Section>
-            <Section title="Cardio et mobilité">
-              <p>Rameur Z2 deux fois par semaine (mercredi après Haut B, dimanche) : 35 min en S1–S2, +5 min toutes les deux semaines jusqu'à 60 min en S12, 30 min faciles en S7. Cibles ~105–115 W, 130–138 bpm, cadence 18–20, drag factor 110–120. La durée progresse d'abord, la puissance ensuite.</p>
-              <p>Intervalles le jeudi (optionnel, S2–S6 et S8–S11) : 4 × 4 min en Z4 puis 5 × 4 min en bloc 2, 3 min de récupération, cadence 24–28 pour limiter la charge lombaire. Toujours à 48 h d'une séance jambes. C'est la première chose qu'on retire si un déclencheur de décharge s'allume.</p>
-              <p>Mobilité 10–15 min, 3 fois par semaine (mardi, jeudi, dimanche) : McGill Big 3 en pyramide descendante, 90/90 et couch stretch, thoracique, épaules. Échauffement spécifique avant chaque séance (voir la séance).</p>
-            </Section>
-            <Section title="Nutrition">
-              <p>Maintenance estimée ≈ 3 150 kcal (Mifflin 1 916 et Katch-McArdle 2 071 → base 2 000 ; × 1,4 hors sport ; + ~370 kcal/jour d'entraînement). Départ : 3 400 kcal par jour, 7 jours sur 7. Protéines 185 g, lipides 85 g, glucides 470 g. Quatre repas à 40–50 g de protéines, glucides concentrés autour des séances.</p>
-              <p>Lecture des deux premières semaines : +0,5 à 1 kg d'eau et de glycogène en S1, on juge la pente entre la moyenne de S2 et celle de S4. Pente +0,2–0,3 kg/sem → maintenance confirmée. Poids stable → 3 650 kcal. Plus de +0,4 kg/sem → 3 200 kcal.</p>
-              <p>Ajustements (toutes les 2 semaines) : gain &gt; 0,4 kg/sem sur 2 semaines ou taille +1 cm sur 2 semaines → −150 à −200 kcal ; gain &lt; 0,1 kg/sem sur 2 semaines → +100 à +150 kcal ; taille +3 cm cumulés ou masse grasse estimée ≥ 15–16 % → retour à maintenance et réévaluation. Cible : 92,5–93,5 kg fin S12.</p>
-              <p>Journée type, jour d'entraînement (~3 400 kcal) : matin, 100 g de flocons d'avoine, 300 ml de lait, une banane, 30 g de whey, 20 g d'amandes. Midi, 150 g de poulet, 120 g de riz basmati (cru), légumes, une cuillère d'huile d'olive, un yaourt grec. 60–90 min avant la séance, 200 g de fromage blanc, 2 tranches de pain complet et de la confiture. Soir, 150 g de saumon ou de bœuf 5 %, 300 g de pommes de terre, légumes, une cuillère d'huile. Collation, 250 g de fromage blanc, 30 g de miel, 30 g de noix. Jour de repos : mêmes totaux, la collation pré-séance devient un goûter.</p>
-              <p>Version minimale, les 4 règles qui tiennent quand la semaine part en vrille : quatre repas avec 40 g de protéines ; pesée chaque matin ; mètre ruban et bilan copié-collé le dimanche ; le plancher alimentaire ne dépend pas de la séance, séance ratée = on mange pareil.</p>
-              <p>Optionnel : créatine 3–5 g/j, whey pour atteindre 185 g, vitamine D 1 000–2 000 UI/j d'octobre à mars, caféine 100–200 mg avant séance.</p>
-            </Section>
-            <Section title="Charges de départ (S1)">
-              <p>Développé couché 72,5 kg ; squat 105 kg (+5 kg en S2 si ≥ 3 RIR à 8 reps) ; développé épaules haltères 26 kg par main ; tirage vertical serré 90 kg ; tractions au poids du corps ; développé incliné haltères 30 kg par main à confirmer. Tout le reste en paliers : 50 → 75 → 100 % de la charge devinée, la première série dans la fourchette à 2–3 RIR devient la charge de travail. Hip thrust : paliers depuis 60 kg.</p>
-            </Section>
+            <p className="text-sm text-slate-300 mt-3">{PLAN_INTRO}</p>
+            <PlanContent />
             <Section title="Données : sauvegarde et restauration">
               <p>{storageOk ? "Le journal est enregistré automatiquement sur cet appareil." : "Stockage automatique indisponible ici."} Avant une mise à jour du fichier, exporte le JSON et colle-le dans le chat ou garde-le : il se réimporte ci-dessous.</p>
               <div className="flex gap-2 flex-wrap">
@@ -554,6 +491,39 @@ export default function Programme() {
       </div>
     </div>
   );
+}
+
+/* ---------- Onglet Plan : rendu des blocs de src/plan.js ---------- */
+function Block({ block }) {
+  if (block.t === "p") return <p>{block.text}</p>;
+  if (block.t === "table" && block.variant === "weeks")
+    return (
+      <table className="w-full text-sm">
+        <tbody>
+          {block.rows.map(([a, b]) => (
+            <tr key={a} className="border-t border-slate-700"><td className="py-1.5 pr-3 text-slate-400 whitespace-nowrap align-top">{a}</td><td className="py-1.5">{b}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  if (block.t === "table" && block.variant === "volume")
+    return (
+      <table className="w-full text-sm">
+        <tbody>
+          {block.rows.map(([g, n, o]) => (
+            <tr key={g} className="border-t border-slate-700"><td className="py-1.5 pr-2">{g}</td><td className="py-1.5 pr-2 text-amber-400 text-right">{n}</td><td className="py-1.5 text-slate-400">{o}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  return null;
+}
+function PlanContent() {
+  return PLAN.map((s) => (
+    <Section key={s.id} title={s.title} open={s.open}>
+      {s.blocks.map((b, i) => <Block key={i} block={b} />)}
+    </Section>
+  ));
 }
 
 function CardioView({ week, cardio, ca, setCardio, toggleMob, compact }) {

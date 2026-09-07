@@ -6,8 +6,8 @@
    dépendent (num, fmt, roundTo, blockOf, phaseOf, setsFor). Aucun import
    React : ce module est chargeable par `node --test`.
 
-   Les notes éditoriales de phaseOf() voyagent ici temporairement ;
-   #4 (contenu de l'onglet Plan) les relogera.
+   phaseOf(w) renvoie { id, label, rir }. Les notes éditoriales par phase
+   sont dans src/plan.js (PHASE_NOTES), sorties du moteur en #4.
    ========================================================= */
 
 import { V, SLOTS, SESSIONS } from "./program.js";
@@ -21,11 +21,11 @@ export const fmt = (n) => (n == null ? "—" : String(Math.round(n * 100) / 100)
 export const roundTo = (x, inc) => (inc ? Math.round(x / inc) * inc : x);
 
 export const phaseOf = (w) =>
-  w === 1 ? { id: "calib", label: "Calibration", rir: "2–3", note: "Séries à 2–3 RIR pour valider les charges. Exercices sans référence : paliers (≈ 50 → 75 → 100 % de la charge devinée), la première série dans la fourchette à 2–3 RIR devient la charge de travail." }
-  : w <= 6 ? { id: "b1", label: "Bloc 1", rir: "1", note: "Toutes les séries à 1 RIR. Dès S3, dernière série à l'échec autorisée sur les exercices stables (marqués ⚡)." }
-  : w === 7 ? { id: "deload", label: "Décharge et calibration du bloc 2", rir: "3–4", note: "Volume −50 %, charges −15 %, 3–4 RIR, cardio Z2 facile. Les nouvelles variantes du bloc 2 sont introduites cette semaine à 3–4 RIR : elles arrivent calibrées en S8." }
-  : w <= 11 ? { id: "b2", label: "Bloc 2", rir: "1", note: "Variantes tournées, ancres conservées (couché, squat, hip thrust). 1 RIR, dernière série à l'échec autorisée sur les ⚡." }
-  : { id: "bilan", label: "Bloc 2, semaine bilan", rir: "1", note: "Dernière séance de chaque exercice clé : dernière série en AMRAP à la charge prévue (re-baseline par Epley). Mesures : poids moyen, tour de taille, photos." };
+  w === 1 ? { id: "calib", label: "Calibration", rir: "2–3" }
+  : w <= 6 ? { id: "b1", label: "Bloc 1", rir: "1" }
+  : w === 7 ? { id: "deload", label: "Décharge et calibration du bloc 2", rir: "3–4" }
+  : w <= 11 ? { id: "b2", label: "Bloc 2", rir: "1" }
+  : { id: "bilan", label: "Bloc 2, semaine bilan", rir: "1" };
 export const blockOf = (w) => (w <= 6 ? "b1" : "b2");
 export const setsFor = (n, w) => (w === 7 ? Math.ceil(n / 2) : n);
 
