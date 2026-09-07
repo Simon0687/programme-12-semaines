@@ -23,7 +23,17 @@
                     (progression.js). Clés = les id renvoyés par
                     phaseOf() : calib | b1 | deload | b2 | bilan.
                     Lu par App.jsx (sous-titre Séance, entête Semaine).
+
+   Les chiffres personnels cités dans les sections « Charges de départ »
+   et « Nutrition » sont composés depuis src/profile.js (#5) : une valeur,
+   un seul foyer. La dérivation Mifflin/Katch et le menu-type restent en
+   prose littérale.
    ========================================================= */
+
+import { PROFILE, STARTING_LOADS } from "./profile.js";
+
+const kg = (n) => String(n).replace(".", ",");                       // 72.5 -> "72,5"
+const sp = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");   // 3150 -> "3 150"
 
 export const PLAN_INTRO = "Référence du programme. Les modifications se font dans le chat, le fichier est régénéré.";
 
@@ -113,19 +123,19 @@ export const PLAN = [
     id: "nutrition",
     title: "Nutrition",
     blocks: [
-      { t: "p", text: "Maintenance estimée ≈ 3 150 kcal (Mifflin 1 916 et Katch-McArdle 2 071 → base 2 000 ; × 1,4 hors sport ; + ~370 kcal/jour d'entraînement). Départ : 3 400 kcal par jour, 7 jours sur 7. Protéines 185 g, lipides 85 g, glucides 470 g. Quatre repas à 40–50 g de protéines, glucides concentrés autour des séances." },
+      { t: "p", text: `Maintenance estimée ≈ ${sp(PROFILE.maintenanceKcal)} kcal (Mifflin 1 916 et Katch-McArdle 2 071 → base 2 000 ; × 1,4 hors sport ; + ~370 kcal/jour d'entraînement). Départ : ${sp(PROFILE.startKcal)} kcal par jour, 7 jours sur 7. Protéines ${PROFILE.macros.p} g, lipides ${PROFILE.macros.f} g, glucides ${PROFILE.macros.c} g. Quatre repas à 40–50 g de protéines, glucides concentrés autour des séances.` },
       { t: "p", text: "Lecture des deux premières semaines : +0,5 à 1 kg d'eau et de glycogène en S1, on juge la pente entre la moyenne de S2 et celle de S4. Pente +0,2–0,3 kg/sem → maintenance confirmée. Poids stable → 3 650 kcal. Plus de +0,4 kg/sem → 3 200 kcal." },
-      { t: "p", text: "Ajustements (toutes les 2 semaines) : gain > 0,4 kg/sem sur 2 semaines ou taille +1 cm sur 2 semaines → −150 à −200 kcal ; gain < 0,1 kg/sem sur 2 semaines → +100 à +150 kcal ; taille +3 cm cumulés ou masse grasse estimée ≥ 15–16 % → retour à maintenance et réévaluation. Cible : 92,5–93,5 kg fin S12." },
-      { t: "p", text: "Journée type, jour d'entraînement (~3 400 kcal) : matin, 100 g de flocons d'avoine, 300 ml de lait, une banane, 30 g de whey, 20 g d'amandes. Midi, 150 g de poulet, 120 g de riz basmati (cru), légumes, une cuillère d'huile d'olive, un yaourt grec. 60–90 min avant la séance, 200 g de fromage blanc, 2 tranches de pain complet et de la confiture. Soir, 150 g de saumon ou de bœuf 5 %, 300 g de pommes de terre, légumes, une cuillère d'huile. Collation, 250 g de fromage blanc, 30 g de miel, 30 g de noix. Jour de repos : mêmes totaux, la collation pré-séance devient un goûter." },
+      { t: "p", text: `Ajustements (toutes les 2 semaines) : gain > 0,4 kg/sem sur 2 semaines ou taille +1 cm sur 2 semaines → −150 à −200 kcal ; gain < 0,1 kg/sem sur 2 semaines → +100 à +150 kcal ; taille +3 cm cumulés ou masse grasse estimée ≥ 15–16 % → retour à maintenance et réévaluation. Cible : ${kg(PROFILE.targetWeightKg[0])}–${kg(PROFILE.targetWeightKg[1])} kg fin S12.` },
+      { t: "p", text: `Journée type, jour d'entraînement (~${sp(PROFILE.startKcal)} kcal) : matin, 100 g de flocons d'avoine, 300 ml de lait, une banane, 30 g de whey, 20 g d'amandes. Midi, 150 g de poulet, 120 g de riz basmati (cru), légumes, une cuillère d'huile d'olive, un yaourt grec. 60–90 min avant la séance, 200 g de fromage blanc, 2 tranches de pain complet et de la confiture. Soir, 150 g de saumon ou de bœuf 5 %, 300 g de pommes de terre, légumes, une cuillère d'huile. Collation, 250 g de fromage blanc, 30 g de miel, 30 g de noix. Jour de repos : mêmes totaux, la collation pré-séance devient un goûter.` },
       { t: "p", text: "Version minimale, les 4 règles qui tiennent quand la semaine part en vrille : quatre repas avec 40 g de protéines ; pesée chaque matin ; mètre ruban et bilan copié-collé le dimanche ; le plancher alimentaire ne dépend pas de la séance, séance ratée = on mange pareil." },
-      { t: "p", text: "Optionnel : créatine 3–5 g/j, whey pour atteindre 185 g, vitamine D 1 000–2 000 UI/j d'octobre à mars, caféine 100–200 mg avant séance." },
+      { t: "p", text: `Optionnel : créatine 3–5 g/j, whey pour atteindre ${PROFILE.macros.p} g, vitamine D 1 000–2 000 UI/j d'octobre à mars, caféine 100–200 mg avant séance.` },
     ],
   },
   {
     id: "startloads",
     title: "Charges de départ (S1)",
     blocks: [
-      { t: "p", text: "Développé couché 72,5 kg ; squat 105 kg (+5 kg en S2 si ≥ 3 RIR à 8 reps) ; développé épaules haltères 26 kg par main ; tirage vertical serré 90 kg ; tractions au poids du corps ; développé incliné haltères 30 kg par main à confirmer. Tout le reste en paliers : 50 → 75 → 100 % de la charge devinée, la première série dans la fourchette à 2–3 RIR devient la charge de travail. Hip thrust : paliers depuis 60 kg." },
+      { t: "p", text: `Développé couché ${kg(STARTING_LOADS.dc)} kg ; squat ${kg(STARTING_LOADS.squat)} kg (+5 kg en S2 si ≥ 3 RIR à 8 reps) ; développé épaules haltères ${kg(STARTING_LOADS.ohp_db)} kg par main ; tirage vertical serré ${kg(STARTING_LOADS.pd_close)} kg ; tractions au poids du corps ; développé incliné haltères ${kg(STARTING_LOADS.incl_db)} kg par main à confirmer. Tout le reste en paliers : 50 → 75 → 100 % de la charge devinée, la première série dans la fourchette à 2–3 RIR devient la charge de travail. Hip thrust : paliers depuis 60 kg.` },
     ],
   },
 ];
