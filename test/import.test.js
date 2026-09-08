@@ -33,19 +33,31 @@ test("parseJournalImport : version trop récente => too-new", () => {
   assert.equal(res.reason, "too-new");
 });
 
-test("parseJournalImport : journal valide => ok, contenu préservé", () => {
-  const journal = { schemaVersion: SCHEMA_VERSION, logs: { w1_hautA: { done: true } }, cardio: {}, checkin: {} };
+test("parseJournalImport : journal v2 (enveloppe multi-programme) valide => ok, contenu préservé", () => {
+  const journal = {
+    schemaVersion: SCHEMA_VERSION,
+    activeProgramId: "x",
+    programs: { x: { definition: null, logs: { w1_hautA: { done: true } }, cardio: {}, checkin: {} } },
+  };
   const res = parseJournalImport(JSON.stringify(journal));
   assert.equal(res.ok, true);
   assert.equal(res.migrated, false);
-  assert.deepEqual(res.data.logs, { w1_hautA: { done: true } });
+  assert.deepEqual(res.data.programs.x.logs, { w1_hautA: { done: true } });
 });
 
-test("parseJournalImport : journal non versionné => ok, lu comme v1", () => {
-  const res = parseJournalImport(JSON.stringify({ logs: {}, cardio: {}, checkin: {} }));
+test("parseJournalImport : journal v1 (plat, sans schemaVersion) => ok, migré vers v2 (#6)", () => {
+  const res = parseJournalImport(JSON.stringify({ logs: { w1_hautA: { done: true } }, cardio: {}, checkin: {} }));
   assert.equal(res.ok, true);
-  assert.equal(res.migrated, false);
+  assert.equal(res.migrated, true);
   assert.equal(res.data.schemaVersion, SCHEMA_VERSION);
+  assert.ok(res.data.activeProgramId);
+  assert.deepEqual(res.data.programs[res.data.activeProgramId].logs, { w1_hautA: { done: true } });
+});
+
+test("parseJournalImport : accepte .programs à la racine, pas seulement .logs (#6)", () => {
+  const res = parseJournalImport(JSON.stringify({ schemaVersion: SCHEMA_VERSION, activeProgramId: "x", programs: { x: { definition: null, logs: {}, cardio: {}, checkin: {} } } }));
+  assert.notEqual(res.reason, "not-a-journal");
+  assert.equal(res.ok, true);
 });
 
 test("parseJournalImport : un verdict positif ne porte ni reason ni message", () => {

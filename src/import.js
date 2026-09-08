@@ -21,7 +21,7 @@ import { migrate } from "./schema.js";
 
 export const IMPORT_MESSAGES = {
   "invalid-json": "Le texte collé n'est pas du JSON valide.",
-  "not-a-journal": "Ce JSON ne contient pas de journal (clé « logs » absente).",
+  "not-a-journal": "Ce JSON ne contient pas de journal (clé « logs » ou « programs » absente).",
   "too-new": "Ce fichier a été créé par une version plus récente de l'appli. Mets l'appli à jour, puis réimporte.",
   "migration-failed": "Ce journal n'a pas pu être mis à jour vers le format actuel.",
 };
@@ -38,9 +38,10 @@ export function parseJournalImport(text) {
 
   /* Ce garde-fou précède la lecture de .logs : JSON.parse("null") rend null,
      dont l'accès lèverait un TypeError que le catch ci-dessus aurait annoncé
-     « JSON invalide » sur un document valide. */
+     « JSON invalide » sur un document valide. .logs (v1) ou .programs (v2,
+     #6) : un journal exporté après #6 n'a plus de .logs à la racine. */
   if (!parsed || typeof parsed !== "object") return reject("not-a-journal");
-  if (!parsed.logs) return reject("not-a-journal");
+  if (!parsed.logs && !parsed.programs) return reject("not-a-journal");
 
   let res;
   try {

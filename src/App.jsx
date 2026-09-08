@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
-import { SCHEMA_VERSION, migrate } from "./schema.js";
+import { SCHEMA_VERSION, DEFAULT_PROGRAM_ID, migrate } from "./schema.js";
 import { parseJournalImport } from "./import.js";
 import { backupOnce, listBackups } from "./backup.js";
 import { buildProgram } from "./program.js";
@@ -33,8 +33,17 @@ const LOAD_ERROR_MESSAGE = "Le journal enregistré n'a pas pu être mis à jour 
 const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 const DAYNAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
-/* Objet à écrire dans le stockage / l'export : schemaVersion frère de logs/cardio/checkin. */
-const withVersion = (state) => ({ schemaVersion: SCHEMA_VERSION, logs: state.logs, cardio: state.cardio, checkin: state.checkin });
+/* Objet à écrire dans le stockage / l'export : l'enveloppe multi-programme
+   au complet, schemaVersion frère d'activeProgramId/programs (#6). */
+const withVersion = (journal) => ({ schemaVersion: SCHEMA_VERSION, activeProgramId: journal.activeProgramId, programs: journal.programs });
+/* Première utilisation : aucune clé en stockage. Un seul cycle, celui fourni
+   avec l'appli (definition: null), sous la même identité qu'un journal v1
+   migré (#6) — pas de distinction visible entre "toujours été v2" et
+   "migré depuis v1". */
+const emptyJournal = () => ({
+  activeProgramId: DEFAULT_PROGRAM_ID,
+  programs: { [DEFAULT_PROGRAM_ID]: { definition: null, logs: {}, cardio: {}, checkin: {} } },
+});
 const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const dateLabel = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
@@ -158,7 +167,13 @@ export default function Programme() {
   const curWeek = Math.min(12, Math.max(1, Math.floor(dayIdx / 7) + 1));
   const weekday = today.getDay();
 
-  const [state, setState] = useState({ logs: {}, cardio: {}, checkin: {} });
+  const [journal, setJournal] = useState(emptyJournal());
+  const active = journal.programs[journal.activeProgramId];
+  const state = { logs: active.logs, cardio: active.cardio, checkin: active.checkin };
+  const updateActive = (fn) => setJournal((j) => {
+    const id = j.activeProgramId;
+    return { ...j, programs: { ...j.programs, [id]: { ...j.programs[id], ...fn(j.programs[id]) } } };
+  });
   const [loaded, setLoaded] = useState(false);
   const [storageOk, setStorageOk] = useState(true);
   const [saveStatus, setSaveStatus] = useState("");
@@ -189,7 +204,7 @@ export default function Programme() {
         try {
           const res = migrate(JSON.parse(raw));
           if (res.ok) {
-            setState({ logs: res.data.logs || {}, cardio: res.data.cardio || {}, checkin: res.data.checkin || {} });
+            setJournal({ activeProgramId: res.data.activeProgramId, programs: res.data.programs });
             if (res.migrated) {
               const safe = await backupOnce(STORE, KEY, res.from, raw); // #8 : copier l'original avant d'activer la réécriture
               if (safe) {
@@ -229,12 +244,12 @@ export default function Programme() {
     const t = setTimeout(async () => {
       try {
         if (!STORE) throw new Error("no storage");
-        const r = await STORE.set(KEY, JSON.stringify(withVersion(state)), false);
+        const r = await STORE.set(KEY, JSON.stringify(withVersion(journal)), false);
         setSaveStatus(r ? "Enregistré" : "Enregistrement échoué");
       } catch (e) { setStorageOk(false); setSaveStatus("Non enregistré"); }
     }, 600);
     return () => clearTimeout(t);
-  }, [state, loaded, storageOk]);
+  }, [journal, loaded, storageOk]);
 
   useEffect(() => {
     if (!timer) return;
@@ -274,7 +289,7 @@ export default function Programme() {
   const log = session ? state.logs[wkey(session.id)] || {} : {};
 
   const onSet = (vid, i, f, val) => {
-    setState((st) => {
+    updateActive((st) => {
       const k = wkey(session.id);
       const cur = st.logs[k] || {};
       const ex = { ...(cur.ex || {}) };
@@ -285,10 +300,10 @@ export default function Programme() {
       return { ...st, logs: { ...st.logs, [k]: { ...cur, ex } } };
     });
   };
-  const setNotes = (val) => setState((st) => { const k = wkey(session.id); return { ...st, logs: { ...st.logs, [k]: { ...(st.logs[k] || {}), notes: val } } }; });
+  const setNotes = (val) => updateActive((st) => { const k = wkey(session.id); return { ...st, logs: { ...st.logs, [k]: { ...(st.logs[k] || {}), notes: val } } }; });
 
   const validate = () => {
-    setState((st) => {
+    updateActive((st) => {
       const k = wkey(session.id);
       const cur = st.logs[k] || {};
       const ex = { ...(cur.ex || {}) };
@@ -303,11 +318,11 @@ export default function Programme() {
     });
     showToast(`${session.name} validée`);
   };
-  const reopen = () => setState((st) => { const k = wkey(session.id); return { ...st, logs: { ...st.logs, [k]: { ...(st.logs[k] || {}), done: false } } }; });
+  const reopen = () => updateActive((st) => { const k = wkey(session.id); return { ...st, logs: { ...st.logs, [k]: { ...(st.logs[k] || {}), done: false } } }; });
 
-  const setCardio = (id, f, val) => setState((st) => { const k = `w${week}`; const c = st.cardio[k] || {}; return { ...st, cardio: { ...st.cardio, [k]: { ...c, [id]: { ...(c[id] || {}), [f]: val } } } }; });
-  const toggleMob = (i) => setState((st) => { const k = `w${week}`; const c = st.cardio[k] || {}; const m = [...(c.mob || [false, false, false])]; m[i] = !m[i]; return { ...st, cardio: { ...st.cardio, [k]: { ...c, mob: m } } }; });
-  const setCheck = (f, val) => setState((st) => { const k = `w${week}`; return { ...st, checkin: { ...st.checkin, [k]: { ...(st.checkin[k] || {}), [f]: val } } }; });
+  const setCardio = (id, f, val) => updateActive((st) => { const k = `w${week}`; const c = st.cardio[k] || {}; return { ...st, cardio: { ...st.cardio, [k]: { ...c, [id]: { ...(c[id] || {}), [f]: val } } } }; });
+  const toggleMob = (i) => updateActive((st) => { const k = `w${week}`; const c = st.cardio[k] || {}; const m = [...(c.mob || [false, false, false])]; m[i] = !m[i]; return { ...st, cardio: { ...st.cardio, [k]: { ...c, mob: m } } }; });
+  const setCheck = (f, val) => updateActive((st) => { const k = `w${week}`; return { ...st, checkin: { ...st.checkin, [k]: { ...(st.checkin[k] || {}), [f]: val } } }; });
 
   const copy = async (text) => {
     try { await navigator.clipboard.writeText(text); showToast("Copié"); }
@@ -349,7 +364,7 @@ export default function Programme() {
     const res = parseJournalImport(ioText);
     if (!res.ok) { setImportError(res.message); return; }
     setImportError("");
-    setState({ logs: res.data.logs || {}, cardio: res.data.cardio || {}, checkin: res.data.checkin || {} });
+    setJournal({ activeProgramId: res.data.activeProgramId, programs: res.data.programs });
     showToast(res.migrated ? "Journal mis à jour vers le nouveau format." : "Données importées");
   };
 
@@ -494,8 +509,8 @@ export default function Programme() {
             <Section title="Données : sauvegarde et restauration">
               <p>{storageOk ? "Le journal est enregistré automatiquement sur cet appareil." : "Stockage automatique indisponible ici."} Avant une mise à jour du fichier, exporte le JSON et colle-le dans le chat ou garde-le : il se réimporte ci-dessous.</p>
               <div className="flex gap-2 flex-wrap">
-                <Btn small onClick={() => copy(JSON.stringify(withVersion(state)))}><Copy size={14} />Exporter le JSON</Btn>
-                <Btn small onClick={() => { setIoText(JSON.stringify(withVersion(state))); setImportError(""); }}>Afficher le JSON</Btn>
+                <Btn small onClick={() => copy(JSON.stringify(withVersion(journal)))}><Copy size={14} />Exporter le JSON</Btn>
+                <Btn small onClick={() => { setIoText(JSON.stringify(withVersion(journal))); setImportError(""); }}>Afficher le JSON</Btn>
                 <Btn small onClick={importData} disabled={!ioText}>Importer le JSON collé</Btn>
               </div>
               <textarea value={ioText} onChange={(e) => { setIoText(e.target.value); setImportError(""); }} rows={4} placeholder="Colle ici un JSON exporté pour le réimporter" className="w-full p-2 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400" />

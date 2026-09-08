@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { SCHEMA_VERSION, applyChain, migrate, versionOf } from "../src/schema.js";
+import { SCHEMA_VERSION, DEFAULT_PROGRAM_ID, applyChain, migrate, versionOf } from "../src/schema.js";
 
 test("versionOf : schemaVersion absent ou invalide => v1", () => {
   assert.equal(versionOf({ logs: {} }), 1);
@@ -12,20 +12,56 @@ test("versionOf : schemaVersion absent ou invalide => v1", () => {
   assert.equal(versionOf(null), 1);
 });
 
-test("migrate : no-op à la version courante, résultat équivalent à l'entrée", () => {
-  const input = { schemaVersion: SCHEMA_VERSION, logs: { w1_hautA: { done: true } }, cardio: {}, checkin: {} };
+test("migrate : no-op à la version courante (v2), résultat équivalent à l'entrée", () => {
+  const input = {
+    schemaVersion: SCHEMA_VERSION,
+    activeProgramId: "x",
+    programs: { x: { definition: null, logs: { w1_hautA: { done: true } }, cardio: {}, checkin: {} } },
+  };
   const res = migrate(input);
   assert.equal(res.ok, true);
   assert.equal(res.migrated, false);
   assert.deepEqual(res.data, input);
 });
 
-test("migrate : journal non versionné lu comme v1, sans migration", () => {
-  const res = migrate({ logs: {}, cardio: {}, checkin: {} });
+test("migrate : journal v1 (plat) migré vers v2, entrées préservées sous le programme par défaut (#6)", () => {
+  const input = { schemaVersion: 1, logs: { w1_hautA: { done: true } }, cardio: { w1: { z2a: { done: true } } }, checkin: { w1: { poids: "90" } } };
+  const res = migrate(input);
   assert.equal(res.ok, true);
   assert.equal(res.from, 1);
-  assert.equal(res.migrated, false);
-  assert.equal(res.data.schemaVersion, 1);
+  assert.equal(res.migrated, true);
+  assert.equal(res.data.schemaVersion, SCHEMA_VERSION);
+  assert.equal(res.data.activeProgramId, DEFAULT_PROGRAM_ID);
+  const active = res.data.programs[DEFAULT_PROGRAM_ID];
+  assert.equal(active.definition, null); // null => programme fourni avec l'appli
+  assert.deepEqual(active.logs, input.logs);
+  assert.deepEqual(active.cardio, input.cardio);
+  assert.deepEqual(active.checkin, input.checkin);
+});
+
+test("migrate : journal non versionné (v1 implicite) migré vers v2", () => {
+  const res = migrate({ logs: { w1_hautA: { done: true } }, cardio: {}, checkin: {} });
+  assert.equal(res.ok, true);
+  assert.equal(res.from, 1);
+  assert.equal(res.migrated, true);
+  assert.equal(res.data.schemaVersion, SCHEMA_VERSION);
+  assert.deepEqual(res.data.programs[DEFAULT_PROGRAM_ID].logs, { w1_hautA: { done: true } });
+});
+
+test("migrate : v1 avec logs/cardio/checkin absents => programme par défaut avec des objets vides", () => {
+  const res = migrate({ schemaVersion: 1 });
+  assert.equal(res.ok, true);
+  const active = res.data.programs[DEFAULT_PROGRAM_ID];
+  assert.deepEqual(active.logs, {});
+  assert.deepEqual(active.cardio, {});
+  assert.deepEqual(active.checkin, {});
+});
+
+test("migrate : idempotent sur un objet déjà en v2", () => {
+  const v2 = migrate({ schemaVersion: 1, logs: { w1_hautA: { done: true } } }).data;
+  const again = migrate(v2);
+  assert.equal(again.migrated, false);
+  assert.deepEqual(again.data, v2);
 });
 
 test("migrate : version trop récente => flag de rejet, rien n'est détruit", () => {
@@ -48,8 +84,8 @@ test("migrate : schemaVersion non positif => flag invalid, ne lève pas, rien n'
   }
 });
 
-test("migrate : n'altère pas son argument", () => {
-  const input = Object.freeze({ schemaVersion: SCHEMA_VERSION, logs: {}, cardio: {}, checkin: {} });
+test("migrate : n'altère pas son argument (v1 -> v2)", () => {
+  const input = Object.freeze({ schemaVersion: 1, logs: Object.freeze({}), cardio: Object.freeze({}), checkin: Object.freeze({}) });
   assert.doesNotThrow(() => migrate(input));
 });
 
