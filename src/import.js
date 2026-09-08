@@ -1,32 +1,32 @@
 /* =========================================================
-   Analyse d'un import collé (#7)
+   Analyse des imports collé et fichier (#7, #6)
 
    Le panneau « Données » de l'onglet Plan accepte un journal collé dans
-   une zone de texte. Quatre choses distinctes peuvent y échouer, et
-   src/App.jsx les confondait toutes en « JSON invalide » — y compris sur
-   des documents parfaitement valides.
-
-   parseJournalImport() rend un verdict typé au lieu de lever :
-     { ok: true,  data, migrated }
+   une zone de texte (parseJournalImport) et, depuis #6, un fichier de
+   programme (parseProgramImport). Chacun rend un verdict typé au lieu de
+   lever :
+     { ok: true,  data | definition, migrated? }
      { ok: false, reason, message }
 
    La raison et la phrase sont deux valeurs séparées : l'appelant
    n'inspecte jamais le texte, et les tests portent sur reason — une
    reformulation ne casse donc pas la suite.
-
-   #6 y ajoutera parseProgramImport(), même forme de verdict.
    ========================================================= */
 
 import { migrate } from "./schema.js";
+import { parseLocalDate } from "./definition.js";
 
 export const IMPORT_MESSAGES = {
   "invalid-json": "Le texte collé n'est pas du JSON valide.",
   "not-a-journal": "Ce JSON ne contient pas de journal (clé « logs » ou « programs » absente).",
   "too-new": "Ce fichier a été créé par une version plus récente de l'appli. Mets l'appli à jour, puis réimporte.",
   "migration-failed": "Ce journal n'a pas pu être mis à jour vers le format actuel.",
+  "not-a-program": "Ce fichier ne décrit pas un programme.",
+  "missing-field": "Champ manquant dans le programme.",
+  "unsupported-weeks": "Ce programme ne compte pas 12 semaines.",
 };
 
-const reject = (reason) => ({ ok: false, reason, message: IMPORT_MESSAGES[reason] });
+const reject = (reason, message) => ({ ok: false, reason, message: message || IMPORT_MESSAGES[reason] });
 
 export function parseJournalImport(text) {
   let parsed;
@@ -56,4 +56,45 @@ export function parseJournalImport(text) {
   if (res.invalid) return reject("migration-failed");
   if (!res.ok) return reject("too-new");
   return { ok: true, data: res.data, migrated: res.migrated };
+}
+
+/* Analyse d'un fichier de programme chargé (#6). Même forme de verdict que
+   parseJournalImport : { ok: true, definition } | { ok: false, reason, message }.
+   weeks !== 12 est rejeté ici (spec #6 Q2) plutôt que laissé planter plus
+   loin dans le moteur, qui code en dur 12 semaines. */
+export function parseProgramImport(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (e) {
+    return reject("invalid-json");
+  }
+
+  if (!parsed || typeof parsed !== "object") return reject("not-a-program");
+  if (parsed.id == null && parsed.startDate == null && parsed.profile == null && parsed.startingLoads == null) {
+    return reject("not-a-program");
+  }
+
+  for (const field of ["id", "startDate", "profile"]) {
+    if (parsed[field] == null) return reject("missing-field", `Champ manquant : ${field}`);
+  }
+  if (!parsed.profile.macros || !Array.isArray(parsed.profile.targetWeightKg)) {
+    return reject("missing-field", "Champ manquant : profile.macros ou profile.targetWeightKg");
+  }
+
+  if (parsed.weeks !== 12) {
+    return reject("unsupported-weeks", `Ce programme compte ${parsed.weeks} semaines, 12 attendues.`);
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(parsed.startDate) || Number.isNaN(parseLocalDate(parsed.startDate).getTime())) {
+    return reject("missing-field", "Champ invalide : startDate (attendu AAAA-MM-JJ)");
+  }
+
+  if (parsed.startingLoads) {
+    for (const [vid, load] of Object.entries(parsed.startingLoads)) {
+      if (typeof load !== "number") return reject("missing-field", `Charge de départ invalide pour ${vid} (attendu un nombre)`);
+    }
+  }
+
+  return { ok: true, definition: parsed };
 }

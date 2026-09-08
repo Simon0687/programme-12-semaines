@@ -1,19 +1,15 @@
 /* =========================================================
    Profil utilisateur — Simon (#5)
 
-   Foyer unique de tout ce qui change d'un cycle à l'autre. Aucun
-   import, aucune logique de programme. Consommé par :
-     - src/program.js : STARTING_LOADS refold sur V au chargement ;
-     - src/App.jsx    : startDate() pour le calendrier ;
-     - src/plan.js    : PROFILE / STARTING_LOADS pour composer les
-                        chiffres cités dans l'onglet Plan.
-   #6 alimentera ce module depuis un fichier JSON.
+   Le cycle par défaut de l'appli, sous la forme d'une définition de
+   programme (src/definition.js : DEFAULT_DEFINITION). Aucun import,
+   aucune logique de programme.
+   #6 : un fichier chargé fournit son propre profil/startingLoads, sous
+   la même forme — ce module ne porte plus que les valeurs par défaut.
 
    ---------------------------------------------------------
-   START_DATE      lundi de la S1, chaîne ISO "AAAA-MM-JJ".
-   startDate()     -> Date locale (minuit local), construite depuis
-                      les composantes pour éviter le piège UTC de
-                      new Date("AAAA-MM-JJ").
+   START_DATE      lundi de la S1, chaîne ISO "AAAA-MM-JJ". Lue par
+                      parseLocalDate() (src/definition.js).
    STARTING_LOADS  charge de travail en S1, en kg, par id de variante.
                       Refold sur V.<id>.start dans src/program.js.
                       pullup: 0 = poids du corps (valeur réelle, pas
@@ -28,11 +24,6 @@
    ========================================================= */
 
 export const START_DATE = "2026-09-07";
-
-export const startDate = () => {
-  const [y, m, d] = START_DATE.split("-").map(Number);
-  return new Date(y, m - 1, d);
-};
 
 export const STARTING_LOADS = {
   dc: 72.5,

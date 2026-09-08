@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { START_DATE, startDate, STARTING_LOADS, PROFILE } from "../src/profile.js";
+import { START_DATE, STARTING_LOADS, PROFILE } from "../src/profile.js";
 import { buildProgram } from "../src/program.js";
 
 /* Garde-fous pour l'extraction du profil (#5) : le refold des charges
@@ -33,18 +33,8 @@ describe("STARTING_LOADS refold sur V (buildProgram, #6)", () => {
   });
 });
 
-describe("startDate()", () => {
-  test("renvoie une Date locale à minuit, au 7 septembre 2026", () => {
-    const d = startDate();
-    assert.ok(d instanceof Date);
-    assert.equal(d.getFullYear(), 2026);
-    assert.equal(d.getMonth(), 8); // septembre (0-indexé)
-    assert.equal(d.getDate(), 7);
-    assert.equal(d.getHours(), 0);
-    assert.equal(d.getMinutes(), 0);
-  });
-
-  test("START_DATE est une chaîne ISO AAAA-MM-JJ", () => {
+describe("START_DATE", () => {
+  test("est une chaîne ISO AAAA-MM-JJ", () => {
     assert.match(START_DATE, /^\d{4}-\d{2}-\d{2}$/);
   });
 });

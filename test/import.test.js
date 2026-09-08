@@ -1,8 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { IMPORT_MESSAGES, parseJournalImport } from "../src/import.js";
+import { IMPORT_MESSAGES, parseJournalImport, parseProgramImport } from "../src/import.js";
 import { SCHEMA_VERSION } from "../src/schema.js";
+
+const minimalDefinition = () => ({
+  id: "test-cycle",
+  startDate: "2027-01-04",
+  weeks: 12,
+  profile: { macros: { p: 1, f: 1, c: 1 }, targetWeightKg: [70, 71] },
+});
 
 /* Les assertions portent sur reason, jamais sur message : la formulation
    est volontairement remise à plus tard (decisions-spec.md, Q2). */
@@ -76,4 +83,55 @@ test("IMPORT_MESSAGES : aucune raison sans phrase", () => {
     assert.equal(typeof message, "string", reason);
     assert.ok(message.length > 0, reason);
   }
+});
+
+test("parseProgramImport : texte illisible => invalid-json", () => {
+  assert.equal(parseProgramImport("{").reason, "invalid-json");
+});
+
+test("parseProgramImport : JSON valide mais aucun champ de programme => not-a-program", () => {
+  for (const t of ['{"a":1}', "null", "5", "[]"]) {
+    assert.equal(parseProgramImport(t).reason, "not-a-program", t);
+  }
+});
+
+test("parseProgramImport : champ requis manquant => missing-field", () => {
+  for (const field of ["id", "startDate", "profile"]) {
+    const def = minimalDefinition();
+    delete def[field];
+    const res = parseProgramImport(JSON.stringify(def));
+    assert.equal(res.ok, false);
+    assert.equal(res.reason, "missing-field", field);
+  }
+});
+
+test("parseProgramImport : weeks !== 12 => unsupported-weeks (spec #6 Q2)", () => {
+  const res = parseProgramImport(JSON.stringify({ ...minimalDefinition(), weeks: 10 }));
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, "unsupported-weeks");
+});
+
+test("parseProgramImport : startDate non ISO-parsable => missing-field", () => {
+  const res = parseProgramImport(JSON.stringify({ ...minimalDefinition(), startDate: "pas une date" }));
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, "missing-field");
+});
+
+test("parseProgramImport : startingLoads non numérique => missing-field", () => {
+  const res = parseProgramImport(JSON.stringify({ ...minimalDefinition(), startingLoads: { dc: "beaucoup" } }));
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, "missing-field");
+});
+
+test("parseProgramImport : définition minimale valide, sans program ni startingLoads => ok", () => {
+  const res = parseProgramImport(JSON.stringify(minimalDefinition()));
+  assert.equal(res.ok, true);
+  assert.equal(res.definition.id, "test-cycle");
+});
+
+test("parseProgramImport : définition complète valide => ok, préservée telle quelle", () => {
+  const full = { ...minimalDefinition(), name: "Cycle test", startingLoads: { dc: 72.5, squat: 105 } };
+  const res = parseProgramImport(JSON.stringify(full));
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.definition, full);
 });

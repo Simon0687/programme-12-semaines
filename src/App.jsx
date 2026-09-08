@@ -1,19 +1,18 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
 import { SCHEMA_VERSION, DEFAULT_PROGRAM_ID, migrate } from "./schema.js";
-import { parseJournalImport } from "./import.js";
+import { parseJournalImport, parseProgramImport } from "./import.js";
 import { backupOnce, listBackups } from "./backup.js";
 import { buildProgram } from "./program.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned } from "./progression.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
-import { startDate, STARTING_LOADS, PROFILE } from "./profile.js";
+import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
 
 /* =========================================================
    Programme 12 semaines — Simon
    Départ lundi 7 septembre 2026. Données conservées via window.storage.
    ========================================================= */
 
-const START = startDate();
 const KEY = "prog12_simon_v1";
 const STORE = (() => {
   if (typeof window !== "undefined" && window.storage) return window.storage;
@@ -47,8 +46,8 @@ const emptyJournal = () => ({
 const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const dateLabel = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
-const weekRange = (w) => {
-  const a = addDays(START, (w - 1) * 7), b = addDays(a, 6);
+const weekRange = (start, w) => {
+  const a = addDays(start, (w - 1) * 7), b = addDays(a, 6);
   return `${a.getDate()}${a.getMonth() === b.getMonth() ? "" : " " + MONTHS[a.getMonth()]} – ${dateLabel(b)}`;
 };
 
@@ -162,18 +161,23 @@ function ExerciseCard({ idx, slotId, nSets, week, si, prog, state, rows, onSet, 
 
 /* ---------- Application ---------- */
 export default function Programme() {
-  const today = startOfDay(new Date());
-  const dayIdx = Math.floor((today - START) / 86400000);
-  const curWeek = Math.min(12, Math.max(1, Math.floor(dayIdx / 7) + 1));
-  const weekday = today.getDay();
-
   const [journal, setJournal] = useState(emptyJournal());
   const active = journal.programs[journal.activeProgramId];
+  const definition = active.definition || DEFAULT_DEFINITION;
   const state = { logs: active.logs, cardio: active.cardio, checkin: active.checkin };
   const updateActive = (fn) => setJournal((j) => {
     const id = j.activeProgramId;
     return { ...j, programs: { ...j.programs, [id]: { ...j.programs[id], ...fn(j.programs[id]) } } };
   });
+
+  const START = parseLocalDate(definition.startDate);
+  const today = startOfDay(new Date());
+  const dayIdx = Math.floor((today - START) / 86400000);
+  const curWeek = Math.min(12, Math.max(1, Math.floor(dayIdx / 7) + 1));
+  const weekday = today.getDay();
+  const prog = useMemo(() => buildProgram(definition), [definition]);
+  const plan = useMemo(() => buildPlan(definition.profile, definition.startingLoads || {}), [definition]);
+
   const [loaded, setLoaded] = useState(false);
   const [storageOk, setStorageOk] = useState(true);
   const [saveStatus, setSaveStatus] = useState("");
@@ -186,10 +190,10 @@ export default function Programme() {
   const [ioText, setIoText] = useState("");
   const [importError, setImportError] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [programError, setProgramError] = useState(""); // #6 : rejet d'un fichier de programme
   const [backups, setBackups] = useState([]); // [{ from, value }] — sauvegardes d'avant-migration (#8)
+  const fileInputRef = useRef(null);
   const skipSave = useRef(true);
-  const prog = useMemo(() => buildProgram({ startingLoads: STARTING_LOADS }), []); // #6 : bundle par cycle, remplacera le profil par défaut
-  const plan = useMemo(() => buildPlan(PROFILE, STARTING_LOADS), []); // #6 : idem pour le contenu de l'onglet Plan
 
   useEffect(() => {
     (async () => {
@@ -281,6 +285,14 @@ export default function Programme() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [week, loaded]);
 
+  useEffect(() => {
+    // #6 : basculer de cycle change START (definition.startDate), donc la
+    // semaine "aujourd'hui" ; sans ça, week resterait sur la valeur du
+    // cycle précédent. sessionId suit via l'effet ci-dessus (dépend de week).
+    setWeek(curWeek);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [journal.activeProgramId]);
+
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2500); };
   const wkey = (sid) => `w${week}_${sid}`;
   const phase = phaseOf(week);
@@ -346,7 +358,7 @@ export default function Programme() {
       return `${prog.V[vid].name} : ${setSummary(sets, prog.V[vid])}`;
     }).filter(Boolean);
     return [
-      `Bilan S${week} (${weekRange(week)}) — ${phase.label}`,
+      `Bilan S${week} (${weekRange(START, week)}) — ${phase.label}`,
       `1. Poids moyen : ${c.poids || "?"} kg — tour de taille : ${c.taille || "?"} cm`,
       `2. Sommeil moyen : ${c.sommeil || "?"} h`,
       `3. Séances : ${done.length}/5${missing.length ? ` — manquées : ${missing.join(", ")}` : ""}`,
@@ -366,6 +378,35 @@ export default function Programme() {
     setImportError("");
     setJournal({ activeProgramId: res.data.activeProgramId, programs: res.data.programs });
     showToast(res.migrated ? "Journal mis à jour vers le nouveau format." : "Données importées");
+  };
+
+  /* #6 : un id déjà présent reprend son cycle (logs/cardio/checkin intacts,
+     definition rafraîchie) — jamais de journal écrasé par un rechargement. */
+  const loadProgram = (definition) => {
+    const existing = journal.programs[definition.id];
+    setJournal((j) => ({
+      ...j,
+      activeProgramId: definition.id,
+      programs: {
+        ...j.programs,
+        [definition.id]: existing ? { ...j.programs[definition.id], definition } : { definition, logs: {}, cardio: {}, checkin: {} },
+      },
+    }));
+    showToast(existing ? "Cycle repris." : "Programme chargé.");
+  };
+
+  const handleProgramFile = (e) => {
+    const file = e.target.files[0];
+    e.target.value = ""; // permet de recharger le même fichier une deuxième fois
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const res = parseProgramImport(String(reader.result));
+      if (!res.ok) { setProgramError(res.message); return; }
+      setProgramError("");
+      loadProgram(res.definition);
+    };
+    reader.readAsText(file);
   };
 
   const todayLine = (() => {
@@ -391,7 +432,7 @@ export default function Programme() {
             <button onClick={() => setWeek(Math.max(1, week - 1))} aria-label="Semaine précédente" className="h-9 w-9 rounded-md bg-slate-800 border border-slate-700 inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-amber-400"><ChevronLeft size={18} /></button>
             <div className="text-center">
               <div className="text-lg font-semibold">Semaine {week} <span className="text-slate-400 font-normal">sur 12</span></div>
-              <div className="text-xs text-slate-400">{weekRange(week)} — {phase.label}, RIR {phase.rir}</div>
+              <div className="text-xs text-slate-400">{weekRange(START, week)} — {phase.label}, RIR {phase.rir}</div>
             </div>
             <button onClick={() => setWeek(Math.min(12, week + 1))} aria-label="Semaine suivante" className="h-9 w-9 rounded-md bg-slate-800 border border-slate-700 inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-amber-400"><ChevronRight size={18} /></button>
           </div>
@@ -506,6 +547,23 @@ export default function Programme() {
           <div className="px-4">
             <p className="text-sm text-slate-300 mt-3">{PLAN_INTRO}</p>
             <PlanContent plan={plan} />
+            <Section title="Programme">
+              <p>{definition.name} — départ {dateLabel(START)}</p>
+              <div className="flex gap-2 flex-wrap">
+                <Btn small onClick={() => fileInputRef.current.click()}>Charger un programme</Btn>
+              </div>
+              <input ref={fileInputRef} type="file" accept="application/json" onChange={handleProgramFile} className="hidden" />
+              {programError && <p role="alert" className="text-sm text-amber-400">{programError}</p>}
+              {Object.keys(journal.programs).length > 1 && (
+                <div className="flex gap-2 flex-wrap">
+                  {Object.entries(journal.programs).map(([id, p]) => (
+                    <Btn key={id} small primary={id === journal.activeProgramId} onClick={() => setJournal((j) => ({ ...j, activeProgramId: id }))}>
+                      {(p.definition || DEFAULT_DEFINITION).name}
+                    </Btn>
+                  ))}
+                </div>
+              )}
+            </Section>
             <Section title="Données : sauvegarde et restauration">
               <p>{storageOk ? "Le journal est enregistré automatiquement sur cet appareil." : "Stockage automatique indisponible ici."} Avant une mise à jour du fichier, exporte le JSON et colle-le dans le chat ou garde-le : il se réimporte ci-dessous.</p>
               <div className="flex gap-2 flex-wrap">
