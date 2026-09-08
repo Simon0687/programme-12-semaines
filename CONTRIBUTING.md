@@ -117,6 +117,18 @@ This application's compatibility contract is not an API: it is **the journal for
 
 When torn between MINOR and MAJOR, ask: *does a journal saved by the previous version load without loss?* If not, it's a major.
 
+### Pre-migration backups
+
+Before the app rewrites a journal that was just migrated to the current schema, it copies the original, untouched, under a separate key:
+
+```
+prog12_simon_v1_backup_pre<N>
+```
+
+`<N>` is the `schemaVersion` the journal had *before* migrating — a journal migrated from v1 leaves its original at `prog12_simon_v1_backup_pre1`. Written once per source version, never overwritten, never read automatically.
+
+**To recover:** open the Plan tab's "Données" section — a button appears for each backup found ("Afficher la sauvegarde d'avant-migration (vN)"), dumping the raw original into the visible textarea, ready to copy off the phone. Without the app, the key is readable directly from `localStorage` in devtools.
+
 ## What we don't do
 
 - No direct commits on `main`, except an urgent production fix.
