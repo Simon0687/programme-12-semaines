@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
 import { SCHEMA_VERSION, migrate } from "./schema.js";
 import { parseJournalImport } from "./import.js";
+import { backupOnce, listBackups } from "./backup.js";
 import { V, SLOTS, SESSIONS, CORE, WARM, cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./program.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned } from "./progression.js";
 import { PLAN, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
@@ -170,20 +171,17 @@ export default function Programme() {
   const [ioText, setIoText] = useState("");
   const [importError, setImportError] = useState("");
   const [loadError, setLoadError] = useState("");
+  const [backups, setBackups] = useState([]); // [{ from, value }] — sauvegardes d'avant-migration (#8)
   const skipSave = useRef(true);
 
   useEffect(() => {
     (async () => {
       if (!STORE) { setStorageOk(false); setLoaded(true); return; }
 
-      let raw;
+      let raw = null;
       try {
         raw = (await STORE.get(KEY, false)).value;
-      } catch (e) {
-        // clé absente : vraiment la première utilisation, rien à faire
-        setLoaded(true);
-        return;
-      }
+      } catch (e) { /* clé absente : vraiment la première utilisation */ }
 
       if (raw) {
         try {
@@ -191,8 +189,14 @@ export default function Programme() {
           if (res.ok) {
             setState({ logs: res.data.logs || {}, cardio: res.data.cardio || {}, checkin: res.data.checkin || {} });
             if (res.migrated) {
-              skipSave.current = false; // Q2 : réécrire la forme migrée dès ce chargement
-              showToast("Journal mis à jour vers le nouveau format.");
+              const safe = await backupOnce(STORE, KEY, res.from, raw); // #8 : copier l'original avant d'activer la réécriture
+              if (safe) {
+                skipSave.current = false; // Q2 : réécrire la forme migrée dès ce chargement
+                showToast("Journal mis à jour vers le nouveau format.");
+              } else {
+                setStorageOk(false); // décisions #8 Q2 : sauvegarde impossible => on ne réécrit rien
+                showToast("Sauvegarde de sécurité impossible : rien ne sera enregistré cette session.");
+              }
             }
           } else if (res.tooNew) {
             // Q1 : journal écrit par une version plus récente — ne rien charger,
@@ -211,6 +215,7 @@ export default function Programme() {
           setLoadError(LOAD_ERROR_MESSAGE);
         }
       }
+      setBackups(await listBackups(STORE, KEY, SCHEMA_VERSION));
       setLoaded(true);
     })();
   }, []);
