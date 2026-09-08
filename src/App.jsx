@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
 import { SCHEMA_VERSION, migrate } from "./schema.js";
+import { parseJournalImport } from "./import.js";
 import { V, SLOTS, SESSIONS, CORE, WARM, cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./program.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned } from "./progression.js";
 import { PLAN, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
@@ -162,6 +163,7 @@ export default function Programme() {
   const [, setTick] = useState(0);
   const [toast, setToast] = useState("");
   const [ioText, setIoText] = useState("");
+  const [importError, setImportError] = useState("");
   const skipSave = useRef(true);
 
   useEffect(() => {
@@ -310,18 +312,14 @@ export default function Programme() {
     ].join("\n");
   };
 
+  /* Un rejet reste affiché dans le panneau ; le toast garde son rôle de
+     confirmation, donc il ne double pas le message d'erreur. */
   const importData = () => {
-    try {
-      const parsed = JSON.parse(ioText);
-      if (!parsed.logs) throw new Error("format");
-      const res = migrate(parsed);
-      if (!res.ok) {
-        showToast("Ce fichier a été créé par une version plus récente de l'appli. Mets l'appli à jour, puis réimporte.");
-        return;
-      }
-      setState({ logs: res.data.logs || {}, cardio: res.data.cardio || {}, checkin: res.data.checkin || {} });
-      showToast(res.migrated ? "Journal mis à jour vers le nouveau format." : "Données importées");
-    } catch (e) { showToast("JSON invalide"); }
+    const res = parseJournalImport(ioText);
+    if (!res.ok) { setImportError(res.message); return; }
+    setImportError("");
+    setState({ logs: res.data.logs || {}, cardio: res.data.cardio || {}, checkin: res.data.checkin || {} });
+    showToast(res.migrated ? "Journal mis à jour vers le nouveau format." : "Données importées");
   };
 
   const todayLine = (() => {
@@ -464,10 +462,11 @@ export default function Programme() {
               <p>{storageOk ? "Le journal est enregistré automatiquement sur cet appareil." : "Stockage automatique indisponible ici."} Avant une mise à jour du fichier, exporte le JSON et colle-le dans le chat ou garde-le : il se réimporte ci-dessous.</p>
               <div className="flex gap-2 flex-wrap">
                 <Btn small onClick={() => copy(JSON.stringify(withVersion(state)))}><Copy size={14} />Exporter le JSON</Btn>
-                <Btn small onClick={() => setIoText(JSON.stringify(withVersion(state)))}>Afficher le JSON</Btn>
+                <Btn small onClick={() => { setIoText(JSON.stringify(withVersion(state))); setImportError(""); }}>Afficher le JSON</Btn>
                 <Btn small onClick={importData} disabled={!ioText}>Importer le JSON collé</Btn>
               </div>
-              <textarea value={ioText} onChange={(e) => setIoText(e.target.value)} rows={4} placeholder="Colle ici un JSON exporté pour le réimporter" className="w-full p-2 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              <textarea value={ioText} onChange={(e) => { setIoText(e.target.value); setImportError(""); }} rows={4} placeholder="Colle ici un JSON exporté pour le réimporter" className="w-full p-2 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              {importError && <p role="alert" className="text-sm text-amber-400">{importError}</p>}
             </Section>
           </div>
         )}
