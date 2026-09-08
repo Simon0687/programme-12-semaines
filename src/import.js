@@ -46,12 +46,13 @@ export function parseJournalImport(text) {
   try {
     res = migrate(parsed);
   } catch (e) {
-    /* versionOf() accepte 0 et les entiers négatifs : la chaîne démarre alors
-       sous la v1 et applyChain ne trouve aucune étape. Même défaut au
-       chargement, où il détruit le journal stocké — voir #10. */
+    /* Défensif : migrate() ne lève plus pour un schemaVersion hors bornes
+       (#10 en a fait un verdict, cf. res.invalid ci-dessous) ; ce catch ne
+       couvre plus qu'un vrai trou dans la chaîne MIGRATIONS. */
     return reject("migration-failed");
   }
 
+  if (res.invalid) return reject("migration-failed");
   if (!res.ok) return reject("too-new");
   return { ok: true, data: res.data, migrated: res.migrated };
 }

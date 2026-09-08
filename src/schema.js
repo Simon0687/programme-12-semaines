@@ -42,14 +42,16 @@ export function applyChain(data, target, migrations = MIGRATIONS) {
 }
 
 /* Point d'entrée du load et de l'import. Ne lève jamais sur un fichier
-   trop récent : renvoie { ok: false, tooNew: true } pour que l'appelant
-   refuse proprement sans rien détruire.
+   trop récent ou sur un schemaVersion hors bornes (0, négatif) : renvoie
+   { ok: false, tooNew: true } ou { ok: false, invalid: true } pour que
+   l'appelant refuse proprement sans rien détruire (#10).
    Sinon renvoie { ok: true, from, migrated, data }, data portant
    schemaVersion à la version courante. Idempotent : sur un objet déjà à
    jour, data est équivalent à l'entrée. */
 export function migrate(data) {
   const from = versionOf(data);
   if (from > SCHEMA_VERSION) return { ok: false, tooNew: true, from, data };
+  if (from < 1) return { ok: false, invalid: true, from, data };
   const upgraded = applyChain(data, SCHEMA_VERSION);
   return {
     ok: true,

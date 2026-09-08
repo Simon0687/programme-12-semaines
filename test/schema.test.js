@@ -37,6 +37,17 @@ test("migrate : version trop récente => flag de rejet, rien n'est détruit", ()
   assert.deepEqual(res.data, { schemaVersion: 99, logs: { w1_hautA: { done: true } } });
 });
 
+test("migrate : schemaVersion non positif => flag invalid, ne lève pas, rien n'est détruit", () => {
+  for (const v of [0, -3]) {
+    const input = { schemaVersion: v, logs: { w1_hautA: { done: true } } };
+    const res = migrate(input);
+    assert.equal(res.ok, false);
+    assert.equal(res.invalid, true);
+    assert.equal(res.from, v);
+    assert.deepEqual(res.data, input);
+  }
+});
+
 test("migrate : n'altère pas son argument", () => {
   const input = Object.freeze({ schemaVersion: SCHEMA_VERSION, logs: {}, cardio: {}, checkin: {} });
   assert.doesNotThrow(() => migrate(input));
