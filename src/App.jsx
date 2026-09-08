@@ -5,8 +5,8 @@ import { parseJournalImport } from "./import.js";
 import { backupOnce, listBackups } from "./backup.js";
 import { buildProgram } from "./program.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned } from "./progression.js";
-import { PLAN, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
-import { startDate, STARTING_LOADS } from "./profile.js";
+import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
+import { startDate, STARTING_LOADS, PROFILE } from "./profile.js";
 
 /* =========================================================
    Programme 12 semaines — Simon
@@ -174,6 +174,7 @@ export default function Programme() {
   const [backups, setBackups] = useState([]); // [{ from, value }] — sauvegardes d'avant-migration (#8)
   const skipSave = useRef(true);
   const prog = useMemo(() => buildProgram({ startingLoads: STARTING_LOADS }), []); // #6 : bundle par cycle, remplacera le profil par défaut
+  const plan = useMemo(() => buildPlan(PROFILE, STARTING_LOADS), []); // #6 : idem pour le contenu de l'onglet Plan
 
   useEffect(() => {
     (async () => {
@@ -489,7 +490,7 @@ export default function Programme() {
         {tab === "plan" && (
           <div className="px-4">
             <p className="text-sm text-slate-300 mt-3">{PLAN_INTRO}</p>
-            <PlanContent />
+            <PlanContent plan={plan} />
             <Section title="Données : sauvegarde et restauration">
               <p>{storageOk ? "Le journal est enregistré automatiquement sur cet appareil." : "Stockage automatique indisponible ici."} Avant une mise à jour du fichier, exporte le JSON et colle-le dans le chat ou garde-le : il se réimporte ci-dessous.</p>
               <div className="flex gap-2 flex-wrap">
@@ -557,8 +558,8 @@ function Block({ block }) {
     );
   return null;
 }
-function PlanContent() {
-  return PLAN.map((s) => (
+function PlanContent({ plan }) {
+  return plan.map((s) => (
     <Section key={s.id} title={s.title} open={s.open}>
       {s.blocks.map((b, i) => <Block key={i} block={b} />)}
     </Section>

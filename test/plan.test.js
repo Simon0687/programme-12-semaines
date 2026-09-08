@@ -1,13 +1,16 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { PLAN, PLAN_INTRO, PHASE_NOTES } from "../src/plan.js";
+import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "../src/plan.js";
 import { phaseOf } from "../src/progression.js";
+import { PROFILE, STARTING_LOADS } from "../src/profile.js";
 
-/* Garde-fous de forme pour les données de l'onglet Plan (#4). Ne teste
-   pas le texte (c'est de l'éditorial, il change), seulement que la
+/* Garde-fous de forme pour les données de l'onglet Plan (#4, #6). Ne
+   teste pas le texte (c'est de l'éditorial, il change), seulement que la
    structure que <PlanContent> / <Block> attend est respectée et que
    PHASE_NOTES reste aligné sur les phases que phaseOf() peut renvoyer. */
+
+const PLAN = buildPlan(PROFILE, STARTING_LOADS);
 
 describe("PHASE_NOTES", () => {
   test("couvre exactement les id de phase renvoyés par phaseOf()", () => {
@@ -62,5 +65,28 @@ describe("PLAN", () => {
 
   test("exactement une section est dépliée au montage", () => {
     assert.equal(PLAN.filter((s) => s.open).length, 1);
+  });
+});
+
+describe("buildPlan : reflète le profil reçu (#6)", () => {
+  test("un profil différent change le texte nutrition et charges de départ", () => {
+    const otherProfile = { ...PROFILE, maintenanceKcal: 2000, startKcal: 2200, macros: { p: 150, f: 60, c: 300 }, targetWeightKg: [70, 71] };
+    const otherLoads = { ...STARTING_LOADS, dc: 40, squat: 60 };
+    const other = buildPlan(otherProfile, otherLoads);
+
+    const nutritionText = other.find((s) => s.id === "nutrition").blocks[0].text;
+    assert.match(nutritionText, /2 200 kcal/);
+    assert.doesNotMatch(nutritionText, new RegExp(String(PROFILE.startKcal)));
+
+    const loadsText = other.find((s) => s.id === "startloads").blocks[0].text;
+    assert.match(loadsText, /40 kg/);
+    assert.match(loadsText, /60 kg/);
+  });
+
+  test("le reste du contenu ne dépend pas du profil : deux profils, même structure", () => {
+    const a = buildPlan(PROFILE, STARTING_LOADS);
+    const b = buildPlan({ ...PROFILE, maintenanceKcal: 1 }, { ...STARTING_LOADS, dc: 1 });
+    const invariant = (p) => p.filter((s) => s.id !== "nutrition" && s.id !== "startloads");
+    assert.deepEqual(invariant(a), invariant(b));
   });
 });
