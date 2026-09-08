@@ -10,8 +10,6 @@
    sont dans src/plan.js (PHASE_NOTES), sorties du moteur en #4.
    ========================================================= */
 
-import { V, SLOTS, SESSIONS } from "./program.js";
-
 export const num = (s) => {
   if (s === "" || s == null) return null;
   const n = parseFloat(String(s).replace(",", "."));
@@ -29,10 +27,10 @@ export const phaseOf = (w) =>
 export const blockOf = (w) => (w <= 6 ? "b1" : "b2");
 export const setsFor = (n, w) => (w === 7 ? Math.ceil(n / 2) : n);
 
-export function history(state, vid) {
+export function history(prog, state, vid) {
   const out = [];
   for (let w = 1; w <= 12; w++) {
-    SESSIONS.forEach((s, si) => {
+    prog.SESSIONS.forEach((s, si) => {
       const log = state.logs[`w${w}_${s.id}`];
       if (!log || !log.done) return;
       const sets = ((log.ex && log.ex[vid]) || []).map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null);
@@ -41,17 +39,17 @@ export function history(state, vid) {
   }
   return out;
 }
-export function lastEntry(state, vid, week, si) {
-  const h = history(state, vid).filter((e) => e.week < week || (e.week === week && e.si < si));
+export function lastEntry(prog, state, vid, week, si) {
+  const h = history(prog, state, vid).filter((e) => e.week < week || (e.week === week && e.si < si));
   return h[h.length - 1] || null;
 }
-export function planned(state, slotId, week, si) {
-  const slot = SLOTS[slotId];
+export function planned(prog, state, slotId, week, si) {
+  const slot = prog.SLOTS[slotId];
   const vid = slot[blockOf(week)];
-  const v = V[vid];
+  const v = prog.V[vid];
   const unit = v.unit || "kg";
   const [mn, mx] = slot.reps;
-  const hist = history(state, vid).filter((e) => e.week < week || (e.week === week && e.si < si));
+  const hist = history(prog, state, vid).filter((e) => e.week < week || (e.week === week && e.si < si));
   let base = hist[hist.length - 1], prev = hist[hist.length - 2];
   if (base && base.week === 7 && hist.some((e) => e.week < 7)) {
     const nd = hist.filter((e) => e.week < 7);

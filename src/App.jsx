@@ -3,10 +3,10 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } fr
 import { SCHEMA_VERSION, migrate } from "./schema.js";
 import { parseJournalImport } from "./import.js";
 import { backupOnce, listBackups } from "./backup.js";
-import { V, SLOTS, SESSIONS, CORE, WARM, cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./program.js";
+import { buildProgram } from "./program.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned } from "./progression.js";
 import { PLAN, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
-import { startDate } from "./profile.js";
+import { startDate, STARTING_LOADS } from "./profile.js";
 
 /* =========================================================
    Programme 12 semaines — Simon
@@ -87,14 +87,14 @@ function Btn({ children, onClick, primary, small, disabled }) {
 }
 
 /* ---------- Carte exercice ---------- */
-function ExerciseCard({ idx, slotId, nSets, week, si, state, rows, onSet, onTimer }) {
-  const slot = SLOTS[slotId];
+function ExerciseCard({ idx, slotId, nSets, week, si, prog, state, rows, onSet, onTimer }) {
+  const slot = prog.SLOTS[slotId];
   const vid = slot[blockOf(week)];
-  const v = V[vid];
+  const v = prog.V[vid];
   const unit = v.unit || "kg";
   const sets = setsFor(nSets, week);
-  const plan = useMemo(() => planned(state, slotId, week, si), [state, slotId, week, si]);
-  const last = useMemo(() => lastEntry(state, vid, week, si), [state, vid, week, si]);
+  const plan = useMemo(() => planned(prog, state, slotId, week, si), [prog, state, slotId, week, si]);
+  const last = useMemo(() => lastEntry(prog, state, vid, week, si), [prog, state, vid, week, si]);
   const [open, setOpen] = useState(false);
   const phase = phaseOf(week);
   const failOk = slot.fail && week >= 3 && week !== 7;
@@ -173,6 +173,7 @@ export default function Programme() {
   const [loadError, setLoadError] = useState("");
   const [backups, setBackups] = useState([]); // [{ from, value }] — sauvegardes d'avant-migration (#8)
   const skipSave = useRef(true);
+  const prog = useMemo(() => buildProgram({ startingLoads: STARTING_LOADS }), []); // #6 : bundle par cycle, remplacera le profil par défaut
 
   useEffect(() => {
     (async () => {
@@ -250,16 +251,16 @@ export default function Programme() {
 
   const doneMap = useMemo(() => {
     const m = {};
-    SESSIONS.forEach((s) => { m[s.id] = !!(state.logs[`w${week}_${s.id}`] && state.logs[`w${week}_${s.id}`].done); });
+    prog.SESSIONS.forEach((s) => { m[s.id] = !!(state.logs[`w${week}_${s.id}`] && state.logs[`w${week}_${s.id}`].done); });
     return m;
-  }, [state, week]);
+  }, [prog, state, week]);
   const weekDoneCount = useMemo(() => Object.values(doneMap).filter(Boolean).length, [doneMap]);
 
   useEffect(() => {
-    const byDay = week === curWeek ? SESSIONS.find((s) => s.day === weekday) : null;
+    const byDay = week === curWeek ? prog.SESSIONS.find((s) => s.day === weekday) : null;
     if (byDay && !doneMap[byDay.id]) { setSessionId(byDay.id); return; }
     if (week === curWeek && (weekday === 0 || weekday === 4)) { setSessionId("cardio"); return; }
-    const next = SESSIONS.find((s) => !doneMap[s.id]);
+    const next = prog.SESSIONS.find((s) => !doneMap[s.id]);
     setSessionId(next ? next.id : "cardio");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [week, loaded]);
@@ -267,8 +268,8 @@ export default function Programme() {
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2500); };
   const wkey = (sid) => `w${week}_${sid}`;
   const phase = phaseOf(week);
-  const session = SESSIONS.find((s) => s.id === sessionId);
-  const si = SESSIONS.findIndex((s) => s.id === sessionId);
+  const session = prog.SESSIONS.find((s) => s.id === sessionId);
+  const si = prog.SESSIONS.findIndex((s) => s.id === sessionId);
   const log = session ? state.logs[wkey(session.id)] || {} : {};
 
   const onSet = (vid, i, f, val) => {
@@ -290,10 +291,10 @@ export default function Programme() {
       const k = wkey(session.id);
       const cur = st.logs[k] || {};
       const ex = { ...(cur.ex || {}) };
-      const all = [...session.ex, ...CORE[session.core].ex];
+      const all = [...session.ex, ...prog.CORE[session.core].ex];
       all.forEach(([slotId]) => {
-        const vid = SLOTS[slotId][blockOf(week)];
-        const p = planned(st, slotId, week, si);
+        const vid = prog.SLOTS[slotId][blockOf(week)];
+        const p = planned(prog, st, slotId, week, si);
         const rows = (ex[vid] || []).map((r) => (r.r && !r.w && p.load != null ? { ...r, w: String(p.load).replace(".", ",") } : r));
         if (rows.length) ex[vid] = rows;
       });
@@ -315,18 +316,18 @@ export default function Programme() {
   const bilanText = () => {
     const c = state.checkin[`w${week}`] || {};
     const ca = state.cardio[`w${week}`] || {};
-    const done = SESSIONS.filter((s) => doneMap[s.id]);
-    const missing = SESSIONS.filter((s) => !doneMap[s.id]).map((s) => s.name);
-    const cardioLines = CARDIO_ITEMS.filter((it) => ca[it.id] && ca[it.id].done).map((it) => { const d = ca[it.id]; return `${it.label} ${d.min || "?"} min${d.w ? `, ${d.w} W` : ""}${d.hr ? `, ${d.hr} bpm` : ""}`; });
+    const done = prog.SESSIONS.filter((s) => doneMap[s.id]);
+    const missing = prog.SESSIONS.filter((s) => !doneMap[s.id]).map((s) => s.name);
+    const cardioLines = prog.CARDIO_ITEMS.filter((it) => ca[it.id] && ca[it.id].done).map((it) => { const d = ca[it.id]; return `${it.label} ${d.min || "?"} min${d.w ? `, ${d.w} W` : ""}${d.hr ? `, ${d.hr} bpm` : ""}`; });
     const mob = (ca.mob || []).filter(Boolean).length;
     const keys = ["dc", "squat", "pull", "ohp", "hipthrust", "latraise"];
     const keyLines = keys.map((slotId) => {
-      const vid = SLOTS[slotId][blockOf(week)];
-      const sessionsW = SESSIONS.map((s) => state.logs[`w${week}_${s.id}`]).filter((l) => l && l.done && l.ex && l.ex[vid]);
+      const vid = prog.SLOTS[slotId][blockOf(week)];
+      const sessionsW = prog.SESSIONS.map((s) => state.logs[`w${week}_${s.id}`]).filter((l) => l && l.done && l.ex && l.ex[vid]);
       if (!sessionsW.length) return null;
       const sets = sessionsW.flatMap((l) => l.ex[vid]).map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null);
       if (!sets.length) return null;
-      return `${V[vid].name} : ${setSummary(sets, V[vid])}`;
+      return `${prog.V[vid].name} : ${setSummary(sets, prog.V[vid])}`;
     }).filter(Boolean);
     return [
       `Bilan S${week} (${weekRange(week)}) — ${phase.label}`,
@@ -354,12 +355,12 @@ export default function Programme() {
   const todayLine = (() => {
     if (dayIdx < 0) return `Le programme commence lundi ${dateLabel(START)}. Aujourd'hui : ${DAYNAMES[weekday]} ${dateLabel(today)}.`;
     if (dayIdx >= 84) return "Les 12 semaines sont terminées : bilan et programme suivant.";
-    const s = SESSIONS.find((x) => x.day === weekday);
-    const extra = CARDIO_DAY_NOTES[weekday] || "";
+    const s = prog.SESSIONS.find((x) => x.day === weekday);
+    const extra = prog.CARDIO_DAY_NOTES[weekday] || "";
     return `Aujourd'hui, ${DAYNAMES[weekday]} ${dateLabel(today)} : ${s ? `${s.name} (${s.sub})${extra}` : extra}.`;
   })();
 
-  const cardio = cardioPlan(week);
+  const cardio = prog.cardioPlan(week);
   const ca = state.cardio[`w${week}`] || {};
   const ci = state.checkin[`w${week}`] || {};
 
@@ -395,7 +396,7 @@ export default function Programme() {
             {!storageOk && !loadError && <p className="text-sm text-amber-400 mt-2">Stockage indisponible ici : les saisies ne survivront pas à la fermeture. Exporte le JSON (onglet Plan) en fin de séance.</p>}
 
             <div className="flex gap-2 overflow-x-auto py-3 -mx-4 px-4">
-              {SESSIONS.map((s) => (
+              {prog.SESSIONS.map((s) => (
                 <button key={s.id} onClick={() => setSessionId(s.id)}
                   className={`shrink-0 h-10 px-3 rounded-full text-sm inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-amber-400 border ${sessionId === s.id ? "bg-amber-400 text-slate-900 border-amber-400" : "bg-slate-800 border-slate-700 text-slate-200"}`}>
                   {doneMap[s.id] && <Check size={14} />}{s.name}
@@ -411,15 +412,15 @@ export default function Programme() {
                   <div className="text-sm text-slate-400">Jour conseillé : {DAYNAMES[session.day]}. {setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week)} séries dures + abdos. {PHASE_NOTES[phase.id]}</div>
                   {log.done && <div className="mt-2 text-sm text-emerald-400 inline-flex items-center gap-1"><Check size={15} />Validée le {log.date}. <button onClick={reopen} className="underline text-slate-300 ml-1 focus:outline-none">Rouvrir</button></div>}
                 </div>
-                <Section title="Échauffement">{WARM[session.warm]}</Section>
+                <Section title="Échauffement">{prog.WARM[session.warm]}</Section>
                 {session.ex.map(([slotId, n], i) => (
-                  <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} si={si} state={state}
-                    rows={(log.ex && log.ex[SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
+                  <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} si={si} prog={prog} state={state}
+                    rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
-                <div className="pt-4 text-sm text-slate-400">{CORE[session.core].label}</div>
-                {CORE[session.core].ex.map(([slotId, n], i) => (
-                  <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} si={si} state={state}
-                    rows={(log.ex && log.ex[SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
+                <div className="pt-4 text-sm text-slate-400">{prog.CORE[session.core].label}</div>
+                {prog.CORE[session.core].ex.map(([slotId, n], i) => (
+                  <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} si={si} prog={prog} state={state}
+                    rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 {(session.id === "hautB") && <p className="text-sm text-slate-400 mt-3">Après la séance : rameur Z2, {cardio.z2}</p>}
                 {(session.id === "basA") && <p className="text-sm text-slate-400 mt-3">Après la séance : bloc mobilité, {cardio.mob}</p>}
@@ -433,7 +434,7 @@ export default function Programme() {
                 </div>
               </div>
             ) : (
-              <CardioView week={week} cardio={cardio} ca={ca} setCardio={setCardio} toggleMob={toggleMob} />
+              <CardioView prog={prog} week={week} cardio={cardio} ca={ca} setCardio={setCardio} toggleMob={toggleMob} />
             )}
           </div>
         )}
@@ -442,16 +443,16 @@ export default function Programme() {
           <div className="px-4">
             <p className="text-sm text-slate-300 mt-3">{PHASE_NOTES[phase.id]}</p>
             <div className="mt-3 divide-y divide-slate-700 border-y border-slate-700">
-              {SESSIONS.map((s) => {
+              {prog.SESSIONS.map((s) => {
                 const l = state.logs[`w${week}_${s.id}`];
                 const keySlot = s.ex[0][0];
-                const vid = SLOTS[keySlot][blockOf(week)];
+                const vid = prog.SLOTS[keySlot][blockOf(week)];
                 const sets = l && l.ex && l.ex[vid] ? l.ex[vid].map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null) : [];
                 return (
                   <button key={s.id} onClick={() => { setSessionId(s.id); setTab("seance"); }} className="w-full py-3 flex items-center justify-between text-left focus:outline-none focus:ring-2 focus:ring-amber-400 rounded">
                     <div>
                       <div className="font-medium inline-flex items-center gap-2">{l && l.done ? <Check size={16} className="text-emerald-400" /> : <span className="w-4 h-4 rounded-full border border-slate-600 inline-block" />}{s.name} <span className="text-slate-400 font-normal text-sm">{DAYNAMES[s.day]}</span></div>
-                      <div className="text-sm text-slate-400 pl-6">{V[vid].name} : {sets.length ? setSummary(sets, V[vid]) : "—"}</div>
+                      <div className="text-sm text-slate-400 pl-6">{prog.V[vid].name} : {sets.length ? setSummary(sets, prog.V[vid]) : "—"}</div>
                     </div>
                     <ChevronRight size={16} className="text-slate-500" />
                   </button>
@@ -459,7 +460,7 @@ export default function Programme() {
               })}
             </div>
             <div className="mt-4">
-              <CardioView week={week} cardio={cardio} ca={ca} setCardio={setCardio} toggleMob={toggleMob} compact />
+              <CardioView prog={prog} week={week} cardio={cardio} ca={ca} setCardio={setCardio} toggleMob={toggleMob} compact />
             </div>
           </div>
         )}
@@ -564,12 +565,12 @@ function PlanContent() {
   ));
 }
 
-function CardioView({ week, cardio, ca, setCardio, toggleMob, compact }) {
+function CardioView({ prog, week, cardio, ca, setCardio, toggleMob, compact }) {
   return (
     <div>
       {!compact && <div className="text-xl font-semibold pb-1">Cardio et mobilité, semaine {week}</div>}
       <div className="divide-y divide-slate-700 border-y border-slate-700">
-        {CARDIO_ITEMS.map((it) => {
+        {prog.CARDIO_ITEMS.map((it) => {
           const plan = it.id === "int" ? cardio.intervals : cardio.z2;
           const d = ca[it.id] || {};
           if (it.id === "int" && !plan) return (
@@ -596,7 +597,7 @@ function CardioView({ week, cardio, ca, setCardio, toggleMob, compact }) {
           <div className="font-medium">Mobilité, 3 fois par semaine</div>
           <div className="text-sm text-slate-400">{cardio.mob}</div>
           <div className="flex gap-4 mt-2">
-            {MOB_DAYS.map((d, i) => (
+            {prog.MOB_DAYS.map((d, i) => (
               <label key={d} className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={!!(ca.mob && ca.mob[i])} onChange={() => toggleMob(i)} className="h-5 w-5 accent-amber-400" />{d}</label>
             ))}
           </div>

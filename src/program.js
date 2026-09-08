@@ -56,10 +56,9 @@
                     jours sans cardio absents).
    ========================================================= */
 
-import { STARTING_LOADS } from "./profile.js";
-
-/* ---------- Variantes (exercices) ---------- */
-export const V = {
+/* ---------- Variantes (exercices) : catalogue de base, sans charges de
+   départ. buildProgram() les y injecte (#6). ---------- */
+export const BASE_V = {
   dc: { name: "Développé couché barre", incr: 2.5, cue: "Omoplates serrées et abaissées, pieds ancrés, cambrure naturelle. Barre sur le bas des pecs, descente 2–3 s, poussée explosive, pas de rebond." },
   incl_db: { name: "Développé incliné haltères (banc 30°)", incr: 2, perHand: true, cue: "Haltères au niveau des pecs, coudes à ~45°, amplitude confortable pour l'épaule. Montée forte, descente contrôlée." },
   incl_mach: { name: "Presse inclinée machine ou Smith", incr: 5, cue: "Poignées au niveau du haut des pecs, omoplates plaquées. Pousser fort, freiner 2–3 s." },
@@ -101,11 +100,6 @@ export const V = {
   abwheel: { name: "Ab wheel à genoux", unit: "reps", cue: "Lombaires neutres et bassin en légère rétroversion pendant tout le mouvement. Amplitude courte d'abord, allonger ensuite. Stop si le dos creuse." },
   carry: { name: "Suitcase carry haltère", incr: 2, unit: "carry", side: true, cue: "Un haltère lourd d'un côté, buste vertical, marcher sans pencher. Anti-flexion latérale. Par côté." },
 };
-
-/* Charges de départ (#5) : profil, pas structure. Affectation sans
-   condition — pullup vaut 0 (poids du corps), un `if (load)` le
-   perdrait. Une variante sans entrée garde start indéfini => « Paliers ». */
-for (const [vid, load] of Object.entries(STARTING_LOADS)) V[vid].start = load;
 
 /* ---------- Créneaux : variante bloc 1 / bloc 2 ---------- */
 export const SLOTS = {
@@ -180,3 +174,22 @@ export const CARDIO_DAY_NOTES = {
   3: " puis rameur Z2",
   4: "rameur intervalles + mobilité",
 };
+
+/* ---------- Construction du bundle actif (#6) ----------
+   Un cycle fige un catalogue (celui de l'appli, sauf si definition.program
+   en fournit un autre) et y injecte ses charges de départ. Le clone est la
+   ligne qui compte : V[vid].start = load muterait sinon le catalogue de
+   base partagé, et un deuxième cycle en mémoire écraserait les charges du
+   premier. Affectation sans condition — pullup vaut 0 (poids du corps),
+   un `if (load)` le perdrait. */
+export function buildProgram(definition) {
+  const catalogue = (definition && definition.program) || {
+    V: BASE_V, SLOTS, SESSIONS, CORE, WARM, cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES,
+  };
+  const V = structuredClone(catalogue.V);
+  const startingLoads = (definition && definition.startingLoads) || {};
+  for (const [vid, load] of Object.entries(startingLoads)) {
+    if (V[vid]) V[vid].start = load;
+  }
+  return { ...catalogue, V };
+}
