@@ -24,6 +24,11 @@ const STORE = (() => {
     };
   } catch (e) { return null; }
 })();
+/* Journal présent en stockage mais illisible : schemaVersion hors bornes ou
+   JSON corrompu (#10). Persistant (pas un toast) et affiché hors de tout
+   onglet, puisque le problème survient avant même que l'utilisateur en
+   choisisse un. */
+const LOAD_ERROR_MESSAGE = "Le journal enregistré n'a pas pu être mis à jour vers le format actuel. Rien n'a été chargé, rien n'a été écrasé.";
 const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 const DAYNAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
@@ -164,30 +169,49 @@ export default function Programme() {
   const [toast, setToast] = useState("");
   const [ioText, setIoText] = useState("");
   const [importError, setImportError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const skipSave = useRef(true);
 
   useEffect(() => {
     (async () => {
+      if (!STORE) { setStorageOk(false); setLoaded(true); return; }
+
+      let raw;
       try {
-        if (!STORE) { setStorageOk(false); return; }
-        const r = await STORE.get(KEY, false);
-        if (r && r.value) {
-          const res = migrate(JSON.parse(r.value));
+        raw = (await STORE.get(KEY, false)).value;
+      } catch (e) {
+        // clé absente : vraiment la première utilisation, rien à faire
+        setLoaded(true);
+        return;
+      }
+
+      if (raw) {
+        try {
+          const res = migrate(JSON.parse(raw));
           if (res.ok) {
             setState({ logs: res.data.logs || {}, cardio: res.data.cardio || {}, checkin: res.data.checkin || {} });
             if (res.migrated) {
               skipSave.current = false; // Q2 : réécrire la forme migrée dès ce chargement
               showToast("Journal mis à jour vers le nouveau format.");
             }
-          } else {
+          } else if (res.tooNew) {
             // Q1 : journal écrit par une version plus récente — ne rien charger,
             // et le garde-fou de la sauvegarde empêche de l'écraser.
             setStorageOk(false);
             showToast("Ce journal vient d'une version plus récente de l'appli. Mets l'appli à jour.");
+          } else {
+            // res.invalid : schemaVersion hors bornes (#10) — même garde-fou,
+            // message persistant plutôt qu'un toast qui disparaît.
+            setStorageOk(false);
+            setLoadError(LOAD_ERROR_MESSAGE);
           }
+        } catch (e) {
+          // JSON corrompu : même traitement que res.invalid ci-dessus (#10)
+          setStorageOk(false);
+          setLoadError(LOAD_ERROR_MESSAGE);
         }
-      } catch (e) { /* première utilisation : clé absente */ }
-      finally { setLoaded(true); }
+      }
+      setLoaded(true);
     })();
   }, []);
 
@@ -358,10 +382,12 @@ export default function Programme() {
           )}
         </div>
 
+        {loadError && <p role="alert" className="mx-4 mt-3 text-sm text-amber-400">{loadError}</p>}
+
         {tab === "seance" && (
           <div className="px-4">
             <p className="text-sm text-slate-300 mt-3">{todayLine}</p>
-            {!storageOk && <p className="text-sm text-amber-400 mt-2">Stockage indisponible ici : les saisies ne survivront pas à la fermeture. Exporte le JSON (onglet Plan) en fin de séance.</p>}
+            {!storageOk && !loadError && <p className="text-sm text-amber-400 mt-2">Stockage indisponible ici : les saisies ne survivront pas à la fermeture. Exporte le JSON (onglet Plan) en fin de séance.</p>}
 
             <div className="flex gap-2 overflow-x-auto py-3 -mx-4 px-4">
               {SESSIONS.map((s) => (
