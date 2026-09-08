@@ -498,6 +498,13 @@ export default function Programme() {
               </div>
               <textarea value={ioText} onChange={(e) => { setIoText(e.target.value); setImportError(""); }} rows={4} placeholder="Colle ici un JSON exporté pour le réimporter" className="w-full p-2 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400" />
               {importError && <p role="alert" className="text-sm text-amber-400">{importError}</p>}
+              {backups.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {backups.map((b) => (
+                    <Btn key={b.from} small onClick={() => setIoText(b.value)}>Afficher la sauvegarde d'avant-migration (v{b.from})</Btn>
+                  ))}
+                </div>
+              )}
             </Section>
           </div>
         )}
