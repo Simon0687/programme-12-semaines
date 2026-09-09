@@ -376,6 +376,16 @@ export default function Programme() {
     const res = parseJournalImport(ioText);
     if (!res.ok) { setImportError(res.message); return; }
     setImportError("");
+    /* #12 : un import réussi est la seule porte de sortie d'un stockage
+       bloqué (journal trop récent, schemaVersion invalide, backup #8
+       impossible). Sans lever storageOk ici, l'autosave reste coupé et
+       l'import n'est jamais persisté. skipSave doit aussi retomber :
+       quand le blocage vient du chargement, l'effet de save sort sur
+       !storageOk avant d'avoir consommé skipSave, qui est donc resté à
+       true. STORE absent => on laisse l'effet de save constater l'échec. */
+    skipSave.current = false;
+    if (STORE) setStorageOk(true);
+    setLoadError("");
     setJournal({ activeProgramId: res.data.activeProgramId, programs: res.data.programs });
     showToast(res.migrated ? "Journal mis à jour vers le nouveau format." : "Données importées");
   };
