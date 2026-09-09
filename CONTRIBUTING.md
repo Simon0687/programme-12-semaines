@@ -13,7 +13,17 @@ idea → issue → branch → local dev → commit → push → Netlify preview 
 Every change starts with an issue, however small. That's what gives traceability: six months from now, `git log` explains *what* changed, the issue explains *why*.
 
 - **Milestone** = epic. A milestone groups the issues of one body of work.
-- **Labels**: type (`feat`, `fix`, `chore`, `refactor`, `test`, `docs`) and priority where useful.
+- **Labels**: type (`feat`, `fix`, `chore`, `refactor`, `test`, `docs`) and one priority.
+
+  Priority says *when* an issue gets done, not how important it feels. It is
+  re-evaluated at each merge into `dev`, alongside the Project status.
+
+  | Label | Meaning |
+  |---|---|
+  | `priority: high` | Lands before the next release to `main`: data loss or corruption, a crash, or a regression on shipped behaviour. Worked first. |
+  | `priority: medium` | Next up once `main` is current: it unblocks another planned issue, or removes a real risk without being a bug. Worked in the order the Project shows. |
+  | `priority: low` | Useful, but nothing waits on it: taken at the end of a batch, or when a neighbouring change already touches the same code. |
+  | `priority: later` | Not actionable yet: it needs unfinished major work (a storage migration, another issue) or a product decision first. Do not start it; re-label when the blocker lands. |
 - Describe the problem before the solution. Acceptance criteria prevent a vague "done".
 
 ## 2. Work
