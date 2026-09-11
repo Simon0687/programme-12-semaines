@@ -2,25 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { backupKey, backupOnce, listBackups } from "../src/backup.js";
-
-/* Faux store en mémoire, miroir de l'adaptateur réel (src/App.jsx) : get()
-   lève sur une clé absente, set() peut être forcé à lever pour simuler un
-   échec d'écriture. */
-function fakeStore({ failSet = false } = {}) {
-  const data = new Map();
-  return {
-    data,
-    async get(k) {
-      if (!data.has(k)) throw new Error("missing");
-      return { key: k, value: data.get(k) };
-    },
-    async set(k, v) {
-      if (failSet) throw new Error("quota");
-      data.set(k, v);
-      return { key: k, value: v };
-    },
-  };
-}
+import { fakeStore } from "./helpers/fake-store.js";
 
 test("backupKey : formate la clé avec la version d'origine", () => {
   assert.equal(backupKey("prog12_simon_v1", 1), "prog12_simon_v1_backup_pre1");
