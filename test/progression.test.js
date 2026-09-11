@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 
 import { buildProgram } from "../src/program.js";
 import { STARTING_LOADS } from "../src/profile.js";
-import { planned, history, lastEntry } from "../src/progression.js";
-import { logKey } from "../src/schema.js";
+import { planned, history, lastEntry, computeKind } from "../src/progression.js";
+import { dateForSlot } from "../src/schema.js";
 
 /* Pins the behaviour of planned() as it shipped in 1.0.0, before #3-#6
    start moving the program data around. Every expected value here is the
@@ -13,60 +13,68 @@ import { logKey } from "../src/schema.js";
    pinned as-is per docs/features/2-tests-progression-logic/spec.md.
    The RIR<=1 gate on the top-of-range branch, originally pinned here, was
    superseded by #28: reaching the top of the range now increases the load
-   on its own, RIR is informative only. */
+   on its own, RIR is informative only.
+
+   #16: the engine reads date+kind instead of a week-keyed log. Fixtures
+   still take a "week" (it's the natural way to describe a fixture) but S()
+   turns it into the same date/kind a real validation would have produced
+   (dateForSlot/computeKind, #16) - so every expected value below stays
+   exactly what it was before the migration to a dated timeline. */
 
 const prog = buildProgram({ startingLoads: STARTING_LOADS });
+const START = "2026-01-05"; // lundi, arbitraire - seule la cohérence interne à ce fichier compte
 
 /* ---- fixtures -------------------------------------------------------- */
+
+const si = (sid) => prog.SESSIONS.findIndex((s) => s.id === sid);
+const dateOf = (week, sid) => dateForSlot(START, week, prog.SESSIONS[si(sid)].day);
+const set = (w, r, rir) => ({ w, r, rir });
 
 // One validated session log per entry: { week, sid, vid, sets }.
 // sets are stored the way the app stores them: [{ w, r, rir }, ...].
 const S = (...entries) => ({
   logs: Object.fromEntries(
-    entries.map(({ week, sid, vid, sets }) => [
-      logKey(week, sid),
-      { done: true, ex: { [vid]: sets } },
-    ])
+    entries.map(({ week, sid, vid, sets }) => {
+      const date = dateOf(week, sid);
+      return [`${date}_${sid}`, { id: `${date}_${sid}`, date, slot: sid, kind: computeKind(week), done: true, ex: { [vid]: sets } }];
+    })
   ),
   cardio: {},
   checkin: {},
 });
 
-const si = (sid) => prog.SESSIONS.findIndex((s) => s.id === sid);
-const set = (w, r, rir) => ({ w, r, rir });
-
 /* ---- no history --------------------------------------------------- */
 
 describe("no history", () => {
   test("variant with a starting load: week 1 suggests it", () => {
-    const p = planned(prog, S(), "dc", 1, si("hautA"));
+    const p = planned(prog, S(), "dc", 1, si("hautA"), dateOf(1, "hautA"));
     assert.equal(p.load, prog.V.dc.start); // 72.5
     assert.equal(p.text, "72,5 kg");
     assert.equal(p.why, "charge de départ");
   });
 
   test("variant with no starting load: ramp-up (Paliers)", () => {
-    const p = planned(prog, S(), "reardelt", 1, si("hautA")); // b1 = rpd, no start
+    const p = planned(prog, S(), "reardelt", 1, si("hautA"), dateOf(1, "hautA")); // b1 = rpd, no start
     assert.equal(p.load, null);
     assert.equal(p.text, "Paliers");
   });
 
   test("time variant: null load, target text at the phase RIR", () => {
-    const p = planned(prog, S(), "sideplank", 1, si("basA"));
+    const p = planned(prog, S(), "sideplank", 1, si("basA"), dateOf(1, "basA"));
     assert.equal(p.load, null);
     assert.equal(p.text, "Cible 20–40 s à 2–3 RIR");
   });
 
   test("reps variant: null load, target text", () => {
-    const p = planned(prog, S(), "abwheel", 1, si("hautB"));
+    const p = planned(prog, S(), "abwheel", 1, si("hautB"), dateOf(1, "hautB"));
     assert.equal(p.load, null);
     assert.equal(p.text, "Cible 6–10 reps à 2–3 RIR");
   });
 
   test("nothing throws for a bare state", () => {
-    assert.doesNotThrow(() => planned(prog, S(), "dc", 1, si("hautA")));
-    assert.doesNotThrow(() => planned(prog, S(), "squat", 7, si("basA")));
-    assert.doesNotThrow(() => planned(prog, S(), "carry", 1, si("hautB")));
+    assert.doesNotThrow(() => planned(prog, S(), "dc", 1, si("hautA"), dateOf(1, "hautA")));
+    assert.doesNotThrow(() => planned(prog, S(), "squat", 7, si("basA"), dateOf(7, "basA")));
+    assert.doesNotThrow(() => planned(prog, S(), "carry", 1, si("hautB"), dateOf(1, "hautB")));
   });
 });
 
@@ -76,26 +84,26 @@ describe("calibration", () => {
   const wk1 = (...sets) => S({ week: 1, sid: "hautA", vid: "dc", sets });
 
   test("all sets at the top of the range: +5%, snapped to incr", () => {
-    const p = planned(prog, wk1(set(72.5, 8, 3), set(72.5, 8, 3), set(72.5, 8, 3)), "dc", 2, si("hautA"));
+    const p = planned(prog, wk1(set(72.5, 8, 3), set(72.5, 8, 3), set(72.5, 8, 3)), "dc", 2, si("hautA"), dateOf(2, "hautA"));
     assert.equal(p.load, 75); // roundTo(72.5 * 1.05, 2.5)
     assert.equal(p.load % prog.V.dc.incr, 0);
     assert.equal(p.why, "calibration : +5 %");
   });
 
   test("all sets at the top of the range at a low RIR: +5% fires too (#28)", () => {
-    const p = planned(prog, wk1(set(80, 8, 1), set(80, 8, 1), set(80, 8, 1)), "dc", 2, si("hautA"));
+    const p = planned(prog, wk1(set(80, 8, 1), set(80, 8, 1), set(80, 8, 1)), "dc", 2, si("hautA"), dateOf(2, "hautA"));
     assert.equal(p.load, 85); // roundTo(80 * 1.05, 2.5)
     assert.equal(p.why, "calibration : +5 %");
   });
 
   test("one set below the bottom of the range: -5%", () => {
-    const p = planned(prog, wk1(set(72.5, 3, 2), set(72.5, 6, 2), set(72.5, 6, 2)), "dc", 2, si("hautA"));
+    const p = planned(prog, wk1(set(72.5, 3, 2), set(72.5, 6, 2), set(72.5, 6, 2)), "dc", 2, si("hautA"), dateOf(2, "hautA"));
     assert.equal(p.load, 70); // roundTo(72.5 * 0.95, 2.5)
     assert.equal(p.why, "calibration : −5 %");
   });
 
   test("in range but not maxed: load held", () => {
-    const p = planned(prog, wk1(set(72.5, 6, 2), set(72.5, 6, 2), set(72.5, 6, 2)), "dc", 2, si("hautA"));
+    const p = planned(prog, wk1(set(72.5, 6, 2), set(72.5, 6, 2), set(72.5, 6, 2)), "dc", 2, si("hautA"), dateOf(2, "hautA"));
     assert.equal(p.load, 72.5);
     assert.equal(p.why, "charge validée en calibration");
   });
@@ -108,7 +116,7 @@ describe("progression", () => {
     const p = planned(
       prog,
       S({ week: 2, sid: "hautA", vid: "dc", sets: [set(75, 8, 1), set(75, 8, 1), set(75, 8, 1)] }),
-      "dc", 3, si("hautA")
+      "dc", 3, si("hautA"), dateOf(3, "hautA")
     );
     assert.equal(p.load, 75 + prog.V.dc.incr); // 77.5, exact
     assert.match(p.why, /^\+2,5 kg/);
@@ -118,7 +126,7 @@ describe("progression", () => {
     const p = planned(
       prog,
       S({ week: 2, sid: "basA", vid: "squat", sets: [set(105, 8, 1), set(105, 8, 1), set(105, 8, 1)] }),
-      "squat", 3, si("basA")
+      "squat", 3, si("basA"), dateOf(3, "basA")
     );
     assert.equal(p.load, 105 + prog.V.squat.incr); // 110
   });
@@ -131,7 +139,7 @@ describe("stalling", () => {
     const p = planned(
       prog,
       S({ week: 3, sid: "hautA", vid: "dc", sets: [set(80, 3, 1), set(80, 3, 1), set(80, 6, 1)] }),
-      "dc", 4, si("hautA")
+      "dc", 4, si("hautA"), dateOf(4, "hautA")
     );
     assert.equal(p.load, 80);
     assert.equal(p.why, "même charge : une séance sous la fourchette, on retente");
@@ -144,7 +152,7 @@ describe("stalling", () => {
         { week: 3, sid: "hautA", vid: "dc", sets: [set(80, 3, 1), set(80, 3, 1), set(80, 6, 1)] },
         { week: 4, sid: "hautA", vid: "dc", sets: [set(80, 2, 1), set(80, 2, 1), set(80, 5, 1)] }
       ),
-      "dc", 5, si("hautA")
+      "dc", 5, si("hautA"), dateOf(5, "hautA")
     );
     assert.equal(p.load, 75); // roundTo(80 * 0.95, 2.5)
     assert.equal(p.why, "−5 % : deux séances sous la fourchette");
@@ -158,7 +166,7 @@ describe("week 7 deload", () => {
     const p = planned(
       prog,
       S({ week: 6, sid: "hautA", vid: "dc", sets: [set(100, 8, 1), set(100, 8, 1), set(100, 8, 1)] }),
-      "dc", 7, si("hautA")
+      "dc", 7, si("hautA"), dateOf(7, "hautA")
     );
     // week 6 was due +2.5 -> next 102.5 -> roundTo(102.5 * 0.85, 2.5) = 87.5
     assert.equal(p.load, 87.5);
@@ -172,7 +180,7 @@ describe("week 7 deload", () => {
         { week: 6, sid: "hautA", vid: "dc", sets: [set(100, 8, 1), set(100, 8, 1), set(100, 8, 1)] },
         { week: 7, sid: "hautA", vid: "dc", sets: [set(85, 8, 4), set(85, 8, 4), set(85, 8, 4)] }
       ),
-      "dc", 8, si("hautA")
+      "dc", 8, si("hautA"), dateOf(8, "hautA")
     );
     assert.equal(p.load, 100 + prog.V.dc.incr); // 102.5, from week 6
     assert.notEqual(p.load, 85 + prog.V.dc.incr); // not from the week-7 deload load
@@ -184,7 +192,7 @@ describe("week 7 deload", () => {
 
 describe("new block-2 variant in week 7", () => {
   test("week 7: no prior history, shows the ramp-up branch", () => {
-    const p = planned(prog, S(), "tristretch", 7, si("hautA")); // b2 = skull, no start
+    const p = planned(prog, S(), "tristretch", 7, si("hautA"), dateOf(7, "hautA")); // b2 = skull, no start
     assert.equal(p.load, null);
     assert.equal(p.text, "Paliers");
   });
@@ -193,9 +201,9 @@ describe("new block-2 variant in week 7", () => {
     const p = planned(
       prog,
       S({ week: 7, sid: "hautA", vid: "skull", sets: [set(20, 12, 4), set(20, 12, 4)] }),
-      "tristretch", 8, si("hautA")
+      "tristretch", 8, si("hautA"), dateOf(8, "hautA")
     );
-    assert.equal(p.why, "calibration : +5 %"); // calibration branch, because base.week === 7
+    assert.equal(p.why, "calibration : +5 %"); // calibration branch, because base.kind === "deload"
     assert.equal(p.load, 22); // roundTo(20 * 1.05, 2)
   });
 });
@@ -205,8 +213,8 @@ describe("new block-2 variant in week 7", () => {
 describe("same variant twice in one week", () => {
   test("the second session accounts for the first (e.si < si)", () => {
     const st = S({ week: 5, sid: "hautA", vid: "lat_db", sets: [set(14, 12, 1), set(14, 12, 1)] });
-    const first = planned(prog, st, "latraise", 5, si("hautA")); // si 0: does not see itself
-    const second = planned(prog, st, "latraise", 5, si("hautC")); // si 3: sees Haut A
+    const first = planned(prog, st, "latraise", 5, si("hautA"), dateOf(5, "hautA")); // si 0: does not see itself
+    const second = planned(prog, st, "latraise", 5, si("hautC"), dateOf(5, "hautC")); // si 3: sees Haut A
     assert.equal(first.text, "Paliers"); // no history yet
     assert.equal(second.load, 14 + prog.V.lat_db.incr); // 16, progressed off Haut A
   });
@@ -216,7 +224,7 @@ describe("same variant twice in one week", () => {
 
 describe("pull-ups (unit bw)", () => {
   test("no added load reads as bodyweight", () => {
-    const p = planned(prog, S(), "pull", 1, si("hautB"));
+    const p = planned(prog, S(), "pull", 1, si("hautB"), dateOf(1, "hautB"));
     assert.equal(p.load, 0);
     assert.equal(p.text, "Poids du corps");
   });
@@ -225,7 +233,7 @@ describe("pull-ups (unit bw)", () => {
     const p = planned(
       prog,
       S({ week: 2, sid: "hautB", vid: "pullup", sets: [set(0, 8, 1), set(0, 8, 1), set(0, 8, 1)] }),
-      "pull", 3, si("hautB")
+      "pull", 3, si("hautB"), dateOf(3, "hautB")
     );
     assert.equal(p.load, 0 + prog.V.pullup.incr); // 2.5
     assert.equal(p.text, "PDC + 2,5 kg");
@@ -239,7 +247,7 @@ describe("time-based variant (sideplank)", () => {
     const p = planned(
       prog,
       S({ week: 1, sid: "basA", vid: "sideplank", sets: [set(null, 40, 2), set(null, 40, 2)] }),
-      "sideplank", 2, si("basA")
+      "sideplank", 2, si("basA"), dateOf(2, "basA")
     );
     assert.equal(p.load, null);
     assert.match(p.why, /\+5 s/);
@@ -249,7 +257,7 @@ describe("time-based variant (sideplank)", () => {
     const p = planned(
       prog,
       S({ week: 1, sid: "basA", vid: "sideplank", sets: [set(null, 30, 2), set(null, 30, 2)] }),
-      "sideplank", 2, si("basA")
+      "sideplank", 2, si("basA"), dateOf(2, "basA")
     );
     assert.equal(p.load, null);
     assert.match(p.why, /viser le haut de la fourchette/);
@@ -263,7 +271,7 @@ describe("edge cases", () => {
     const p = planned(
       prog,
       S({ week: 2, sid: "hautA", vid: "dc", sets: [set(75, 8, 1), set(75, 8, null), set(75, 8, 1)] }),
-      "dc", 3, si("hautA")
+      "dc", 3, si("hautA"), dateOf(3, "hautA")
     );
     assert.equal(p.load, 75 + prog.V.dc.incr);
     assert.equal(p.why, "+2,5 kg : haut de fourchette atteint");
@@ -273,7 +281,7 @@ describe("edge cases", () => {
     const p = planned(
       prog,
       S({ week: 2, sid: "hautA", vid: "dc", sets: [set(75, 8, 4), set(75, 8, 4), set(75, 8, 4)] }),
-      "dc", 3, si("hautA")
+      "dc", 3, si("hautA"), dateOf(3, "hautA")
     );
     assert.equal(p.load, 75 + prog.V.dc.incr);
     assert.equal(p.why, "+2,5 kg : haut de fourchette atteint");
@@ -283,7 +291,7 @@ describe("edge cases", () => {
     const p = planned(
       prog,
       S({ week: 2, sid: "hautB", vid: "carry", sets: [set(24, 45, 1), set(24, 45, 1)] }),
-      "carry", 3, si("hautB")
+      "carry", 3, si("hautB"), dateOf(3, "hautB")
     );
     assert.equal(p.load, 24 + prog.V.carry.incr); // 26 kg
   });
@@ -294,14 +302,14 @@ describe("edge cases", () => {
     const top = planned(
       prog,
       S({ week: 2, sid: "hautA", vid: "dc", sets: [set(75, mx, 1), set(75, mx, 1)] }),
-      "dc", 3, si("hautA")
+      "dc", 3, si("hautA"), dateOf(3, "hautA")
     );
     assert.equal(top.load, 75 + prog.V.dc.incr);
     // two sets exactly at mn -> not counted as below -> held, not cut
     const atFloor = planned(
       prog,
       S({ week: 3, sid: "hautA", vid: "dc", sets: [set(80, mn, 1), set(80, mn, 1), set(80, 6, 1)] }),
-      "dc", 4, si("hautA")
+      "dc", 4, si("hautA"), dateOf(4, "hautA")
     );
     assert.equal(atFloor.load, 80);
     assert.equal(atFloor.why, "même charge : viser plus de reps");
@@ -311,7 +319,7 @@ describe("edge cases", () => {
 /* ---- supporting readers ------------------------------ */
 
 describe("history / lastEntry", () => {
-  test("history returns validated sets in week then session order", () => {
+  test("history returns validated sets in chronological order", () => {
     const h = history(
       prog,
       S(
@@ -320,7 +328,7 @@ describe("history / lastEntry", () => {
       ),
       "lat_db"
     );
-    assert.deepEqual(h.map((e) => e.week), [2, 3]);
+    assert.deepEqual(h.map((e) => e.date), [dateOf(2, "hautA"), dateOf(3, "hautC")]);
   });
 
   test("lastEntry ignores the current session and later ones", () => {
@@ -328,6 +336,7 @@ describe("history / lastEntry", () => {
       { week: 2, sid: "hautA", vid: "lat_db", sets: [set(10, 12, 1)] },
       { week: 4, sid: "hautA", vid: "lat_db", sets: [set(14, 12, 1)] }
     );
-    assert.equal(lastEntry(prog, st, "lat_db", 4, si("hautA")).week, 2);
+    const entry = lastEntry(prog, st, "lat_db", dateOf(4, "hautA"), si("hautA"));
+    assert.equal(entry.date, dateOf(2, "hautA"));
   });
 });

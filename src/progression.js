@@ -8,9 +8,16 @@
 
    phaseOf(w) renvoie { id, label, rir }. Les notes éditoriales par phase
    sont dans src/plan.js (PHASE_NOTES), sorties du moteur en #4.
-   ========================================================= */
 
-import { logKey } from "./schema.js";
+   Depuis #16, l'historique n'est plus indexé par semaine de cycle mais par
+   date réelle (logs[id] = { date, slot, kind, ... }, voir src/schema.js).
+   computeKind(week) reproduit la règle que phaseOf() encode déjà (semaine 1
+   = calibration, semaine 7 = décharge) : c'est la même règle, stockée une
+   fois pour toutes au lieu d'être redérivée de la semaine à chaque lecture.
+   La sécurité qui excluait un point de décharge (week === 7) de la base de
+   calcul du suivant devient kind === "deload" ; la calibration (base.week
+   === 1 || 7) devient kind === "calibration" || "deload".
+   ========================================================= */
 
 export const num = (s) => {
   if (s === "" || s == null) return null;
@@ -28,33 +35,35 @@ export const phaseOf = (w) =>
   : { id: "bilan", label: "Bloc 2, semaine bilan", rir: "1" };
 export const blockOf = (w) => (w <= 6 ? "b1" : "b2");
 export const setsFor = (n, w) => (w === 7 ? Math.ceil(n / 2) : n);
+export const computeKind = (week) => (week === 1 ? "calibration" : week === 7 ? "deload" : "normal");
 
 export function history(prog, state, vid) {
   const out = [];
-  for (let w = 1; w <= 12; w++) {
-    prog.SESSIONS.forEach((s, si) => {
-      const log = state.logs[logKey(w, s.id)];
-      if (!log || !log.done) return;
-      const sets = ((log.ex && log.ex[vid]) || []).map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null);
-      if (sets.length) out.push({ week: w, si, session: s.name, sets });
-    });
+  for (const rec of Object.values(state.logs)) {
+    if (!rec.done) continue;
+    const si = prog.SESSIONS.findIndex((s) => s.id === rec.slot);
+    if (si < 0) continue; // slot d'un autre programme (custom chargé puis remplacé, #6) : hors du prog courant
+    const sets = ((rec.ex && rec.ex[vid]) || []).map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null);
+    if (sets.length) out.push({ date: rec.date, si, kind: rec.kind, session: prog.SESSIONS[si].name, sets });
   }
+  out.sort((a, b) => (a.date === b.date ? a.si - b.si : a.date < b.date ? -1 : 1));
   return out;
 }
-export function lastEntry(prog, state, vid, week, si) {
-  const h = history(prog, state, vid).filter((e) => e.week < week || (e.week === week && e.si < si));
+export function lastEntry(prog, state, vid, date, si) {
+  const h = history(prog, state, vid).filter((e) => e.date < date || (e.date === date && e.si < si));
   return h[h.length - 1] || null;
 }
-export function planned(prog, state, slotId, week, si) {
+export function planned(prog, state, slotId, week, si, date) {
   const slot = prog.SLOTS[slotId];
   const vid = slot[blockOf(week)];
   const v = prog.V[vid];
   const unit = v.unit || "kg";
   const [mn, mx] = slot.reps;
-  const hist = history(prog, state, vid).filter((e) => e.week < week || (e.week === week && e.si < si));
+  const kind = computeKind(week);
+  const hist = history(prog, state, vid).filter((e) => e.date < date || (e.date === date && e.si < si));
   let base = hist[hist.length - 1], prev = hist[hist.length - 2];
-  if (base && base.week === 7 && hist.some((e) => e.week < 7)) {
-    const nd = hist.filter((e) => e.week < 7);
+  if (base && base.kind === "deload" && hist.some((e) => e.kind !== "deload")) {
+    const nd = hist.filter((e) => e.kind !== "deload");
     base = nd[nd.length - 1]; prev = nd[nd.length - 2];
   }
   const label = unit === "time" ? `${mn}–${mx} s` : unit === "carry" ? `${mn}–${mx} s` : `${mn}–${mx} reps`;
@@ -62,8 +71,8 @@ export function planned(prog, state, slotId, week, si) {
   if (!base) {
     if (unit === "time" || unit === "reps") return { load: null, text: `Cible ${label} à ${phaseOf(week).rir} RIR`, why: "" };
     if (v.start == null) return { load: null, text: "Paliers", why: "50 → 75 → 100 % de la charge devinée ; la première série dans la fourchette au bon RIR devient la charge de travail" };
-    const l = week === 7 ? roundTo(v.start * 0.85, v.incr) : v.start;
-    return { load: l, text: loadText(v, l), why: week === 7 ? "charge de départ −15 % (décharge)" : "charge de départ" };
+    const l = kind === "deload" ? roundTo(v.start * 0.85, v.incr) : v.start;
+    return { load: l, text: loadText(v, l), why: kind === "deload" ? "charge de départ −15 % (décharge)" : "charge de départ" };
   }
   const load = Math.max(...base.sets.map((s) => (s.w == null ? 0 : s.w)));
   const allTop = base.sets.every((s) => s.r >= mx);
@@ -74,7 +83,7 @@ export function planned(prog, state, slotId, week, si) {
     const t = allTop ? `progresser : ${unit === "time" ? "+5 s" : "+1 rep ou amplitude"}` : `viser le haut de la fourchette (${label})`;
     return { load: null, text: `Cible ${label}`, why: `dernière fois ${base.sets.map((s) => s.r).join("/")} — ${t}` };
   }
-  if (base.week === 1 || base.week === 7) {
+  if (base.kind === "calibration" || base.kind === "deload") {
     if (allTop) { next = roundTo(load * 1.05, v.incr); why = "calibration : +5 %"; }
     else if (lowCount >= 1) { next = roundTo(load * 0.95, v.incr); why = "calibration : −5 %"; }
     else why = "charge validée en calibration";
@@ -85,7 +94,7 @@ export function planned(prog, state, slotId, week, si) {
     if (prevLow) { next = roundTo(load * 0.95, v.incr); why = "−5 % : deux séances sous la fourchette"; }
     else why = "même charge : une séance sous la fourchette, on retente";
   } else why = "même charge : viser plus de reps";
-  if (week === 7 && base.week !== 7) { next = roundTo(next * 0.85, v.incr); why = "décharge −15 %"; }
+  if (kind === "deload" && base.kind !== "deload") { next = roundTo(next * 0.85, v.incr); why = "décharge −15 %"; }
   return { load: next, text: loadText(v, next), why };
 }
 export function loadText(v, l) {
