@@ -13,7 +13,9 @@
      { ok: false, reason: "no-store" }  // store indisponible (#21 Edge cases)
      { ok: false, reason: "absent" }    // pas de clé : première utilisation
      { ok: false, reason: "too-new" }   // écrit par une version plus récente
-     { ok: false, reason: "invalid" }   // schemaVersion hors bornes (#10)
+     { ok: false, reason: "invalid" }   // schemaVersion hors bornes (#10),
+                                         // ou activeProgramId sans entrée
+                                         // correspondante dans programs
      { ok: false, reason: "corrupt" }   // JSON.parse a échoué (#10)
    ========================================================= */
 
@@ -48,6 +50,10 @@ export async function loadJournal(store, key) {
   if (!res.ok) return { ok: false, reason: "invalid" };
 
   const { activeProgramId, programs } = res.data;
+  /* Item 5 (#21) : un activeProgramId sans entrée dans programs plantait le
+     premier rendu sans message ; traité comme un autre cas "invalid". */
+  if (!programs[activeProgramId]) return { ok: false, reason: "invalid" };
+
   const journal = { activeProgramId, programs };
   if (!res.migrated) return { ok: true, journal, migrated: false };
 

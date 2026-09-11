@@ -64,6 +64,14 @@ test("loadJournal : schemaVersion hors bornes (#10) -> reason invalid", async ()
   assert.deepEqual(await loadJournal(store, "K"), { ok: false, reason: "invalid" });
 });
 
+test("loadJournal : activeProgramId sans entrée dans programs -> reason invalid (#21 item 5)", async () => {
+  const store = fakeStore();
+  const dangling = { schemaVersion: 2, activeProgramId: "ghost", programs: { p1: { definition: null, logs: {}, cardio: {}, checkin: {} } } };
+  store.data.set("K", JSON.stringify(dangling));
+
+  assert.deepEqual(await loadJournal(store, "K"), { ok: false, reason: "invalid" });
+});
+
 test("loadJournal : échec de la sauvegarde de sécurité -> backupOk false, journal quand même renvoyé", async () => {
   const store = fakeStore({ failSet: true });
   store.data.set("K", JSON.stringify({ logs: {}, cardio: {}, checkin: {} }));
