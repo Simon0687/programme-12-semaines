@@ -7,8 +7,9 @@
    CORE ; #3 : WARM, cardioPlan, CARDIO_ITEMS, MOB_DAYS ; #4 :
    CARDIO_DAY_NOTES). La prose de l'onglet Plan et les notes de phaseOf()
    sont sorties dans src/plan.js (#4). Les charges de départ (V.<id>.start)
-   viennent de src/profile.js (STARTING_LOADS), refold sur V ci-dessous
-   (#5) ; ce module les porte toujours à l'exécution.
+   sont injectées par buildProgram(definition) (#6) à partir de
+   definition.startingLoads — plus jamais lues depuis src/profile.js
+   directement une fois le bundle construit.
 
    ---------------------------------------------------------
    V[id] — catalogue d'exercices (variantes)
@@ -42,6 +43,9 @@
      warm              clé WARM ("upper" | "lower")
      ex                [[slotId, nombre de séries dures], …]
      core              clé CORE
+     after             optionnel : "z2" | "mob" — indice affiché sur la
+                        Séance ("Après la séance : …", #22). Absent =>
+                        aucun indice.
 
    CORE[id]  — bloc d'abdos : { label, ex: [[slotId, nSéries], …] }
    WARM[k]   — protocole d'échauffement ("upper" | "lower") -> texte
@@ -54,6 +58,10 @@
    CARDIO_DAY_NOTES[jour] — fragment cardio ajouté à la ligne « Aujourd'hui »
                     de la Séance (jour : 0 = dimanche … 6 = samedi ;
                     jours sans cardio absents).
+
+   getKeySlots(prog) / getCardioDayNotes(prog) — dérivations pures depuis
+                    un bundle construit (#22), voir leur définition
+                    ci-dessous, juste après buildProgram().
    ========================================================= */
 
 /* ---------- Variantes (exercices) : catalogue de base, sans charges de
@@ -132,8 +140,8 @@ export const SLOTS = {
 
 export const SESSIONS = [
   { id: "hautA", name: "Haut A", sub: "Pecs, épaules, triceps", day: 1, warm: "upper", ex: [["dc", 3], ["incline", 3], ["latraise", 2], ["reardelt", 2], ["tristretch", 2]], core: "coreA" },
-  { id: "basA", name: "Bas A", sub: "Squat, ischios, mollets", day: 2, warm: "lower", ex: [["squat", 3], ["legcurl", 3], ["calfstand", 3]], core: "coreB" },
-  { id: "hautB", name: "Haut B", sub: "Dos, delt postérieurs, biceps", day: 3, warm: "upper", ex: [["pull", 3], ["row", 2], ["reardelt", 2], ["curl2", 2]], core: "coreC" },
+  { id: "basA", name: "Bas A", sub: "Squat, ischios, mollets", day: 2, warm: "lower", ex: [["squat", 3], ["legcurl", 3], ["calfstand", 3]], core: "coreB", after: "mob" },
+  { id: "hautB", name: "Haut B", sub: "Dos, delt postérieurs, biceps", day: 3, warm: "upper", ex: [["pull", 3], ["row", 2], ["reardelt", 2], ["curl2", 2]], core: "coreC", after: "z2" },
   { id: "hautC", name: "Haut C", sub: "Épaules et bras", day: 5, warm: "upper", ex: [["latraise", 3], ["ohp", 3], ["curl1", 3], ["pushdown", 3], ["fly", 2]], core: "coreA" },
   { id: "basB", name: "Bas B", sub: "Hip thrust, presse, dos sagittal, mollets", day: 6, warm: "lower", ex: [["hipthrust", 3], ["quad2", 2], ["pullsag", 2], ["calfseat", 3]], core: "coreB" },
 ];
@@ -192,4 +200,29 @@ export function buildProgram(definition) {
     if (V[vid]) V[vid].start = load;
   }
   return { ...catalogue, V };
+}
+
+/* ---------- Dérivations pures depuis un bundle (#22) ----------
+   Les deux seules valeurs de forme qui ne sont pas une simple lecture de
+   propriété ; App.jsx les lisait en dur avant #22. */
+
+/* Slots clés, dans leur ordre de déclaration dans SLOTS — App.jsx les
+   utilisait en dur pour la ligne "Exos clés" du Bilan et le drapeau AMRAP
+   de S12 (slot.key). */
+export function getKeySlots(prog) {
+  return Object.entries(prog.SLOTS)
+    .filter(([, slot]) => slot.key)
+    .map(([id]) => id);
+}
+
+/* Jours (0 = dimanche … 6 = samedi) qui ont une note cardio mais aucune
+   séance — ceux où l'onglet Séance ouvre directement sur "Cardio et
+   mobilité". Un jour avec à la fois une séance et une note cardio (ex.
+   mercredi : Haut B + rameur après) n'en fait pas partie : la note s'y
+   affiche en complément de la séance, pas à sa place. */
+export function getCardioDayNotes(prog) {
+  const sessionDays = new Set(prog.SESSIONS.map((s) => s.day));
+  return Object.keys(prog.CARDIO_DAY_NOTES)
+    .map(Number)
+    .filter((day) => !sessionDays.has(day));
 }
