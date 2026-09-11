@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
-import { SCHEMA_VERSION, migrate, emptyJournal, withVersion } from "./schema.js";
+import { SCHEMA_VERSION, emptyJournal } from "./schema.js";
 import { parseJournalImport, parseProgramImport } from "./import.js";
-import { backupOnce, listBackups } from "./backup.js";
+import { listBackups } from "./backup.js";
+import { createStore, loadJournal, saveJournal } from "./storage.js";
 import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned } from "./progression.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
@@ -14,16 +15,7 @@ import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
    ========================================================= */
 
 const KEY = "prog12_simon_v1";
-const STORE = (() => {
-  if (typeof window !== "undefined" && window.storage) return window.storage;
-  try {
-    const ls = window.localStorage; ls.getItem("__t");
-    return {
-      async get(k) { const v = ls.getItem(k); if (v == null) throw new Error("missing"); return { key: k, value: v }; },
-      async set(k, v) { ls.setItem(k, v); return { key: k, value: v }; },
-    };
-  } catch (e) { return null; }
-})();
+const STORE = createStore();
 /* Journal présent en stockage mais illisible : schemaVersion hors bornes ou
    JSON corrompu (#10). Persistant (pas un toast) et affiché hors de tout
    onglet, puisque le problème survient avant même que l'utilisateur en
@@ -196,45 +188,32 @@ export default function Programme() {
 
   useEffect(() => {
     (async () => {
-      if (!STORE) { setStorageOk(false); setLoaded(true); return; }
-
-      let raw = null;
-      try {
-        raw = (await STORE.get(KEY, false)).value;
-      } catch (e) { /* clé absente : vraiment la première utilisation */ }
-
-      if (raw) {
-        try {
-          const res = migrate(JSON.parse(raw));
-          if (res.ok) {
-            setJournal({ activeProgramId: res.data.activeProgramId, programs: res.data.programs });
-            if (res.migrated) {
-              const safe = await backupOnce(STORE, KEY, res.from, raw); // #8 : copier l'original avant d'activer la réécriture
-              if (safe) {
-                skipSave.current = false; // Q2 : réécrire la forme migrée dès ce chargement
-                showToast("Journal mis à jour vers le nouveau format.");
-              } else {
-                setStorageOk(false); // décisions #8 Q2 : sauvegarde impossible => on ne réécrit rien
-                showToast("Sauvegarde de sécurité impossible : rien ne sera enregistré cette session.");
-              }
-            }
-          } else if (res.tooNew) {
-            // Q1 : journal écrit par une version plus récente — ne rien charger,
-            // et le garde-fou de la sauvegarde empêche de l'écraser.
-            setStorageOk(false);
-            showToast("Ce journal vient d'une version plus récente de l'appli. Mets l'appli à jour.");
+      const res = await loadJournal(STORE, KEY);
+      if (res.ok) {
+        setJournal(res.journal);
+        if (res.migrated) {
+          if (res.backupOk) {
+            skipSave.current = false; // Q2 : réécrire la forme migrée dès ce chargement
+            showToast("Journal mis à jour vers le nouveau format.");
           } else {
-            // res.invalid : schemaVersion hors bornes (#10) — même garde-fou,
-            // message persistant plutôt qu'un toast qui disparaît.
-            setStorageOk(false);
-            setLoadError(LOAD_ERROR_MESSAGE);
+            setStorageOk(false); // décisions #8 Q2 : sauvegarde impossible => on ne réécrit rien
+            showToast("Sauvegarde de sécurité impossible : rien ne sera enregistré cette session.");
           }
-        } catch (e) {
-          // JSON corrompu : même traitement que res.invalid ci-dessus (#10)
-          setStorageOk(false);
-          setLoadError(LOAD_ERROR_MESSAGE);
         }
+      } else if (res.reason === "too-new") {
+        // Q1 : journal écrit par une version plus récente — ne rien charger,
+        // et le garde-fou de la sauvegarde empêche de l'écraser.
+        setStorageOk(false);
+        showToast("Ce journal vient d'une version plus récente de l'appli. Mets l'appli à jour.");
+      } else if (res.reason === "invalid" || res.reason === "corrupt") {
+        // schemaVersion hors bornes ou JSON corrompu (#10) — même garde-fou,
+        // message persistant plutôt qu'un toast qui disparaît.
+        setStorageOk(false);
+        setLoadError(LOAD_ERROR_MESSAGE);
+      } else if (res.reason === "no-store") {
+        setStorageOk(false);
       }
+      // res.reason === "absent" : rien à faire, l'état initial useState(emptyJournal()) tient lieu de journal.
       setBackups(await listBackups(STORE, KEY, SCHEMA_VERSION));
       setLoaded(true);
     })();
@@ -245,11 +224,10 @@ export default function Programme() {
     if (!storageOk) return; // Q1 : stockage indisponible ou journal trop récent — ne pas écraser
     if (skipSave.current) { skipSave.current = false; return; }
     const t = setTimeout(async () => {
-      try {
-        if (!STORE) throw new Error("no storage");
-        const r = await STORE.set(KEY, JSON.stringify(withVersion(journal)), false);
-        setSaveStatus(r ? "Enregistré" : "Enregistrement échoué");
-      } catch (e) { setStorageOk(false); setSaveStatus("Non enregistré"); }
+      const r = await saveJournal(STORE, KEY, journal);
+      if (r.ok) setSaveStatus("Enregistré");
+      else if (r.failed) { setStorageOk(false); setSaveStatus("Non enregistré"); }
+      else setSaveStatus("Enregistrement échoué");
     }, 600);
     return () => clearTimeout(t);
   }, [journal, loaded, storageOk]);
