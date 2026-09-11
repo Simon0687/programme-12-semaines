@@ -3,7 +3,7 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } fr
 import { SCHEMA_VERSION, DEFAULT_PROGRAM_ID, migrate } from "./schema.js";
 import { parseJournalImport, parseProgramImport } from "./import.js";
 import { backupOnce, listBackups } from "./backup.js";
-import { buildProgram, getKeySlots, getCardioDayNotes } from "./program.js";
+import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent } from "./program.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned } from "./progression.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
@@ -291,7 +291,7 @@ export default function Programme() {
     if (byDay && !doneMap[byDay.id]) { setSessionId(byDay.id); return; }
     if (week === curWeek && getCardioDayNotes(prog).includes(weekday)) { setSessionId("cardio"); return; }
     const next = prog.SESSIONS.find((s) => !doneMap[s.id]);
-    setSessionId(next ? next.id : "cardio");
+    setSessionId(next ? next.id : hasCardioContent(prog) ? "cardio" : prog.SESSIONS[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [week, loaded]);
 
@@ -433,11 +433,11 @@ export default function Programme() {
     if (dayIdx < 0) return `Le programme commence lundi ${dateLabel(START)}. Aujourd'hui : ${DAYNAMES[weekday]} ${dateLabel(today)}.`;
     if (dayIdx >= definition.weeks * 7) return `Les ${definition.weeks} semaines sont terminées : bilan et programme suivant.`;
     const s = prog.SESSIONS.find((x) => x.day === weekday);
-    const extra = prog.CARDIO_DAY_NOTES[weekday] || "";
+    const extra = (prog.CARDIO_DAY_NOTES && prog.CARDIO_DAY_NOTES[weekday]) || "";
     return `Aujourd'hui, ${DAYNAMES[weekday]} ${dateLabel(today)} : ${s ? `${s.name} (${s.sub})${extra}` : extra}.`;
   })();
 
-  const cardio = prog.cardioPlan(week);
+  const cardio = prog.cardioPlan ? prog.cardioPlan(week) : null;
   const ca = state.cardio[`w${week}`] || {};
   const ci = state.checkin[`w${week}`] || {};
 
@@ -479,7 +479,9 @@ export default function Programme() {
                   {doneMap[s.id] && <Check size={14} />}{s.name}
                 </button>
               ))}
-              <button onClick={() => setSessionId("cardio")} className={`shrink-0 h-10 px-3 rounded-full text-sm border focus:outline-none focus:ring-2 focus:ring-amber-400 ${sessionId === "cardio" ? "bg-amber-400 text-slate-900 border-amber-400" : "bg-slate-800 border-slate-700 text-slate-200"}`}>Cardio et mobilité</button>
+              {hasCardioContent(prog) && (
+                <button onClick={() => setSessionId("cardio")} className={`shrink-0 h-10 px-3 rounded-full text-sm border focus:outline-none focus:ring-2 focus:ring-amber-400 ${sessionId === "cardio" ? "bg-amber-400 text-slate-900 border-amber-400" : "bg-slate-800 border-slate-700 text-slate-200"}`}>Cardio et mobilité</button>
+              )}
             </div>
 
             {session ? (
@@ -499,7 +501,7 @@ export default function Programme() {
                   <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} prog={prog} state={state}
                     rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
-                {session.after && (
+                {session.after && cardio && (
                   <p className="text-sm text-slate-400 mt-3">
                     Après la séance : {AFTER_HINTS[session.after](cardio)}
                   </p>
@@ -513,9 +515,9 @@ export default function Programme() {
                   <span className="text-xs text-slate-500">{saveStatus}</span>
                 </div>
               </div>
-            ) : (
+            ) : hasCardioContent(prog) ? (
               <CardioView prog={prog} week={week} cardio={cardio} ca={ca} setCardio={setCardio} toggleMob={toggleMob} />
-            )}
+            ) : null}
           </div>
         )}
 
