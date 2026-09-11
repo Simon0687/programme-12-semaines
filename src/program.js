@@ -193,3 +193,28 @@ export function buildProgram(definition) {
   }
   return { ...catalogue, V };
 }
+
+/* ---------- Dérivations pures depuis un bundle (#22) ----------
+   Les deux seules valeurs de forme qui ne sont pas une simple lecture de
+   propriété ; App.jsx les lisait en dur avant #22. */
+
+/* Slots clés, dans leur ordre de déclaration dans SLOTS — App.jsx les
+   utilisait en dur pour la ligne "Exos clés" du Bilan et le drapeau AMRAP
+   de S12 (slot.key). */
+export function getKeySlots(prog) {
+  return Object.entries(prog.SLOTS)
+    .filter(([, slot]) => slot.key)
+    .map(([id]) => id);
+}
+
+/* Jours (0 = dimanche … 6 = samedi) qui ont une note cardio mais aucune
+   séance — ceux où l'onglet Séance ouvre directement sur "Cardio et
+   mobilité". Un jour avec à la fois une séance et une note cardio (ex.
+   mercredi : Haut B + rameur après) n'en fait pas partie : la note s'y
+   affiche en complément de la séance, pas à sa place. */
+export function getCardioDayNotes(prog) {
+  const sessionDays = new Set(prog.SESSIONS.map((s) => s.day));
+  return Object.keys(prog.CARDIO_DAY_NOTES)
+    .map(Number)
+    .filter((day) => !sessionDays.has(day));
+}
