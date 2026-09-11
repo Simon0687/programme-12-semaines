@@ -9,7 +9,10 @@ import { planned, history, lastEntry } from "../src/progression.js";
    start moving the program data around. Every expected value here is the
    current output of the code, not an independent recalculation - a drift
    is a regression to investigate, not a test to "fix". Q2/Q3/Q5 are
-   pinned as-is per docs/features/2-tests-progression-logic/spec.md. */
+   pinned as-is per docs/features/2-tests-progression-logic/spec.md.
+   The RIR<=1 gate on the top-of-range branch, originally pinned here, was
+   superseded by #28: reaching the top of the range now increases the load
+   on its own, RIR is informative only. */
 
 const prog = buildProgram({ startingLoads: STARTING_LOADS });
 
@@ -71,10 +74,16 @@ describe("no history", () => {
 describe("calibration", () => {
   const wk1 = (...sets) => S({ week: 1, sid: "hautA", vid: "dc", sets });
 
-  test("all sets at the top of the range at >= 3 RIR: +5%, snapped to incr", () => {
+  test("all sets at the top of the range: +5%, snapped to incr", () => {
     const p = planned(prog, wk1(set(72.5, 8, 3), set(72.5, 8, 3), set(72.5, 8, 3)), "dc", 2, si("hautA"));
     assert.equal(p.load, 75); // roundTo(72.5 * 1.05, 2.5)
     assert.equal(p.load % prog.V.dc.incr, 0);
+    assert.equal(p.why, "calibration : +5 %");
+  });
+
+  test("all sets at the top of the range at a low RIR: +5% fires too (#28)", () => {
+    const p = planned(prog, wk1(set(80, 8, 1), set(80, 8, 1), set(80, 8, 1)), "dc", 2, si("hautA"));
+    assert.equal(p.load, 85); // roundTo(80 * 1.05, 2.5)
     assert.equal(p.why, "calibration : +5 %");
   });
 
@@ -249,14 +258,24 @@ describe("time-based variant (sideplank)", () => {
 /* ---- edge cases (spec) -------------------------------- */
 
 describe("edge cases", () => {
-  test("a blank RIR blocks the +increment branch: load held", () => {
+  test("a blank RIR no longer blocks the +increment branch: informative only (#28)", () => {
     const p = planned(
       prog,
       S({ week: 2, sid: "hautA", vid: "dc", sets: [set(75, 8, 1), set(75, 8, null), set(75, 8, 1)] }),
       "dc", 3, si("hautA")
     );
-    assert.equal(p.load, 75);
-    assert.equal(p.why, "même charge : viser plus de reps");
+    assert.equal(p.load, 75 + prog.V.dc.incr);
+    assert.equal(p.why, "+2,5 kg : haut de fourchette atteint");
+  });
+
+  test("maxed at a high RIR still fires the increase (#28)", () => {
+    const p = planned(
+      prog,
+      S({ week: 2, sid: "hautA", vid: "dc", sets: [set(75, 8, 4), set(75, 8, 4), set(75, 8, 4)] }),
+      "dc", 3, si("hautA")
+    );
+    assert.equal(p.load, 75 + prog.V.dc.incr);
+    assert.equal(p.why, "+2,5 kg : haut de fourchette atteint");
   });
 
   test("carry is progressed as a load, not as a time exercise (Q3, pinned)", () => {

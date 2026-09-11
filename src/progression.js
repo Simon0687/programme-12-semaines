@@ -65,7 +65,6 @@ export function planned(prog, state, slotId, week, si) {
   }
   const load = Math.max(...base.sets.map((s) => (s.w == null ? 0 : s.w)));
   const allTop = base.sets.every((s) => s.r >= mx);
-  const rirs = base.sets.map((s) => s.rir);
   const lowCount = base.sets.filter((s) => s.r < mn).length;
   let next = load, why = "même charge";
 
@@ -74,11 +73,11 @@ export function planned(prog, state, slotId, week, si) {
     return { load: null, text: `Cible ${label}`, why: `dernière fois ${base.sets.map((s) => s.r).join("/")} — ${t}` };
   }
   if (base.week === 1 || base.week === 7) {
-    if (allTop && rirs.every((x) => x != null && x >= 3)) { next = roundTo(load * 1.05, v.incr); why = "calibration : +5 %"; }
+    if (allTop) { next = roundTo(load * 1.05, v.incr); why = "calibration : +5 %"; }
     else if (lowCount >= 1) { next = roundTo(load * 0.95, v.incr); why = "calibration : −5 %"; }
     else why = "charge validée en calibration";
-  } else if (allTop && rirs.every((x) => x != null && x <= 1)) {
-    next = load + v.incr; why = `+${fmt(v.incr)} kg : haut de fourchette atteint à ≤ 1 RIR`;
+  } else if (allTop) {
+    next = load + v.incr; why = `+${fmt(v.incr)} kg : haut de fourchette atteint`;
   } else if (lowCount >= 2) {
     const prevLow = prev && prev.sets.filter((s) => s.r < mn).length >= 2;
     if (prevLow) { next = roundTo(load * 0.95, v.incr); why = "−5 % : deux séances sous la fourchette"; }
