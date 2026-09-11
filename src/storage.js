@@ -17,6 +17,10 @@
                                          // ou activeProgramId sans entrée
                                          // correspondante dans programs
      { ok: false, reason: "corrupt" }   // JSON.parse a échoué (#10)
+
+   ctx (#16) est transmis tel quel à migrate() : ce module ne sait pas ce
+   qu'il contient (aujourd'hui { defaultDefinition, buildProgram }, requis
+   dès qu'une migration traverse la v2), seul schema.js en connaît la forme.
    ========================================================= */
 
 import { migrate, withVersion } from "./schema.js";
@@ -33,7 +37,7 @@ export function createStore() {
   } catch (e) { return null; }
 }
 
-export async function loadJournal(store, key) {
+export async function loadJournal(store, key, ctx) {
   if (!store) return { ok: false, reason: "no-store" };
 
   let raw = null;
@@ -45,7 +49,7 @@ export async function loadJournal(store, key) {
   try { parsed = JSON.parse(raw); }
   catch (e) { return { ok: false, reason: "corrupt" }; }
 
-  const res = migrate(parsed);
+  const res = migrate(parsed, ctx);
   if (res.tooNew) return { ok: false, reason: "too-new" };
   if (!res.ok) return { ok: false, reason: "invalid" };
 

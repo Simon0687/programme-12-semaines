@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
-import { SCHEMA_VERSION, emptyJournal, logKey, weekKey } from "./schema.js";
+import { SCHEMA_VERSION, emptyJournal, weekKey, dateForSlot, findLog, writeLog } from "./schema.js";
 import { parseJournalImport, parseProgramImport } from "./import.js";
 import { listBackups } from "./backup.js";
 import { createStore, loadJournal, saveJournal } from "./storage.js";
 import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
-import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned } from "./progression.js";
+import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned, computeKind } from "./progression.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
 
@@ -16,6 +16,10 @@ import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
 
 const KEY = "prog12_simon_v1";
 const STORE = createStore();
+/* Contexte de migration (#16) : injecté dans migrate()/MIGRATIONS[2],
+   jamais construit par schema.js lui-même (cycle d'import, voir schema.js
+   MIGRATIONS[2]). */
+const MIGRATION_CTX = { defaultDefinition: DEFAULT_DEFINITION, buildProgram };
 /* Journal présent en stockage mais illisible : schemaVersion hors bornes ou
    JSON corrompu (#10). Persistant (pas un toast) et affiché hors de tout
    onglet, puisque le problème survient avant même que l'utilisateur en
@@ -82,14 +86,14 @@ function Btn({ children, onClick, primary, small, disabled }) {
 }
 
 /* ---------- Carte exercice ---------- */
-function ExerciseCard({ idx, slotId, nSets, week, weeks, si, prog, state, rows, onSet, onTimer }) {
+function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, rows, onSet, onTimer }) {
   const slot = prog.SLOTS[slotId];
   const vid = slot[blockOf(week)];
   const v = prog.V[vid];
   const unit = v.unit || "kg";
   const sets = setsFor(nSets, week);
-  const plan = useMemo(() => planned(prog, state, slotId, week, si), [prog, state, slotId, week, si]);
-  const last = useMemo(() => lastEntry(prog, state, vid, week, si), [prog, state, vid, week, si]);
+  const plan = useMemo(() => planned(prog, state, slotId, week, si, date), [prog, state, slotId, week, si, date]);
+  const last = useMemo(() => lastEntry(prog, state, vid, date, si), [prog, state, vid, date, si]);
   const [open, setOpen] = useState(false);
   const phase = phaseOf(week);
   const failOk = slot.fail && week >= 3 && week !== 7;
@@ -174,6 +178,13 @@ export default function Programme() {
   const [saveStatus, setSaveStatus] = useState("");
   const [tab, setTab] = useState("seance");
   const [week, setWeek] = useState(curWeek);
+  /* #16 : date nominale du créneau (semaine parcourue + jour de la séance)
+     dans le cycle actif — remplace w{week}_{sessionId} comme identité de
+     lookup, avant même la validation (une séance en cours d'édition doit
+     pouvoir être retrouvée). Deux passages du même programme ont des
+     definition.startDate différents, donc jamais la même date pour
+     "semaine 1" : c'est ce qui évite l'écrasement (#16 spec.md Decision 3). */
+  const dateOf = (sid) => dateForSlot(definition.startDate, week, prog.SESSIONS.find((s) => s.id === sid).day);
   const [sessionId, setSessionId] = useState(prog.SESSIONS[0].id);
   const [timer, setTimer] = useState(null);
   const [, setTick] = useState(0);
@@ -188,7 +199,7 @@ export default function Programme() {
 
   useEffect(() => {
     (async () => {
-      const res = await loadJournal(STORE, KEY);
+      const res = await loadJournal(STORE, KEY, MIGRATION_CTX);
       if (res.ok) {
         setJournal(res.journal);
         if (res.migrated) {
@@ -248,9 +259,9 @@ export default function Programme() {
 
   const doneMap = useMemo(() => {
     const m = {};
-    prog.SESSIONS.forEach((s) => { m[s.id] = !!(state.logs[logKey(week, s.id)] && state.logs[logKey(week, s.id)].done); });
+    prog.SESSIONS.forEach((s) => { const log = findLog(state.logs, dateOf(s.id), s.id); m[s.id] = !!(log && log.done); });
     return m;
-  }, [prog, state, week]);
+  }, [prog, state, week, definition.startDate]);
   const weekDoneCount = useMemo(() => Object.values(doneMap).filter(Boolean).length, [doneMap]);
 
   useEffect(() => {
@@ -271,43 +282,42 @@ export default function Programme() {
   }, [journal.activeProgramId]);
 
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2500); };
-  const wkey = (sid) => logKey(week, sid);
   const phase = phaseOf(week);
   const session = prog.SESSIONS.find((s) => s.id === sessionId);
   const si = prog.SESSIONS.findIndex((s) => s.id === sessionId);
-  const log = session ? state.logs[wkey(session.id)] || {} : {};
+  const log = session ? findLog(state.logs, dateOf(session.id), session.id) || {} : {};
 
   const onSet = (vid, i, f, val) => {
     updateActive((st) => {
-      const k = wkey(session.id);
-      const cur = st.logs[k] || {};
+      const d = dateOf(session.id);
+      const cur = findLog(st.logs, d, session.id) || {};
       const ex = { ...(cur.ex || {}) };
       const rows = [...(ex[vid] || [])];
       while (rows.length <= i) rows.push({});
       rows[i] = { ...rows[i], [f]: val };
       ex[vid] = rows;
-      return { ...st, logs: { ...st.logs, [k]: { ...cur, ex } } };
+      return { ...st, logs: writeLog(st.logs, d, session.id, { ex }) };
     });
   };
-  const setNotes = (val) => updateActive((st) => { const k = wkey(session.id); return { ...st, logs: { ...st.logs, [k]: { ...(st.logs[k] || {}), notes: val } } }; });
+  const setNotes = (val) => updateActive((st) => ({ ...st, logs: writeLog(st.logs, dateOf(session.id), session.id, { notes: val }) }));
 
   const validate = () => {
     updateActive((st) => {
-      const k = wkey(session.id);
-      const cur = st.logs[k] || {};
+      const d = dateOf(session.id);
+      const cur = findLog(st.logs, d, session.id) || {};
       const ex = { ...(cur.ex || {}) };
       const all = [...session.ex, ...prog.CORE[session.core].ex];
       all.forEach(([slotId]) => {
         const vid = prog.SLOTS[slotId][blockOf(week)];
-        const p = planned(prog, st, slotId, week, si);
+        const p = planned(prog, st, slotId, week, si, d);
         const rows = (ex[vid] || []).map((r) => (r.r && !r.w && p.load != null ? { ...r, w: String(p.load).replace(".", ",") } : r));
         if (rows.length) ex[vid] = rows;
       });
-      return { ...st, logs: { ...st.logs, [k]: { ...cur, ex, done: true, date: new Date().toISOString().slice(0, 10) } } };
+      return { ...st, logs: writeLog(st.logs, d, session.id, { ex, done: true, kind: computeKind(week) }) };
     });
     showToast(`${session.name} validée`);
   };
-  const reopen = () => updateActive((st) => { const k = wkey(session.id); return { ...st, logs: { ...st.logs, [k]: { ...(st.logs[k] || {}), done: false } } }; });
+  const reopen = () => updateActive((st) => ({ ...st, logs: writeLog(st.logs, dateOf(session.id), session.id, { done: false }) }));
 
   const setCardio = (id, f, val) => updateActive((st) => { const k = weekKey(week); const c = st.cardio[k] || {}; return { ...st, cardio: { ...st.cardio, [k]: { ...c, [id]: { ...(c[id] || {}), [f]: val } } } }; });
   const toggleMob = (i) => updateActive((st) => { const k = weekKey(week); const c = st.cardio[k] || {}; const m = [...(c.mob || Array(prog.MOB_DAYS.length).fill(false))]; m[i] = !m[i]; return { ...st, cardio: { ...st.cardio, [k]: { ...c, mob: m } } }; });
@@ -328,7 +338,7 @@ export default function Programme() {
     const keys = getKeySlots(prog);
     const keyLines = keys.map((slotId) => {
       const vid = prog.SLOTS[slotId][blockOf(week)];
-      const sessionsW = prog.SESSIONS.map((s) => state.logs[logKey(week, s.id)]).filter((l) => l && l.done && l.ex && l.ex[vid]);
+      const sessionsW = prog.SESSIONS.map((s) => findLog(state.logs, dateOf(s.id), s.id)).filter((l) => l && l.done && l.ex && l.ex[vid]);
       if (!sessionsW.length) return null;
       const sets = sessionsW.flatMap((l) => l.ex[vid]).map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null);
       if (!sets.length) return null;
@@ -359,7 +369,7 @@ export default function Programme() {
   /* Un rejet reste affiché dans le panneau ; le toast garde son rôle de
      confirmation, donc il ne double pas le message d'erreur. */
   const importData = () => {
-    const res = parseJournalImport(ioText);
+    const res = parseJournalImport(ioText, MIGRATION_CTX);
     if (!res.ok) { setImportError(res.message); return; }
     setImportError("");
     /* #12 : un import réussi est la seule porte de sortie d'un stockage
@@ -465,16 +475,16 @@ export default function Programme() {
                 <div className="pb-2">
                   <div className="text-xl font-semibold">{session.name} <span className="text-slate-400 font-normal text-base">— {session.sub}</span></div>
                   <div className="text-sm text-slate-400">Jour conseillé : {DAYNAMES[session.day]}. {setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week)} séries dures + abdos. {PHASE_NOTES[phase.id]}</div>
-                  {log.done && <div className="mt-2 text-sm text-emerald-400 inline-flex items-center gap-1"><Check size={15} />Validée le {log.date}. <button onClick={reopen} className="underline text-slate-300 ml-1 focus:outline-none">Rouvrir</button></div>}
+                  {log.done && <div className="mt-2 text-sm text-emerald-400 inline-flex items-center gap-1"><Check size={15} />Validée le {log.updatedAt && log.updatedAt.slice(0, 10)}. <button onClick={reopen} className="underline text-slate-300 ml-1 focus:outline-none">Rouvrir</button></div>}
                 </div>
                 <Section title="Échauffement">{prog.WARM[session.warm]}</Section>
                 {session.ex.map(([slotId, n], i) => (
-                  <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} prog={prog} state={state}
+                  <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} state={state}
                     rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 <div className="pt-4 text-sm text-slate-400">{prog.CORE[session.core].label}</div>
                 {prog.CORE[session.core].ex.map(([slotId, n], i) => (
-                  <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} prog={prog} state={state}
+                  <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} state={state}
                     rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 {session.after && cardio && (
@@ -502,7 +512,7 @@ export default function Programme() {
             <p className="text-sm text-slate-300 mt-3">{PHASE_NOTES[phase.id]}</p>
             <div className="mt-3 divide-y divide-slate-700 border-y border-slate-700">
               {prog.SESSIONS.map((s) => {
-                const l = state.logs[logKey(week, s.id)];
+                const l = findLog(state.logs, dateOf(s.id), s.id);
                 const keySlot = s.ex[0][0];
                 const vid = prog.SLOTS[keySlot][blockOf(week)];
                 const sets = l && l.ex && l.ex[vid] ? l.ex[vid].map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null) : [];

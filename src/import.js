@@ -34,7 +34,7 @@ export const IMPORT_MESSAGES = {
 
 const reject = (reason, message) => ({ ok: false, reason, message: message || IMPORT_MESSAGES[reason] });
 
-export function parseJournalImport(text) {
+export function parseJournalImport(text, ctx) {
   let parsed;
   try {
     parsed = JSON.parse(text);
@@ -51,7 +51,7 @@ export function parseJournalImport(text) {
 
   let res;
   try {
-    res = migrate(parsed);
+    res = migrate(parsed, ctx);
   } catch (e) {
     /* Défensif : migrate() ne lève plus pour un schemaVersion hors bornes
        (#10 en a fait un verdict, cf. res.invalid ci-dessous) ; ce catch ne
