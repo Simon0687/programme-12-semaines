@@ -54,6 +54,7 @@
    ========================================================= */
 
 import { EXERCISES } from "./registry.js";
+import { cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./cardio.js";
 
 /* ---------- Variantes (exercices) ----------
    Extraites dans src/registry.js (#25). Re-exporté ici sous l'ancien nom
@@ -109,31 +110,11 @@ export const WARM = {
   lower: "5–10 min : cat-camel 10 ; 90/90 hanches 1 min par côté ; dorsiflexion cheville au mur 10 par côté ; pont fessier 15 ; McGill court (curl-up 5, planche latérale 15 s par côté, bird dog 5 par côté) ; montée en charge sur le squat ou le hip thrust : 50 % × 6, 70 % × 4, 85 % × 2.",
 };
 
-/* ---------- Cardio et mobilité ---------- */
-export const cardioPlan = (w) => {
-  const z2 = w === 7 ? 30 : Math.min(60, 35 + 5 * Math.floor((w - 1) / 2));
-  const intervals = w >= 2 && w <= 6 ? "4 × 4 min en Z4 (~150–165 bpm), 3 min récup entre, 5 min échauffement et retour au calme. Cadence 24–28, drag factor modéré."
-    : w >= 8 && w <= 11 ? "5 × 4 min en Z4 (~150–165 bpm), 3 min récup, cadence 24–28." : null;
-  return {
-    z2: `${z2} min Z2 : ~105–115 W, 130–138 bpm, cadence 18–20, drag factor 110–120.${w === 1 ? " Recalibrer : allure où tu peux parler, dérive de FC < 5 % sur 30 min à puissance fixe, sinon −5 W." : ""}`,
-    intervals,
-    mob: "10–15 min : McGill Big 3 en pyramide descendante (curl-up modifié, planche latérale, bird dog ; 6-4-2 tenues de 8–10 s), 90/90 + couch stretch, extension et rotation thoracique, CARs d'épaule + rotation externe.",
-  };
-};
-
-export const CARDIO_ITEMS = [
-  { id: "z2a", label: "Rameur Z2", when: "mercredi, après Haut B (ou le soir)" },
-  { id: "int", label: "Rameur intervalles", when: "jeudi" },
-  { id: "z2b", label: "Rameur Z2", when: "dimanche" },
-];
-export const MOB_DAYS = ["mardi", "jeudi", "dimanche"];
-
-export const CARDIO_DAY_NOTES = {
-  0: "rameur Z2 + mobilité",
-  2: " puis mobilité",
-  3: " puis rameur Z2",
-  4: "rameur intervalles + mobilité",
-};
+/* ---------- Cardio et mobilité ----------
+   Extraits dans src/cardio.js (#25) : la règle "default" que program
+   référence par son nom (cardio: "default"). Re-exportés ici sous les
+   anciens noms pour une version — suppression en follow-up. */
+export { cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./cardio.js";
 
 /* ---------- Construction du bundle actif (#6) ----------
    Un cycle fige un catalogue (celui de l'appli, sauf si definition.program
