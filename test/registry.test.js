@@ -2,8 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import { EXERCISES, EXERCISE_IDS, UNSELECTABLE_IDS, REGISTRY_VERSION, MUSCLE_GROUPS, PATTERNS, EQUIPMENT } from "../src/registry.js";
-import { SLOTS } from "../src/program.js";
-import { STARTING_LOADS } from "../src/profile.js";
+import { SLOTS, STARTING_LOADS } from "../src/default-program.js";
 
 describe("registry shape", () => {
   test("REGISTRY_VERSION est un entier", () => {

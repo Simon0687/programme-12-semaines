@@ -6,6 +6,8 @@
    aucune logique de programme.
    #6 : un fichier chargé fournit son propre profil/startingLoads, sous
    la même forme — ce module ne porte plus que les valeurs par défaut.
+   #25 : les valeurs vivent dans src/default-program.js, re-exportées ici
+   sous les anciens noms pour une version (suppression en follow-up).
 
    ---------------------------------------------------------
    START_DATE      lundi de la S1, chaîne ISO "AAAA-MM-JJ". Lue par
@@ -23,23 +25,4 @@
                       src/plan.js (section Nutrition).
    ========================================================= */
 
-export const START_DATE = "2026-09-07";
-
-export const STARTING_LOADS = {
-  dc: 72.5,
-  incl_db: 30,
-  squat: 105,
-  ohp_db: 26,
-  pullup: 0,
-  pd_close: 90,
-};
-
-export const PROFILE = {
-  bodyweightKg: 90,
-  heightCm: 193,
-  birthdate: "1987-06-18",
-  maintenanceKcal: 3150,
-  startKcal: 3400,
-  macros: { p: 185, f: 85, c: 470 },
-  targetWeightKg: [92.5, 93.5],
-};
+export { START_DATE, STARTING_LOADS, PROFILE } from "./default-program.js";
