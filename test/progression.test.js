@@ -74,10 +74,16 @@ describe("no history", () => {
 describe("calibration", () => {
   const wk1 = (...sets) => S({ week: 1, sid: "hautA", vid: "dc", sets });
 
-  test("all sets at the top of the range at >= 3 RIR: +5%, snapped to incr", () => {
+  test("all sets at the top of the range: +5%, snapped to incr", () => {
     const p = planned(prog, wk1(set(72.5, 8, 3), set(72.5, 8, 3), set(72.5, 8, 3)), "dc", 2, si("hautA"));
     assert.equal(p.load, 75); // roundTo(72.5 * 1.05, 2.5)
     assert.equal(p.load % prog.V.dc.incr, 0);
+    assert.equal(p.why, "calibration : +5 %");
+  });
+
+  test("all sets at the top of the range at a low RIR: +5% fires too (#28)", () => {
+    const p = planned(prog, wk1(set(80, 8, 1), set(80, 8, 1), set(80, 8, 1)), "dc", 2, si("hautA"));
+    assert.equal(p.load, 85); // roundTo(80 * 1.05, 2.5)
     assert.equal(p.why, "calibration : +5 %");
   });
 

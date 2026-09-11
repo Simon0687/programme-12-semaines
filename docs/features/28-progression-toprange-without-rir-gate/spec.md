@@ -4,10 +4,12 @@
 
 `planned()` in [src/progression.js:80-81](../../../src/progression.js#L80-L81) only raises the working load when *every* logged set hits the top of the rep range (`mx`) **and** every logged RIR is `<= 1`. A user who respects the prescribed rep range and stops right at the top (e.g. contract 8-12, stops at 12) never triggers the increase if they logged a higher RIR, even though hitting or exceeding `mx` at all is already the signal a double-progression scheme uses. Real case: 15 reps at 2 kg, RIR 4, on an 8-12 rep-range exercise — the app still returns "même charge : viser plus de reps" the following week, with nowhere higher to aim inside the displayed range. See #28.
 
+Widened after testing the first pass locally: the calibration-weeks branch (S1/S7, [src/progression.js:76-79](../../../src/progression.js#L76-L79)) has its own top-of-range condition (`>= 3 RIR` for +5%) that the original spec left out of scope. Simon confirmed the same rule is meant to be immutable everywhere: 8 reps at 80 kg in week 1 (top of an 4-8 range) still held at 80 kg into week 2, because the RIR logged wasn't `>= 3`. Same root cause, same fix, so it's folded into #28 rather than a separate issue — the branch hadn't been pushed yet.
+
 ## Scope
 
-- **In:** Change the load-increase condition in `planned()` (non-calibration weeks) to fire whenever all logged sets are `>= mx`, dropping the RIR requirement for that branch. Update the "why" text shown on the Seance tab accordingly. Update the product-facing rule description ([src/plan.js:85](../../../src/plan.js#L85)) and the engine spec ([docs/generation/moteur-generation-programme.md:264](../../../docs/generation/moteur-generation-programme.md#L264)) to match. Update the tests pinned by #2 (`test/progression.test.js`) that currently assert the RIR<=1 requirement.
-- **Out:** Calibration weeks (S1/S7), which already use a different RIR-based rule (`>= 3 RIR` for +5%) — unchanged. The `lowCount >= 2` under-range / deload branch — unchanged. The `unit === "time" || unit === "reps"` branch (isometric holds, bodyweight-reps-only exercises with no loaded progression) — unchanged, out of scope. No journal schema change.
+- **In:** Change the load-increase condition in `planned()` to fire whenever all logged sets are `>= mx`, in **both** the regular-week branch and the calibration-week branch (S1/S7), dropping the RIR requirement in each. Update the "why" text shown on the Seance tab accordingly. Update the product-facing rule description ([src/plan.js:85](../../../src/plan.js#L85) for regular weeks, [src/plan.js:86](../../../src/plan.js#L86) for calibration) and the engine spec ([docs/generation/moteur-generation-programme.md:264](../../../docs/generation/moteur-generation-programme.md#L264)) to match. Update the tests pinned by #2 (`test/progression.test.js`) that currently assert an RIR requirement, in either branch. Remove the `rirs` local (line 68) once nothing reads it.
+- **Out:** The `lowCount >= 1` / `lowCount >= 2` under-range and deload branches (both regular and calibration) — unchanged. The `unit === "time" || unit === "reps"` branch (isometric holds, bodyweight-reps-only exercises with no loaded progression) — unchanged, out of scope. No journal schema change.
 
 ## User-facing behaviour
 
@@ -24,8 +26,9 @@
 - [ ] Given a non-calibration week (not S1/S7), when every logged set of the prior session is `>= mx` reps, regardless of RIR (including `null`/blank RIR), then `planned()` returns `load + v.incr` and `why` credits reaching the top of the range only.
 - [ ] Given the same condition but with `rir <= 1` on every set (previous behaviour), the load still increases by the same amount — no regression for the case that already worked.
 - [ ] Given at least one logged set below `mx` (not all sets at top), the load-increase branch does not fire; the existing `lowCount >= 2` / "même charge" branches are unaffected and unchanged.
-- [ ] Calibration weeks (S1, S7) keep requiring `RIR >= 3` for the +5% bump — this spec does not touch that branch.
-- [ ] `src/plan.js`'s progression paragraph no longer states an RIR condition for the load increase.
+- [ ] Given a calibration week (S1 or S7), when every logged set is `>= mx` reps, regardless of RIR, then `planned()` returns the calibration +5% bump (`why: "calibration : +5 %"`) — the `RIR >= 3` requirement is dropped from this branch too.
+- [ ] Given a calibration week with at least one set below `mx` and none below `mn`, the load holds (`why: "charge validée en calibration"`) — unchanged.
+- [ ] `src/plan.js`'s progression paragraphs (regular and calibration) no longer state an RIR condition for the load increase.
 - [ ] `docs/generation/moteur-generation-programme.md` reflects the same rule change.
 - [ ] `test/progression.test.js` is updated: the "a blank RIR blocks the +increment branch" test (currently asserting load is held) is rewritten to assert the increase now fires; the "maxed at <= 1 RIR" test keeps passing; a new case covers "maxed at high RIR (e.g. 4)" firing the increase.
 - [ ] `npm test` and `npm run build` pass.
@@ -43,7 +46,6 @@ None. No change to the localStorage journal shape (`prog12_simon_v1`) — `rir` 
 
 ## Out of scope / follow-ups
 
-- Whether the calibration-week RIR condition (`>= 3` for +5%) deserves the same review is a separate question, not raised by #28 — no follow-up filed unless Simon asks.
 - The `unit === "time" || unit === "reps"` branch's own "allTop" wording ("progresser : +5 s") was not flagged as confusing and is left as is.
 
 ## Open questions
