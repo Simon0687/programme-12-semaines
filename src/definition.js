@@ -13,9 +13,17 @@
                         parseProgramImport() pour refuser un fichier plus
                         récent. Indépendante de SCHEMA_VERSION : un bump du
                         schéma du journal n'oblige pas à bumper le format.
+                        1 -> 2 avec #25 : un fichier peut désormais porter
+                        un `program` data-only (registre fermé) ; un
+                        fichier à la version 1 ou sans version continue de
+                        charger (le champ est optionnel).
    DEFAULT_DEFINITION   le cycle fourni avec l'appli, sous la même forme
                         qu'un fichier chargé — buildProgram()/buildPlan()
-                        ne distinguent pas les deux.
+                        ne distinguent pas les deux. Vit dans
+                        src/default-program.js depuis #25 (re-exporté ici
+                        pour une version) ; formatVersion y est codé en
+                        dur à 2 pour éviter un cycle d'import avec ce
+                        module — les deux doivent rester synchronisés.
    parseLocalDate(iso)  Date locale (minuit local) depuis une chaîne
                         "AAAA-MM-JJ", en construisant depuis les
                         composantes pour éviter le piège UTC de
@@ -24,20 +32,9 @@
                         pas seulement celle du profil par défaut.
    ========================================================= */
 
-import { DEFAULT_PROGRAM_ID } from "./schema.js";
-import { START_DATE, STARTING_LOADS, PROFILE } from "./profile.js";
+export const DEFINITION_FORMAT_VERSION = 2;
 
-export const DEFINITION_FORMAT_VERSION = 1;
-
-export const DEFAULT_DEFINITION = {
-  formatVersion: DEFINITION_FORMAT_VERSION,
-  id: DEFAULT_PROGRAM_ID,
-  name: "Simon — 12 semaines",
-  weeks: 12,
-  startDate: START_DATE,
-  profile: PROFILE,
-  startingLoads: STARTING_LOADS,
-};
+export { DEFAULT_DEFINITION } from "./default-program.js";
 
 export function parseLocalDate(iso) {
   const [y, m, d] = iso.split("-").map(Number);

@@ -175,12 +175,78 @@ test("parseProgramImport : startingLoads non numérique => invalid-field (#20)",
   assert.equal(res.reason, "invalid-field");
 });
 
-test("parseProgramImport : champ program présent => unsupported-field (#20, réactivé par #13)", () => {
-  for (const program of ["garbage", { V: {} }, {}]) {
+/* program : accepté et validé depuis #25 (le blanket-reject "unsupported-field"
+   de #20 est levé). minimalProgram() ne référence que des ids réels du
+   registre (src/registry.js), pour isoler chaque cas de rejet. */
+const minimalProgram = () => ({
+  SLOTS: { dc: { reps: [4, 8], rest: 150, b1: "dc", b2: "dc" } },
+  SESSIONS: [{ id: "s1", warm: "upper", ex: [["dc", 3]], core: "coreA" }],
+  CORE: { coreA: { label: "Abdos", ex: [] } },
+  WARM: { upper: "5 min d'échauffement." },
+});
+
+test("parseProgramImport : program bien formé => ok, chargé tel quel (#25)", () => {
+  const res = parseProgramImport(JSON.stringify({ ...minimalDefinition(), program: minimalProgram() }));
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.definition.program, minimalProgram());
+});
+
+test("parseProgramImport : program n'est pas un objet => invalid-program (#25)", () => {
+  for (const program of ["garbage", 42, ["a"]]) {
     const res = parseProgramImport(JSON.stringify({ ...minimalDefinition(), program }));
     assert.equal(res.ok, false, JSON.stringify(program));
-    assert.equal(res.reason, "unsupported-field", JSON.stringify(program));
+    assert.equal(res.reason, "invalid-program", JSON.stringify(program));
   }
+});
+
+test("parseProgramImport : program.SLOTS/.SESSIONS/.CORE/.WARM manquant => missing-field (#25)", () => {
+  for (const field of ["SLOTS", "SESSIONS", "CORE", "WARM"]) {
+    const program = { ...minimalProgram() };
+    delete program[field];
+    const res = parseProgramImport(JSON.stringify({ ...minimalDefinition(), program }));
+    assert.equal(res.ok, false, field);
+    assert.equal(res.reason, "missing-field", field);
+  }
+});
+
+test("parseProgramImport : program.SLOTS.<x>.b1 référence un id hors du registre => unknown-exercise (#25)", () => {
+  const program = { ...minimalProgram(), SLOTS: { dc: { reps: [4, 8], rest: 150, b1: "invente-un-id", b2: "dc" } } };
+  const res = parseProgramImport(JSON.stringify({ ...minimalDefinition(), program }));
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, "unknown-exercise");
+});
+
+test("parseProgramImport : program.SLOTS.<x>.reps mal formé => invalid-program (#25)", () => {
+  const program = { ...minimalProgram(), SLOTS: { dc: { reps: [4], rest: 150, b1: "dc", b2: "dc" } } };
+  const res = parseProgramImport(JSON.stringify({ ...minimalDefinition(), program }));
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, "invalid-program");
+});
+
+test("parseProgramImport : program.SESSIONS[i].warm hors de program.WARM => invalid-program (#25)", () => {
+  const program = { ...minimalProgram(), SESSIONS: [{ id: "s1", warm: "n-importe-quoi", ex: [["dc", 3]], core: "coreA" }] };
+  const res = parseProgramImport(JSON.stringify({ ...minimalDefinition(), program }));
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, "invalid-program");
+});
+
+test("parseProgramImport : program.cardio inconnu => unknown-cardio-rule ; \"default\"/null/absent => ok (#25)", () => {
+  const bad = parseProgramImport(JSON.stringify({ ...minimalDefinition(), program: { ...minimalProgram(), cardio: "z2" } }));
+  assert.equal(bad.ok, false);
+  assert.equal(bad.reason, "unknown-cardio-rule");
+
+  for (const cardio of ["default", null, undefined]) {
+    const program = { ...minimalProgram() };
+    if (cardio !== undefined) program.cardio = cardio;
+    const res = parseProgramImport(JSON.stringify({ ...minimalDefinition(), program }));
+    assert.equal(res.ok, true, String(cardio));
+  }
+});
+
+test("parseProgramImport : startingLoads référence un id hors du registre => unknown-exercise (#25)", () => {
+  const res = parseProgramImport(JSON.stringify({ ...minimalDefinition(), startingLoads: { "invente-un-id": 50 } }));
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, "unknown-exercise");
 });
 
 test("parseProgramImport : formatVersion supérieur au courant => too-new (#20)", () => {
@@ -195,9 +261,13 @@ test("parseProgramImport : formatVersion non entier => invalid-field (#20)", () 
   assert.equal(res.reason, "invalid-field");
 });
 
-test("parseProgramImport : formatVersion absent ou égal au courant => accepté (#20)", () => {
+test("parseProgramImport : formatVersion absent, antérieur ou égal au courant => accepté ; au-delà => too-new (#20, #25)", () => {
   assert.equal(parseProgramImport(JSON.stringify(minimalDefinition())).ok, true);
-  assert.equal(parseProgramImport(JSON.stringify({ ...minimalDefinition(), formatVersion: 1 })).ok, true);
+  assert.equal(parseProgramImport(JSON.stringify({ ...minimalDefinition(), formatVersion: 1 })).ok, true); // #25 : un fichier v1 (sans program) charge toujours
+  assert.equal(parseProgramImport(JSON.stringify({ ...minimalDefinition(), formatVersion: 2 })).ok, true); // DEFINITION_FORMAT_VERSION courant depuis #25
+  const tooNew = parseProgramImport(JSON.stringify({ ...minimalDefinition(), formatVersion: 3 }));
+  assert.equal(tooNew.ok, false);
+  assert.equal(tooNew.reason, "too-new");
 });
 
 test("parseProgramImport : définition minimale valide, sans program => ok", () => {

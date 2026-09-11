@@ -15,6 +15,7 @@
 
 import { migrate } from "./schema.js";
 import { DEFINITION_FORMAT_VERSION, parseLocalDate } from "./definition.js";
+import { EXERCISE_IDS } from "./registry.js";
 
 export const IMPORT_MESSAGES = {
   "invalid-json": "Le texte collé n'est pas du JSON valide.",
@@ -26,6 +27,9 @@ export const IMPORT_MESSAGES = {
   "invalid-field": "Champ présent mais invalide dans le programme.",
   "unsupported-field": "Ce programme utilise une possibilité que l'appli ne sait pas encore exécuter.",
   "unsupported-weeks": "Ce programme ne compte pas 12 semaines.",
+  "invalid-program": "Le catalogue d'exercices custom (program) est mal formé.",
+  "unknown-exercise": "Le programme référence un exercice absent du registre.",
+  "unknown-cardio-rule": "Le programme référence une règle cardio inconnue.",
 };
 
 const reject = (reason, message) => ({ ok: false, reason, message: message || IMPORT_MESSAGES[reason] });
@@ -72,15 +76,77 @@ function roundTripsAsDate(iso) {
   return back === iso;
 }
 
-/* Analyse d'un fichier de programme chargé (#6, durci en #20). Même forme
-   de verdict que parseJournalImport :
+/* Contrôle de forme d'un program data-only (#25) — SLOTS/SESSIONS/CORE/
+   WARM référençant uniquement des ids du registre fermé (EXERCISE_IDS).
+   Renvoie null si valide, sinon { reason, message } — message pensé pour
+   être recollé à une IA (#19) : chemin JSON + règle violée, jamais un
+   jugement sur le contenu. */
+function validateProgram(program) {
+  if (typeof program !== "object" || program === null || Array.isArray(program)) {
+    return { reason: "invalid-program", message: "Champ invalide : program (objet attendu)" };
+  }
+  for (const field of ["SLOTS", "SESSIONS", "CORE", "WARM"]) {
+    if (program[field] == null) return { reason: "missing-field", message: `Champ manquant : program.${field}` };
+  }
+
+  const { SLOTS, SESSIONS, CORE, WARM } = program;
+
+  if (typeof SLOTS !== "object" || Array.isArray(SLOTS)) return { reason: "invalid-program", message: "Champ invalide : program.SLOTS (objet attendu)" };
+  for (const [slotId, slot] of Object.entries(SLOTS)) {
+    if (typeof slot !== "object" || slot === null) return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId} (objet attendu)` };
+    if (!Array.isArray(slot.reps) || slot.reps.length !== 2 || !slot.reps.every(isNum)) {
+      return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId}.reps (deux nombres attendus)` };
+    }
+    if (!isNum(slot.rest)) return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId}.rest (nombre attendu)` };
+    for (const b of ["b1", "b2"]) {
+      if (typeof slot[b] !== "string") return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId}.${b} (chaîne attendue)` };
+      if (!EXERCISE_IDS.has(slot[b])) return { reason: "unknown-exercise", message: `program.SLOTS.${slotId}.${b} : « ${slot[b]} » n'est pas un exercice du registre.` };
+    }
+  }
+
+  if (!Array.isArray(SESSIONS) || SESSIONS.length === 0) return { reason: "invalid-program", message: "Champ invalide : program.SESSIONS (tableau non vide attendu)" };
+  if (typeof CORE !== "object" || Array.isArray(CORE)) return { reason: "invalid-program", message: "Champ invalide : program.CORE (objet attendu)" };
+  if (typeof WARM !== "object" || Array.isArray(WARM)) return { reason: "invalid-program", message: "Champ invalide : program.WARM (objet attendu)" };
+  for (const [k, v] of Object.entries(WARM)) {
+    if (typeof v !== "string") return { reason: "invalid-program", message: `Champ invalide : program.WARM.${k} (chaîne attendue)` };
+  }
+
+  for (const [i, session] of SESSIONS.entries()) {
+    if (typeof session !== "object" || session === null) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}] (objet attendu)` };
+    if (typeof session.id !== "string" || session.id === "") return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].id (chaîne non vide attendue)` };
+    if (!(session.warm in WARM)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].warm : « ${session.warm} » n'est pas une clé de program.WARM.` };
+    if (!(session.core in CORE)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].core : « ${session.core} » n'est pas une clé de program.CORE.` };
+    if (!Array.isArray(session.ex)) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].ex (tableau attendu)` };
+    for (const [slotId] of session.ex) {
+      if (!(slotId in SLOTS)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].ex : « ${slotId} » n'est pas un slot de program.SLOTS.` };
+    }
+  }
+
+  for (const [coreId, core] of Object.entries(CORE)) {
+    if (typeof core.label !== "string") return { reason: "invalid-program", message: `Champ invalide : program.CORE.${coreId}.label (chaîne attendue)` };
+    if (!Array.isArray(core.ex)) return { reason: "invalid-program", message: `Champ invalide : program.CORE.${coreId}.ex (tableau attendu)` };
+    for (const [slotId] of core.ex) {
+      if (!(slotId in SLOTS)) return { reason: "invalid-program", message: `program.CORE.${coreId}.ex : « ${slotId} » n'est pas un slot de program.SLOTS.` };
+    }
+  }
+
+  if (program.cardio !== undefined && program.cardio !== "default" && program.cardio !== null) {
+    return { reason: "unknown-cardio-rule", message: `program.cardio : « ${program.cardio} » n'est pas une règle cardio connue (attendu "default" ou null).` };
+  }
+
+  return null;
+}
+
+/* Analyse d'un fichier de programme chargé (#6, durci en #20, program
+   accepté depuis #25). Même forme de verdict que parseJournalImport :
      { ok: true, definition } | { ok: false, reason, message }
-   Trois familles de rejet (décisions #20) :
+   Familles de rejet (décisions #20, #25) :
      missing-field      champ requis absent
      invalid-field      champ présent mais du mauvais type / invalide
-     unsupported-field  champ que le format porte mais que le moteur ne
-                        sait pas exécuter depuis un fichier (aujourd'hui
-                        `program` — réactivé par #13)
+     invalid-program    program présent mais mal formé (forme, pas ids)
+     unknown-exercise   program ou startingLoads référence un id hors du
+                        registre fermé (src/registry.js)
+     unknown-cardio-rule program.cardio n'est ni "default" ni null
    weeks !== 12 garde sa raison propre (spec #6 Q2) ; relâcher 12 est #9/#14.
    Sur succès, `name` absent est complété par `id` (décision #20 Q3) : seul
    endroit où le validateur normalise plutôt que juger. */
@@ -97,12 +163,9 @@ export function parseProgramImport(text) {
     return reject("not-a-program");
   }
 
-  /* program : le format le porte, mais buildProgram() attend le catalogue
-     livré avec l'appli (cardioPlan y est une fonction, non sérialisable).
-     Rejeté tant que #13 n'a pas défini un program 100 % données + son
-     contrôle de forme. */
   if (parsed.program != null) {
-    return reject("unsupported-field", "Champ non supporté : program (programme d'exercices custom, prévu #13)");
+    const bad = validateProgram(parsed.program);
+    if (bad) return reject(bad.reason, bad.message);
   }
 
   /* formatVersion : absent ou ≤ courant accepté ; au-delà, même verdict
@@ -147,6 +210,7 @@ export function parseProgramImport(text) {
 
   for (const [vid, load] of Object.entries(parsed.startingLoads)) {
     if (!isNum(load)) return reject("invalid-field", `Charge de départ invalide pour ${vid} (nombre attendu)`);
+    if (!EXERCISE_IDS.has(vid)) return reject("unknown-exercise", `startingLoads : « ${vid} » n'est pas un exercice du registre.`);
   }
 
   return { ok: true, definition: { ...parsed, name: parsed.name ?? parsed.id } };
