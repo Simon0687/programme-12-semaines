@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { buildProgram } from "../src/program.js";
 import { STARTING_LOADS } from "../src/profile.js";
 import { planned, history, lastEntry } from "../src/progression.js";
+import { logKey } from "../src/schema.js";
 
 /* Pins the behaviour of planned() as it shipped in 1.0.0, before #3-#6
    start moving the program data around. Every expected value here is the
@@ -23,7 +24,7 @@ const prog = buildProgram({ startingLoads: STARTING_LOADS });
 const S = (...entries) => ({
   logs: Object.fromEntries(
     entries.map(({ week, sid, vid, sets }) => [
-      `w${week}_${sid}`,
+      logKey(week, sid),
       { done: true, ex: { [vid]: sets } },
     ])
   ),
