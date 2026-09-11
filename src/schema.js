@@ -2,11 +2,12 @@
    Schéma du journal — versionnement et migrations (#1)
 
    Le journal stocké dans localStorage (clé prog12_simon_v1) porte
-   désormais un entier schemaVersion, frère de logs / cardio / checkin.
+   un entier schemaVersion, frère de activeProgramId / programs.
    migrate() amène un objet d'une version ancienne à la version courante
-   en enchaînant des étapes indexées par version source. À la v1 la
-   chaîne est vide : migrate() est un no-op jusqu'à la première vraie
-   migration (#3).
+   en enchaînant des étapes indexées par version source. Depuis #6,
+   MIGRATIONS[1] porte la première vraie étape (v1 journal plat -> v2
+   enveloppe multi-programme) ; ce module reste le seul à connaître la
+   forme du journal (emptyJournal, withVersion, #21).
    ========================================================= */
 
 /* Version courante du schéma. Déclarée ici et nulle part ailleurs :
@@ -16,6 +17,19 @@ export const SCHEMA_VERSION = 2;
 /* Identité du cycle par défaut : celui qui existait avant #6, sans fichier
    chargé. Sert de clé dans `programs` pour le journal migré depuis la v1. */
 export const DEFAULT_PROGRAM_ID = "simon-12s-2026-09";
+
+/* Objet à écrire dans le stockage / l'export : l'enveloppe multi-programme
+   au complet, schemaVersion frère d'activeProgramId/programs (#6). */
+export const withVersion = (journal) => ({ schemaVersion: SCHEMA_VERSION, activeProgramId: journal.activeProgramId, programs: journal.programs });
+
+/* Première utilisation : aucune clé en stockage. Un seul cycle, celui fourni
+   avec l'appli (definition: null), sous la même identité qu'un journal v1
+   migré (#6) — pas de distinction visible entre "toujours été v2" et
+   "migré depuis v1". */
+export const emptyJournal = () => ({
+  activeProgramId: DEFAULT_PROGRAM_ID,
+  programs: { [DEFAULT_PROGRAM_ID]: { definition: null, logs: {}, cardio: {}, checkin: {} } },
+});
 
 /* MIGRATIONS[n] prend un objet vn et renvoie un objet v(n+1), sans jamais
    fixer schemaVersion lui-même : migrate() s'en charge une seule fois, à

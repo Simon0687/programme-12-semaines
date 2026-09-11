@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
-import { SCHEMA_VERSION, DEFAULT_PROGRAM_ID, migrate } from "./schema.js";
+import { SCHEMA_VERSION, migrate, emptyJournal, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport } from "./import.js";
 import { backupOnce, listBackups } from "./backup.js";
 import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
@@ -38,18 +38,7 @@ const AFTER_HINTS = {
   mob: (cardio) => `bloc mobilité, ${cardio.mob}`,
 };
 
-/* Objet à écrire dans le stockage / l'export : l'enveloppe multi-programme
-   au complet, schemaVersion frère d'activeProgramId/programs (#6). */
-const withVersion = (journal) => ({ schemaVersion: SCHEMA_VERSION, activeProgramId: journal.activeProgramId, programs: journal.programs });
-/* Première utilisation : aucune clé en stockage. Un seul cycle, celui fourni
-   avec l'appli (definition: null), sous la même identité qu'un journal v1
-   migré (#6) — pas de distinction visible entre "toujours été v2" et
-   "migré depuis v1". */
-const emptyJournal = () => ({
-  activeProgramId: DEFAULT_PROGRAM_ID,
-  programs: { [DEFAULT_PROGRAM_ID]: { definition: null, logs: {}, cardio: {}, checkin: {} } },
-});
-const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+const addDays = (d, n) =>{ const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const dateLabel = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
 const weekRange = (start, w) => {
