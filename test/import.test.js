@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { IMPORT_MESSAGES, parseJournalImport, parseProgramImport } from "../src/import.js";
 import { SCHEMA_VERSION } from "../src/schema.js";
 import { DEFAULT_DEFINITION } from "../src/definition.js";
+import { testCtx } from "./helpers/migration-ctx.js";
 
 /* Plancher valide : les champs que buildPlan() lit vraiment sont requis
    depuis #20 (maintenanceKcal, startKcal, macros p/f/c, targetWeightKg,
@@ -62,13 +63,16 @@ test("parseJournalImport : journal v2 (enveloppe multi-programme) valide => ok, 
   assert.deepEqual(res.data.programs.x.logs, { w1_hautA: { done: true } });
 });
 
-test("parseJournalImport : journal v1 (plat, sans schemaVersion) => ok, migré vers v2 (#6)", () => {
-  const res = parseJournalImport(JSON.stringify({ logs: { w1_hautA: { done: true } }, cardio: {}, checkin: {} }));
+test("parseJournalImport : journal v1 (plat, sans schemaVersion) => ok, migré vers la version courante (#6, #16)", () => {
+  const res = parseJournalImport(JSON.stringify({ logs: { w1_hautA: { done: true } }, cardio: {}, checkin: {} }), testCtx());
   assert.equal(res.ok, true);
   assert.equal(res.migrated, true);
   assert.equal(res.data.schemaVersion, SCHEMA_VERSION);
   assert.ok(res.data.activeProgramId);
-  assert.deepEqual(res.data.programs[res.data.activeProgramId].logs, { w1_hautA: { done: true } });
+  const logs = Object.values(res.data.programs[res.data.activeProgramId].logs);
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].slot, "hautA");
+  assert.equal(logs[0].done, true);
 });
 
 test("parseJournalImport : accepte .programs à la racine, pas seulement .logs (#6)", () => {
@@ -78,7 +82,7 @@ test("parseJournalImport : accepte .programs à la racine, pas seulement .logs (
 });
 
 test("parseJournalImport : un verdict positif ne porte ni reason ni message", () => {
-  const res = parseJournalImport(JSON.stringify({ logs: {} }));
+  const res = parseJournalImport(JSON.stringify({ logs: {} }), testCtx());
   assert.equal(res.ok, true);
   assert.equal(res.reason, undefined);
   assert.equal(res.message, undefined);

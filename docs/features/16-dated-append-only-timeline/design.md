@@ -204,13 +204,17 @@ above into the existing `{ ok: false, invalid: true, from, data }` verdict —
 `loadJournal` and `parseJournalImport` already handle that shape without
 changes beyond passing `ctx` through.
 
-**`computeKind` import direction.** `schema.js` imports `computeKind` from
-`progression.js` (used only inside `migrateLogsV2`). This is safe because #16
-also removes `progression.js`'s only import (`logKey`, added by #24) — after
-this issue `progression.js` has zero imports again, so `schema.js →
-progression.js` cannot cycle back. Rationale for not duplicating the
-`week === 1|7` rule a second time inside schema.js: one rule, one place, and
-the migration must reproduce it exactly.
+**`computeKind` duplication, deliberate.** `schema.js`'s migration inlines the
+same three-line `week === 1 | 7` rule rather than importing `computeKind` from
+`progression.js`. Importing it would work in the *final* state (once
+`progression.js` drops its `logKey` import in step 3, `progression.js` has
+zero imports and `schema.js → progression.js` can't cycle back) — but step 1
+adds the migration before step 3 removes that import, so at that point in the
+sequence `progression.js` still imports from `schema.js`, and the reverse
+import would cycle. Rather than couple two commits' ordering together to make
+a one-time historical-data rule reusable, the rule is inlined in the
+migration; `progression.js`'s `computeKind` stays the one used everywhere a
+*new* record's kind is decided (the engine, `App.jsx`'s `validate()`).
 
 ## Sequencing
 
