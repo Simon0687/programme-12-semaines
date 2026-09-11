@@ -31,6 +31,12 @@ export const emptyJournal = () => ({
   programs: { [DEFAULT_PROGRAM_ID]: { definition: null, logs: {}, cardio: {}, checkin: {} } },
 });
 
+/* Format des clés du journal, jusqu'ici épelé inline à chaque site d'appel
+   (#24) : un seul endroit à changer quand #16 remplacera la semaine de
+   cycle par une date. */
+export const logKey = (week, sessionId) => `w${week}_${sessionId}`;
+export const weekKey = (week) => `w${week}`;
+
 /* MIGRATIONS[n] prend un objet vn et renvoie un objet v(n+1), sans jamais
    fixer schemaVersion lui-même : migrate() s'en charge une seule fois, à
    la fin de la chaîne. Chaque étape est indépendante : en ajouter une ne

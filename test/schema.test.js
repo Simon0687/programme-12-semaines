@@ -1,7 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { SCHEMA_VERSION, DEFAULT_PROGRAM_ID, applyChain, migrate, versionOf } from "../src/schema.js";
+import { SCHEMA_VERSION, DEFAULT_PROGRAM_ID, applyChain, migrate, versionOf, logKey, weekKey } from "../src/schema.js";
+
+test("logKey / weekKey : format des clés du journal (#24), pinné avant que #16 ne le remplace", () => {
+  assert.equal(logKey(3, "hautA"), "w3_hautA");
+  assert.equal(logKey(7, "hautB"), "w7_hautB");
+  assert.equal(logKey(12, "bas"), "w12_bas");
+  assert.equal(weekKey(1), "w1");
+  assert.equal(weekKey(7), "w7");
+});
 
 test("versionOf : schemaVersion absent ou invalide => v1", () => {
   assert.equal(versionOf({ logs: {} }), 1);
