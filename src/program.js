@@ -57,9 +57,12 @@ export function buildProgram(definition) {
   return { V, SLOTS: p.SLOTS, SESSIONS: p.SESSIONS, CORE: p.CORE, WARM: p.WARM, ...cardio };
 }
 
-/* ---------- Dérivations pures depuis un bundle (#22) ----------
-   Les deux seules valeurs de forme qui ne sont pas une simple lecture de
-   propriété ; App.jsx les lisait en dur avant #22. */
+/* ---------- Dérivations pures depuis un bundle (#22, #13) ----------
+   App.jsx les lisait en dur avant #22. Depuis #13, un bundle peut aussi
+   n'avoir aucune donnée cardio (`cardio: null` en #25) : getCardioDayNotes
+   tolère l'absence de CARDIO_DAY_NOTES, et les trois has*() ci-dessous
+   disent à App.jsx si l'affordance "Cardio et mobilité" a quoi que ce soit
+   à montrer. */
 
 /* Slots clés, dans leur ordre de déclaration dans SLOTS — App.jsx les
    utilisait en dur pour la ligne "Exos clés" du Bilan et le drapeau AMRAP
@@ -77,7 +80,21 @@ export function getKeySlots(prog) {
    affiche en complément de la séance, pas à sa place. */
 export function getCardioDayNotes(prog) {
   const sessionDays = new Set(prog.SESSIONS.map((s) => s.day));
-  return Object.keys(prog.CARDIO_DAY_NOTES)
+  return Object.keys(prog.CARDIO_DAY_NOTES || {})
     .map(Number)
     .filter((day) => !sessionDays.has(day));
+}
+
+/* #13 : cardio et mobilité sont deux affordances indépendantes — un bundle
+   peut n'avoir ni l'une ni l'autre (cardio: null), et rien n'empêche à
+   l'avenir l'une sans l'autre. hasCardioContent couvre les points d'App.jsx
+   qui n'ont besoin que de savoir s'il y a quoi que ce soit à montrer. */
+export function hasCardioItems(prog) {
+  return !!(prog.CARDIO_ITEMS && prog.CARDIO_ITEMS.length);
+}
+export function hasMobilityDays(prog) {
+  return !!(prog.MOB_DAYS && prog.MOB_DAYS.length);
+}
+export function hasCardioContent(prog) {
+  return hasCardioItems(prog) || hasMobilityDays(prog);
 }

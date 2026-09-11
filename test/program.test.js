@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildProgram, getKeySlots, getCardioDayNotes } from "../src/program.js";
+import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioItems, hasMobilityDays, hasCardioContent } from "../src/program.js";
 
 const prog = buildProgram({});
 
@@ -31,5 +31,37 @@ describe("getCardioDayNotes", () => {
   test("aucune note cardio : tableau vide, ne lève pas", () => {
     const noNotes = { SESSIONS: prog.SESSIONS, CARDIO_DAY_NOTES: {} };
     assert.deepEqual(getCardioDayNotes(noNotes), []);
+  });
+
+  test("bundle sans donnée cardio du tout (cardio: null, #25) : CARDIO_DAY_NOTES absent, tableau vide, ne lève pas (#13)", () => {
+    const noCardio = { SESSIONS: prog.SESSIONS };
+    assert.deepEqual(getCardioDayNotes(noCardio), []);
+  });
+});
+
+describe("hasCardioItems / hasMobilityDays / hasCardioContent (#13)", () => {
+  test("bundle par défaut : cardio et mobilité tous les deux présents", () => {
+    assert.equal(hasCardioItems(prog), true);
+    assert.equal(hasMobilityDays(prog), true);
+    assert.equal(hasCardioContent(prog), true);
+  });
+
+  test("bundle sans donnée cardio du tout (cardio: null) : les trois sont faux", () => {
+    const noCardio = {};
+    assert.equal(hasCardioItems(noCardio), false);
+    assert.equal(hasMobilityDays(noCardio), false);
+    assert.equal(hasCardioContent(noCardio), false);
+  });
+
+  test("tableau présent mais vide : traité comme absent", () => {
+    assert.equal(hasCardioItems({ CARDIO_ITEMS: [] }), false);
+    assert.equal(hasMobilityDays({ MOB_DAYS: [] }), false);
+  });
+
+  test("cardio sans mobilité, ou l'inverse : indépendants l'un de l'autre", () => {
+    assert.equal(hasCardioContent({ CARDIO_ITEMS: prog.CARDIO_ITEMS }), true);
+    assert.equal(hasMobilityDays({ CARDIO_ITEMS: prog.CARDIO_ITEMS }), false);
+    assert.equal(hasCardioContent({ MOB_DAYS: prog.MOB_DAYS }), true);
+    assert.equal(hasCardioItems({ MOB_DAYS: prog.MOB_DAYS }), false);
   });
 });
