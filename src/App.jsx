@@ -680,7 +680,7 @@ function CardioView({ prog, week, cardio, ca, setCardio, toggleMob, compact }) {
     <div>
       {!compact && <div className="text-xl font-semibold pb-1">Cardio et mobilité, semaine {week}</div>}
       <div className="divide-y divide-slate-700 border-y border-slate-700">
-        {prog.CARDIO_ITEMS.map((it) => {
+        {hasCardioItems(prog) && prog.CARDIO_ITEMS.map((it) => {
           const plan = it.id === "int" ? cardio.intervals : cardio.z2;
           const d = ca[it.id] || {};
           if (it.id === "int" && !plan) return (
@@ -703,15 +703,17 @@ function CardioView({ prog, week, cardio, ca, setCardio, toggleMob, compact }) {
             </div>
           );
         })}
-        <div className="py-3">
-          <div className="font-medium">Mobilité, 3 fois par semaine</div>
-          <div className="text-sm text-slate-400">{cardio.mob}</div>
-          <div className="flex gap-4 mt-2">
-            {prog.MOB_DAYS.map((d, i) => (
-              <label key={d} className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={!!(ca.mob && ca.mob[i])} onChange={() => toggleMob(i)} className="h-5 w-5 accent-amber-400" />{d}</label>
-            ))}
+        {hasMobilityDays(prog) && (
+          <div className="py-3">
+            <div className="font-medium">Mobilité, 3 fois par semaine</div>
+            <div className="text-sm text-slate-400">{cardio.mob}</div>
+            <div className="flex gap-4 mt-2">
+              {prog.MOB_DAYS.map((d, i) => (
+                <label key={d} className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={!!(ca.mob && ca.mob[i])} onChange={() => toggleMob(i)} className="h-5 w-5 accent-amber-400" />{d}</label>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
