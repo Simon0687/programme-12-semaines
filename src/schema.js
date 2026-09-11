@@ -32,12 +32,10 @@ export const emptyJournal = () => ({
   programs: { [DEFAULT_PROGRAM_ID]: { definition: null, logs: {}, cardio: {}, checkin: {} } },
 });
 
-/* logKey encore utilisé par progression.js/App.jsx jusqu'à ce que #16 les
-   bascule sur date+slot (étapes suivantes de cette même issue) ; retiré une
-   fois qu'aucun appelant ne le référence plus (voir la fin de la séquence
-   #16). Cardio et check-in, eux, restent indexés par semaine de cycle
-   (#16 decisions-spec Q2 : hors périmètre, suivi par #29). */
-export const logKey = (week, sessionId) => `w${week}_${sessionId}`;
+/* Cardio et check-in restent indexés par semaine de cycle (#16 decisions-spec
+   Q2 : hors périmètre, suivi par #29). Les séances, elles, sont indexées par
+   date depuis #16 (logKey, le format w{week}_{sessionId}, est retiré :
+   plus aucun appelant ne le référence). */
 export const weekKey = (week) => `w${week}`;
 
 /* Identité et horodatage d'un enregistrement de séance (#16). genId() n'a pas

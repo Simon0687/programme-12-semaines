@@ -3,14 +3,11 @@ import assert from "node:assert/strict";
 
 import {
   SCHEMA_VERSION, DEFAULT_PROGRAM_ID, applyChain, migrate, versionOf,
-  logKey, weekKey, genId, dateForSlot, findLog, writeLog,
+  weekKey, genId, dateForSlot, findLog, writeLog,
 } from "../src/schema.js";
 import { testCtx } from "./helpers/migration-ctx.js";
 
-test("logKey / weekKey : format des clés du journal (#24), pinné avant que #16 ne le remplace", () => {
-  assert.equal(logKey(3, "hautA"), "w3_hautA");
-  assert.equal(logKey(7, "hautB"), "w7_hautB");
-  assert.equal(logKey(12, "bas"), "w12_bas");
+test("weekKey : format des clés cardio/check-in (#24), inchangé par #16 (hors périmètre, #29)", () => {
   assert.equal(weekKey(1), "w1");
   assert.equal(weekKey(7), "w7");
 });
