@@ -51,9 +51,9 @@ export function buildProgram(definition) {
   for (const [vid, load] of Object.entries(startingLoads)) {
     if (V[vid]) V[vid].start = load;
   }
-  const cardio = (p.cardio ?? "default") === "default"
-    ? { cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES }
-    : {};
+  const cardio = p.cardio === null
+    ? {}
+    : { cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES };
   return { V, SLOTS: p.SLOTS, SESSIONS: p.SESSIONS, CORE: p.CORE, WARM: p.WARM, ...cardio };
 }
 

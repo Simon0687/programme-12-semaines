@@ -2,8 +2,29 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioItems, hasMobilityDays, hasCardioContent } from "../src/program.js";
+import { DEFAULT_DEFINITION } from "../src/default-program.js";
 
 const prog = buildProgram({});
+
+describe("buildProgram : résolution de program.cardio", () => {
+  const withCardio = (cardio) => ({ program: { ...DEFAULT_DEFINITION.program, cardio } });
+
+  test("absent : bundle cardio par défaut (comme aujourd'hui)", () => {
+    const { cardio, ...p } = DEFAULT_DEFINITION.program;
+    assert.equal(hasCardioContent(buildProgram({ program: p })), true);
+  });
+
+  test('"default" : bundle cardio par défaut', () => {
+    assert.equal(hasCardioContent(buildProgram(withCardio("default"))), true);
+  });
+
+  test("null : aucune donnée cardio dans le bundle (régression du bug #25 où null était traité comme absent via ??)", () => {
+    const built = buildProgram(withCardio(null));
+    assert.equal(hasCardioContent(built), false);
+    assert.equal(built.cardioPlan, undefined);
+    assert.equal(built.CARDIO_DAY_NOTES, undefined);
+  });
+});
 
 describe("getKeySlots", () => {
   test("bundle par défaut : les six slots key: true, dans l'ordre de déclaration de SLOTS (#22)", () => {
