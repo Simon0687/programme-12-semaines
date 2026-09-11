@@ -541,9 +541,11 @@ export default function Programme() {
                 );
               })}
             </div>
-            <div className="mt-4">
-              <CardioView prog={prog} week={week} cardio={cardio} ca={ca} setCardio={setCardio} toggleMob={toggleMob} compact />
-            </div>
+            {hasCardioContent(prog) && (
+              <div className="mt-4">
+                <CardioView prog={prog} week={week} cardio={cardio} ca={ca} setCardio={setCardio} toggleMob={toggleMob} compact />
+              </div>
+            )}
           </div>
         )}
 
