@@ -3,7 +3,7 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } fr
 import { SCHEMA_VERSION, DEFAULT_PROGRAM_ID, migrate } from "./schema.js";
 import { parseJournalImport, parseProgramImport } from "./import.js";
 import { backupOnce, listBackups } from "./backup.js";
-import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent } from "./program.js";
+import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned } from "./progression.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
@@ -356,7 +356,7 @@ export default function Programme() {
     const ca = state.cardio[`w${week}`] || {};
     const done = prog.SESSIONS.filter((s) => doneMap[s.id]);
     const missing = prog.SESSIONS.filter((s) => !doneMap[s.id]).map((s) => s.name);
-    const cardioLines = prog.CARDIO_ITEMS.filter((it) => ca[it.id] && ca[it.id].done).map((it) => { const d = ca[it.id]; return `${it.label} ${d.min || "?"} min${d.w ? `, ${d.w} W` : ""}${d.hr ? `, ${d.hr} bpm` : ""}`; });
+    const cardioLines = (prog.CARDIO_ITEMS || []).filter((it) => ca[it.id] && ca[it.id].done).map((it) => { const d = ca[it.id]; return `${it.label} ${d.min || "?"} min${d.w ? `, ${d.w} W` : ""}${d.hr ? `, ${d.hr} bpm` : ""}`; });
     const mob = (ca.mob || []).filter(Boolean).length;
     const keys = getKeySlots(prog);
     const keyLines = keys.map((slotId) => {
@@ -367,16 +367,25 @@ export default function Programme() {
       if (!sets.length) return null;
       return `${prog.V[vid].name} : ${setSummary(sets, prog.V[vid])}`;
     }).filter(Boolean);
+    /* #13 : cardio et mobilité sont deux affordances indépendantes — un
+       bundle peut n'avoir ni l'une ni l'autre, ou une seule des deux ; la
+       ligne (et sa présence dans la liste numérotée) suit. */
+    const cardioPart = hasCardioItems(prog) ? `Cardio : ${cardioLines.length ? cardioLines.join(" ; ") : "aucun"}` : null;
+    const mobPart = hasMobilityDays(prog) ? `mobilité ${mob}/${prog.MOB_DAYS.length}` : null;
+    const cardioLine = [cardioPart, mobPart].filter(Boolean).join(" — ") || null;
+    const lines = [
+      `Poids moyen : ${c.poids || "?"} kg — tour de taille : ${c.taille || "?"} cm`,
+      `Sommeil moyen : ${c.sommeil || "?"} h`,
+      `Séances : ${done.length}/${prog.SESSIONS.length}${missing.length ? ` — manquées : ${missing.join(", ")}` : ""}`,
+      cardioLine,
+      `Exos clés : ${keyLines.length ? keyLines.join(" ; ") : "aucune séance validée"}`,
+      `Douleurs : ${c.douleurs || "aucune"} / RIR ressenti global : ${c.rir || "?"} / énergie : ${c.energie || "?"}/5`,
+      `Nutrition : ${c.nutrition || "RAS"}`,
+      `Remarques : ${c.remarques || "—"}`,
+    ].filter(Boolean);
     return [
       `Bilan S${week} (${weekRange(START, week)}) — ${phase.label}`,
-      `1. Poids moyen : ${c.poids || "?"} kg — tour de taille : ${c.taille || "?"} cm`,
-      `2. Sommeil moyen : ${c.sommeil || "?"} h`,
-      `3. Séances : ${done.length}/${prog.SESSIONS.length}${missing.length ? ` — manquées : ${missing.join(", ")}` : ""}`,
-      `4. Cardio : ${cardioLines.length ? cardioLines.join(" ; ") : "aucun"} — mobilité ${mob}/${prog.MOB_DAYS.length}`,
-      `5. Exos clés : ${keyLines.length ? keyLines.join(" ; ") : "aucune séance validée"}`,
-      `6. Douleurs : ${c.douleurs || "aucune"} / RIR ressenti global : ${c.rir || "?"} / énergie : ${c.energie || "?"}/5`,
-      `7. Nutrition : ${c.nutrition || "RAS"}`,
-      `8. Remarques : ${c.remarques || "—"}`,
+      ...lines.map((l, i) => `${i + 1}. ${l}`),
     ].join("\n");
   };
 
