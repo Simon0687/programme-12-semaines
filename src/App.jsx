@@ -86,14 +86,14 @@ function Btn({ children, onClick, primary, small, disabled }) {
 }
 
 /* ---------- Carte exercice ---------- */
-function ExerciseCard({ idx, slotId, nSets, week, weeks, si, prog, state, rows, onSet, onTimer }) {
+function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, rows, onSet, onTimer }) {
   const slot = prog.SLOTS[slotId];
   const vid = slot[blockOf(week)];
   const v = prog.V[vid];
   const unit = v.unit || "kg";
   const sets = setsFor(nSets, week);
-  const plan = useMemo(() => planned(prog, state, slotId, week, si), [prog, state, slotId, week, si]);
-  const last = useMemo(() => lastEntry(prog, state, vid, week, si), [prog, state, vid, week, si]);
+  const plan = useMemo(() => planned(prog, state, slotId, week, si, date), [prog, state, slotId, week, si, date]);
+  const last = useMemo(() => lastEntry(prog, state, vid, date, si), [prog, state, vid, date, si]);
   const [open, setOpen] = useState(false);
   const phase = phaseOf(week);
   const failOk = slot.fail && week >= 3 && week !== 7;
@@ -479,12 +479,12 @@ export default function Programme() {
                 </div>
                 <Section title="Échauffement">{prog.WARM[session.warm]}</Section>
                 {session.ex.map(([slotId, n], i) => (
-                  <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} prog={prog} state={state}
+                  <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} state={state}
                     rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 <div className="pt-4 text-sm text-slate-400">{prog.CORE[session.core].label}</div>
                 {prog.CORE[session.core].ex.map(([slotId, n], i) => (
-                  <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} prog={prog} state={state}
+                  <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} state={state}
                     rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 {session.after && cardio && (
