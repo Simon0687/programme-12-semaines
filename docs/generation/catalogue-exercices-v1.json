@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "conventions": {
+    "muscles": "11 clés, strictement alignées sur la table de volume de l'étape 2. Somme = 1.0. Traps, avant-bras et lombaires ne sont PAS des clés : sans cible de volume, ils casseraient cible(m) et la normalisation du modèle de fatigue. La charge lombaire est portée par cout_systemique + articulations.",
+    "equipement": "Matériel strictement nécessaire. Les accessoires de lestage (ceinture, disque) ne sont jamais listés, sinon le filtre 'poids de corps' rejette tractions et dips.",
+    "vocabulaire_equipement": [
+      "barre",
+      "barre_ez",
+      "halteres",
+      "kettlebell",
+      "banc",
+      "banc_incline",
+      "banc_lombaire",
+      "rack",
+      "barre_traction",
+      "barres_paralleles",
+      "poulie",
+      "machine",
+      "poids_du_corps"
+    ],
+    "type": "compose si ≥ 2 clés muscle ET ≥ 2 articulations mobilisées, sinon isolation. Règle déterministe : hip thrust et extension lombaire sortent en isolation (1 muscle, 1 articulation).",
+    "stabilite": "1 = barre libre lourde (RIR ≥ 1) · 2 = haltères / poids de corps (RIR ≥ 0) · 3 = machine ou poulie (échec autorisé)",
+    "niveau_min": "1 = débutant < 6 mois · 2 = intermédiaire 6 mois–2 ans · 3 = avancé 2 ans+",
+    "articulations": [
+      "epaule",
+      "coude",
+      "poignet",
+      "lombaires",
+      "hanche",
+      "genou"
+    ],
+    "increment_kg": "Pas de progression réel appliqué par le moteur, aligné sur B.2 : barre haut du corps 2.5 · barre bas du corps 5.0 · haltères 2.0 (paire, +1 kg/bras) · poulie 2.5 · pile sélectorisée 5.0 · poids de corps lesté 1.25. À revalider selon la salle.",
+    "cout_systemique": "1 = isolation ou machine · 2 = composé chargé · 3 = composé axial lourd (72 h d'espacement, étape 5)",
+    "patterns_ajoutes": [
+      "iso_pectoraux",
+      "iso_quadriceps",
+      "iso_ischios"
+    ],
+    "note_patterns": "La taxonomie du spec annonce 12 patterns mais en liste 13, et l'exemple exécuté utilise 'isolation ischios' qui n'existe pas dans la table. 3 patterns d'isolation sont ajoutés ici, sinon la règle 'jamais deux exercices du même pattern dans une séance' interdit squat + leg extension, RDL + leg curl et développé + écarté.",
+    "articulations_regle": "Une articulation n'est listée que si l'exercice la met sous contrainte NOTABLE (position étirée chargée, compression, amplitude extrême, trajectoire imposée) — pas dès qu'elle est mobilisée. Sans cette règle, cocher « épaule » vide 7 patterns sur 16 et le moteur n'a plus de quoi construire une séance haut du corps."
+  },
+  "exercices": [
+    {"id":"developpe-couche-barre","nom":"Développé couché barre","equipement":["barre","banc","rack"],"pattern":"poussee_horizontale","type":"compose","muscles":{"pectoraux":0.6,"triceps":0.2,"deltoide_ant":0.2},"stabilite":1,"niveau_min":1,"articulations":["epaule","poignet"],"increment_kg":2.5,"cout_systemique":2},
+    {"id":"developpe-couche-halteres","nom":"Développé couché haltères","equipement":["halteres","banc"],"pattern":"poussee_horizontale","type":"compose","muscles":{"pectoraux":0.6,"triceps":0.2,"deltoide_ant":0.2},"stabilite":2,"niveau_min":1,"articulations":["epaule"],"increment_kg":2.0,"cout_systemique":2},
+    {"id":"developpe-incline-halteres","nom":"Développé incliné haltères","equipement":["halteres","banc_incline"],"pattern":"poussee_horizontale","type":"compose","muscles":{"pectoraux":0.55,"deltoide_ant":0.3,"triceps":0.15},"stabilite":2,"niveau_min":1,"articulations":["epaule"],"increment_kg":2.0,"cout_systemique":2},
+    {"id":"developpe-couche-machine-convergente","nom":"Développé couché machine convergente","equipement":["machine"],"pattern":"poussee_horizontale","type":"compose","muscles":{"pectoraux":0.6,"triceps":0.2,"deltoide_ant":0.2},"stabilite":3,"niveau_min":1,"articulations":[],"increment_kg":5.0,"cout_systemique":1},
+    {"id":"dips-pectoraux","nom":"Dips buste penché","equipement":["barres_paralleles"],"pattern":"poussee_horizontale","type":"compose","muscles":{"pectoraux":0.5,"triceps":0.3,"deltoide_ant":0.2},"stabilite":2,"niveau_min":2,"articulations":["epaule"],"increment_kg":1.25,"cout_systemique":2},
+    {"id":"pompes","nom":"Pompes","equipement":["poids_du_corps"],"pattern":"poussee_horizontale","type":"compose","muscles":{"pectoraux":0.6,"triceps":0.2,"deltoide_ant":0.2},"stabilite":2,"niveau_min":1,"articulations":["poignet"],"increment_kg":1.25,"cout_systemique":1},
+
+    {"id":"ecarte-poulie-vis-a-vis","nom":"Écarté poulie vis-à-vis","equipement":["poulie"],"pattern":"iso_pectoraux","type":"isolation","muscles":{"pectoraux":0.85,"deltoide_ant":0.15},"stabilite":3,"niveau_min":1,"articulations":["epaule"],"increment_kg":2.5,"cout_systemique":1},
+    {"id":"pec-deck","nom":"Pec deck","equipement":["machine"],"pattern":"iso_pectoraux","type":"isolation","muscles":{"pectoraux":0.9,"deltoide_ant":0.1},"stabilite":3,"niveau_min":1,"articulations":["epaule"],"increment_kg":5.0,"cout_systemique":1},
+
+    {"id":"developpe-militaire-barre-debout","nom":"Développé militaire barre debout","equipement":["barre","rack"],"pattern":"poussee_verticale","type":"compose","muscles":{"deltoide_ant":0.55,"triceps":0.25,"deltoide_lat":0.2},"stabilite":1,"niveau_min":2,"articulations":["epaule","poignet","lombaires"],"increment_kg":2.5,"cout_systemique":2},
+    {"id":"developpe-halteres-assis","nom":"Développé haltères assis","equipement":["halteres","banc_incline"],"pattern":"poussee_verticale","type":"compose","muscles":{"deltoide_ant":0.55,"triceps":0.25,"deltoide_lat":0.2},"stabilite":2,"niveau_min":1,"articulations":["epaule"],"increment_kg":2.0,"cout_systemique":2},
+    {"id":"developpe-epaules-machine","nom":"Développé épaules machine","equipement":["machine"],"pattern":"poussee_verticale","type":"compose","muscles":{"deltoide_ant":0.55,"triceps":0.25,"deltoide_lat":0.2},"stabilite":3,"niveau_min":1,"articulations":["epaule"],"increment_kg":5.0,"cout_systemique":1},
+
+    {"id":"tractions-pronation","nom":"Tractions pronation","equipement":["barre_traction"],"pattern":"tirage_vertical","type":"compose","muscles":{"dos":0.7,"biceps":0.2,"deltoide_post":0.1},"stabilite":2,"niveau_min":2,"articulations":["epaule","coude"],"increment_kg":1.25,"cout_systemique":2},
+    {"id":"tirage-vertical-prise-large","nom":"Tirage vertical prise large","equipement":["machine"],"pattern":"tirage_vertical","type":"compose","muscles":{"dos":0.7,"biceps":0.2,"deltoide_post":0.1},"stabilite":3,"niveau_min":1,"articulations":["epaule"],"increment_kg":5.0,"cout_systemique":1},
+    {"id":"tirage-vertical-prise-neutre","nom":"Tirage vertical prise neutre","equipement":["machine"],"pattern":"tirage_vertical","type":"compose","muscles":{"dos":0.65,"biceps":0.25,"deltoide_post":0.1},"stabilite":3,"niveau_min":1,"articulations":[],"increment_kg":5.0,"cout_systemique":1},
+
+    {"id":"rowing-barre","nom":"Rowing barre buste penché","equipement":["barre"],"pattern":"tirage_horizontal","type":"compose","muscles":{"dos":0.65,"biceps":0.2,"deltoide_post":0.15},"stabilite":1,"niveau_min":2,"articulations":["lombaires"],"increment_kg":2.5,"cout_systemique":2},
+    {"id":"rowing-halteres-un-bras","nom":"Rowing haltère un bras","equipement":["halteres","banc"],"pattern":"tirage_horizontal","type":"compose","muscles":{"dos":0.65,"biceps":0.2,"deltoide_post":0.15},"stabilite":2,"niveau_min":1,"articulations":[],"increment_kg":2.0,"cout_systemique":1},
+    {"id":"tirage-horizontal-poulie-basse","nom":"Tirage horizontal poulie basse","equipement":["poulie"],"pattern":"tirage_horizontal","type":"compose","muscles":{"dos":0.65,"biceps":0.2,"deltoide_post":0.15},"stabilite":3,"niveau_min":1,"articulations":["lombaires"],"increment_kg":5.0,"cout_systemique":1},
+    {"id":"rowing-machine-appui-pectoral","nom":"Rowing machine appui pectoral","equipement":["machine"],"pattern":"tirage_horizontal","type":"compose","muscles":{"dos":0.65,"biceps":0.2,"deltoide_post":0.15},"stabilite":3,"niveau_min":1,"articulations":[],"increment_kg":5.0,"cout_systemique":1},
+    {"id":"rowing-inverse-barre","nom":"Rowing inversé sous barre","equipement":["barre","rack"],"pattern":"tirage_horizontal","type":"compose","muscles":{"dos":0.65,"biceps":0.2,"deltoide_post":0.15},"stabilite":2,"niveau_min":1,"articulations":["poignet"],"increment_kg":1.25,"cout_systemique":1},
+
+    {"id":"squat-barre-nuque","nom":"Squat barre nuque","equipement":["barre","rack"],"pattern":"dominante_genou","type":"compose","muscles":{"quadriceps":0.6,"ischios_fessiers":0.3,"abdominaux":0.1},"stabilite":1,"niveau_min":2,"articulations":["genou","hanche","lombaires"],"increment_kg":5.0,"cout_systemique":3},
+    {"id":"presse-a-cuisses","nom":"Presse à cuisses","equipement":["machine"],"pattern":"dominante_genou","type":"compose","muscles":{"quadriceps":0.65,"ischios_fessiers":0.35},"stabilite":3,"niveau_min":1,"articulations":["genou"],"increment_kg":5.0,"cout_systemique":2},
+    {"id":"squat-gobelet","nom":"Squat gobelet","equipement":["halteres"],"pattern":"dominante_genou","type":"compose","muscles":{"quadriceps":0.6,"ischios_fessiers":0.3,"abdominaux":0.1},"stabilite":2,"niveau_min":1,"articulations":["genou","hanche"],"increment_kg":2.0,"cout_systemique":2},
+    {"id":"fentes-marchees-halteres","nom":"Fentes marchées haltères","equipement":["halteres"],"pattern":"dominante_genou","type":"compose","muscles":{"quadriceps":0.5,"ischios_fessiers":0.45,"mollets":0.05},"stabilite":2,"niveau_min":2,"articulations":["genou"],"increment_kg":2.0,"cout_systemique":2},
+    {"id":"split-squat-bulgare-halteres","nom":"Split squat bulgare haltères","equipement":["halteres","banc"],"pattern":"dominante_genou","type":"compose","muscles":{"quadriceps":0.55,"ischios_fessiers":0.4,"mollets":0.05},"stabilite":2,"niveau_min":2,"articulations":["genou","hanche"],"increment_kg":2.0,"cout_systemique":2},
+
+    {"id":"leg-extension","nom":"Leg extension","equipement":["machine"],"pattern":"iso_quadriceps","type":"isolation","muscles":{"quadriceps":1.0},"stabilite":3,"niveau_min":1,"articulations":["genou"],"increment_kg":5.0,"cout_systemique":1},
+
+    {"id":"souleve-de-terre-conventionnel","nom":"Soulevé de terre conventionnel","equipement":["barre"],"pattern":"charniere_hanche","type":"compose","muscles":{"ischios_fessiers":0.55,"dos":0.3,"quadriceps":0.15},"stabilite":1,"niveau_min":3,"articulations":["lombaires","hanche"],"increment_kg":5.0,"cout_systemique":3},
+    {"id":"souleve-de-terre-roumain-barre","nom":"Soulevé de terre roumain barre","equipement":["barre"],"pattern":"charniere_hanche","type":"compose","muscles":{"ischios_fessiers":0.7,"dos":0.3},"stabilite":1,"niveau_min":2,"articulations":["lombaires","hanche"],"increment_kg":5.0,"cout_systemique":3},
+    {"id":"souleve-de-terre-roumain-halteres","nom":"Soulevé de terre roumain haltères","equipement":["halteres"],"pattern":"charniere_hanche","type":"compose","muscles":{"ischios_fessiers":0.7,"dos":0.3},"stabilite":2,"niveau_min":1,"articulations":["lombaires","hanche"],"increment_kg":2.0,"cout_systemique":2},
+    {"id":"extension-lombaire-banc","nom":"Extension lombaire au banc","equipement":["banc_lombaire"],"pattern":"charniere_hanche","type":"isolation","muscles":{"ischios_fessiers":0.6,"dos":0.4},"stabilite":2,"niveau_min":1,"articulations":["lombaires"],"increment_kg":1.25,"cout_systemique":1},
+
+    {"id":"hip-thrust-barre","nom":"Hip thrust barre","equipement":["barre","banc"],"pattern":"extension_hanche","type":"isolation","muscles":{"ischios_fessiers":1.0},"stabilite":2,"niveau_min":1,"articulations":["hanche"],"increment_kg":5.0,"cout_systemique":2},
+    {"id":"tirage-entre-jambes-poulie","nom":"Tirage entre les jambes à la poulie","equipement":["poulie"],"pattern":"extension_hanche","type":"isolation","muscles":{"ischios_fessiers":0.85,"dos":0.15},"stabilite":3,"niveau_min":1,"articulations":["hanche"],"increment_kg":2.5,"cout_systemique":1},
+
+    {"id":"leg-curl-allonge","nom":"Leg curl allongé","equipement":["machine"],"pattern":"iso_ischios","type":"isolation","muscles":{"ischios_fessiers":1.0},"stabilite":3,"niveau_min":1,"articulations":["genou"],"increment_kg":5.0,"cout_systemique":1},
+    {"id":"leg-curl-assis","nom":"Leg curl assis","equipement":["machine"],"pattern":"iso_ischios","type":"isolation","muscles":{"ischios_fessiers":1.0},"stabilite":3,"niveau_min":1,"articulations":["genou"],"increment_kg":5.0,"cout_systemique":1},
+
+    {"id":"elevations-laterales-halteres","nom":"Élévations latérales haltères","equipement":["halteres"],"pattern":"iso_deltoide_lateral","type":"isolation","muscles":{"deltoide_lat":1.0},"stabilite":2,"niveau_min":1,"articulations":["epaule"],"increment_kg":2.0,"cout_systemique":1},
+    {"id":"elevations-laterales-poulie","nom":"Élévations latérales poulie","equipement":["poulie"],"pattern":"iso_deltoide_lateral","type":"isolation","muscles":{"deltoide_lat":1.0},"stabilite":3,"niveau_min":1,"articulations":["epaule"],"increment_kg":2.5,"cout_systemique":1},
+    {"id":"elevations-laterales-machine","nom":"Élévations latérales machine","equipement":["machine"],"pattern":"iso_deltoide_lateral","type":"isolation","muscles":{"deltoide_lat":1.0},"stabilite":3,"niveau_min":1,"articulations":["epaule"],"increment_kg":5.0,"cout_systemique":1},
+
+    {"id":"oiseau-halteres-banc-incline","nom":"Oiseau haltères au banc incliné","equipement":["halteres","banc_incline"],"pattern":"iso_deltoide_posterieur","type":"isolation","muscles":{"deltoide_post":0.85,"dos":0.15},"stabilite":2,"niveau_min":1,"articulations":[],"increment_kg":2.0,"cout_systemique":1},
+    {"id":"face-pull-poulie","nom":"Face pull à la poulie","equipement":["poulie"],"pattern":"iso_deltoide_posterieur","type":"isolation","muscles":{"deltoide_post":0.7,"dos":0.3},"stabilite":3,"niveau_min":1,"articulations":[],"increment_kg":2.5,"cout_systemique":1},
+    {"id":"reverse-pec-deck","nom":"Pec deck inversé","equipement":["machine"],"pattern":"iso_deltoide_posterieur","type":"isolation","muscles":{"deltoide_post":0.85,"dos":0.15},"stabilite":3,"niveau_min":1,"articulations":[],"increment_kg":5.0,"cout_systemique":1},
+
+    {"id":"curl-halteres","nom":"Curl haltères","equipement":["halteres"],"pattern":"iso_biceps","type":"isolation","muscles":{"biceps":1.0},"stabilite":2,"niveau_min":1,"articulations":["coude"],"increment_kg":2.0,"cout_systemique":1},
+    {"id":"curl-barre-ez","nom":"Curl barre EZ","equipement":["barre_ez"],"pattern":"iso_biceps","type":"isolation","muscles":{"biceps":1.0},"stabilite":2,"niveau_min":1,"articulations":["coude","poignet"],"increment_kg":2.5,"cout_systemique":1},
+    {"id":"curl-poulie-basse","nom":"Curl à la poulie basse","equipement":["poulie"],"pattern":"iso_biceps","type":"isolation","muscles":{"biceps":1.0},"stabilite":3,"niveau_min":1,"articulations":["coude"],"increment_kg":2.5,"cout_systemique":1},
+
+    {"id":"extension-triceps-poulie-haute","nom":"Extension triceps à la poulie haute","equipement":["poulie"],"pattern":"iso_triceps","type":"isolation","muscles":{"triceps":1.0},"stabilite":3,"niveau_min":1,"articulations":["coude"],"increment_kg":2.5,"cout_systemique":1},
+    {"id":"extension-triceps-corde-au-dessus-tete","nom":"Extension triceps corde au-dessus de la tête","equipement":["poulie"],"pattern":"iso_triceps","type":"isolation","muscles":{"triceps":1.0},"stabilite":3,"niveau_min":1,"articulations":["coude","epaule"],"increment_kg":2.5,"cout_systemique":1},
+    {"id":"barre-au-front-barre-ez","nom":"Barre au front (barre EZ)","equipement":["barre_ez","banc"],"pattern":"iso_triceps","type":"isolation","muscles":{"triceps":1.0},"stabilite":2,"niveau_min":2,"articulations":["coude"],"increment_kg":2.5,"cout_systemique":1},
+
+    {"id":"mollets-debout-machine","nom":"Mollets debout à la machine","equipement":["machine"],"pattern":"mollets","type":"isolation","muscles":{"mollets":1.0},"stabilite":3,"niveau_min":1,"articulations":[],"increment_kg":5.0,"cout_systemique":1},
+    {"id":"mollets-assis-machine","nom":"Mollets assis à la machine","equipement":["machine"],"pattern":"mollets","type":"isolation","muscles":{"mollets":1.0},"stabilite":3,"niveau_min":1,"articulations":[],"increment_kg":5.0,"cout_systemique":1},
+
+    {"id":"crunch-poulie-haute","nom":"Crunch à la poulie haute","equipement":["poulie"],"pattern":"abdominaux","type":"isolation","muscles":{"abdominaux":1.0},"stabilite":3,"niveau_min":1,"articulations":["lombaires"],"increment_kg":2.5,"cout_systemique":1},
+    {"id":"gainage-planche-leste","nom":"Gainage planche lesté","equipement":["poids_du_corps"],"pattern":"abdominaux","type":"isolation","muscles":{"abdominaux":1.0},"stabilite":2,"niveau_min":1,"articulations":[],"increment_kg":1.25,"cout_systemique":1},
+    {"id":"releve-de-jambes-suspendu","nom":"Relevé de jambes suspendu","equipement":["barre_traction"],"pattern":"abdominaux","type":"isolation","muscles":{"abdominaux":1.0},"stabilite":2,"niveau_min":2,"articulations":["lombaires"],"increment_kg":1.25,"cout_systemique":1}
+  ]
+}
