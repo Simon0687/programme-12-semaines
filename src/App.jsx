@@ -170,7 +170,11 @@ export default function Programme() {
   const [journal, setJournal] = useState(emptyJournal());
   const active = journal.programs[journal.activeProgramId];
   const definition = active.definition || DEFAULT_DEFINITION;
-  const state = { logs: active.logs, cardio: active.cardio, checkin: active.checkin };
+  /* #22 : un objet neuf à chaque render défait tout useMemo qui en dépend
+     (ExerciseCard :104-105, doneMap :272-276), y compris sur le tick 500 ms
+     du minuteur de repos (:260). Mémorisé sur active seul : logs/cardio/
+     checkin n'existent que sous cette référence, jamais réassignés à côté. */
+  const state = useMemo(() => ({ logs: active.logs, cardio: active.cardio, checkin: active.checkin }), [active]);
   const updateActive = (fn) => setJournal((j) => {
     const id = j.activeProgramId;
     return { ...j, programs: { ...j.programs, [id]: { ...j.programs[id], ...fn(j.programs[id]) } } };
