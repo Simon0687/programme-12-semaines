@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
-import { SCHEMA_VERSION, emptyJournal } from "./schema.js";
+import { SCHEMA_VERSION, emptyJournal, logKey, weekKey } from "./schema.js";
 import { parseJournalImport, parseProgramImport } from "./import.js";
 import { listBackups } from "./backup.js";
 import { createStore, loadJournal, saveJournal } from "./storage.js";
@@ -248,7 +248,7 @@ export default function Programme() {
 
   const doneMap = useMemo(() => {
     const m = {};
-    prog.SESSIONS.forEach((s) => { m[s.id] = !!(state.logs[`w${week}_${s.id}`] && state.logs[`w${week}_${s.id}`].done); });
+    prog.SESSIONS.forEach((s) => { m[s.id] = !!(state.logs[logKey(week, s.id)] && state.logs[logKey(week, s.id)].done); });
     return m;
   }, [prog, state, week]);
   const weekDoneCount = useMemo(() => Object.values(doneMap).filter(Boolean).length, [doneMap]);
@@ -271,7 +271,7 @@ export default function Programme() {
   }, [journal.activeProgramId]);
 
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2500); };
-  const wkey = (sid) => `w${week}_${sid}`;
+  const wkey = (sid) => logKey(week, sid);
   const phase = phaseOf(week);
   const session = prog.SESSIONS.find((s) => s.id === sessionId);
   const si = prog.SESSIONS.findIndex((s) => s.id === sessionId);
@@ -309,9 +309,9 @@ export default function Programme() {
   };
   const reopen = () => updateActive((st) => { const k = wkey(session.id); return { ...st, logs: { ...st.logs, [k]: { ...(st.logs[k] || {}), done: false } } }; });
 
-  const setCardio = (id, f, val) => updateActive((st) => { const k = `w${week}`; const c = st.cardio[k] || {}; return { ...st, cardio: { ...st.cardio, [k]: { ...c, [id]: { ...(c[id] || {}), [f]: val } } } }; });
-  const toggleMob = (i) => updateActive((st) => { const k = `w${week}`; const c = st.cardio[k] || {}; const m = [...(c.mob || Array(prog.MOB_DAYS.length).fill(false))]; m[i] = !m[i]; return { ...st, cardio: { ...st.cardio, [k]: { ...c, mob: m } } }; });
-  const setCheck = (f, val) => updateActive((st) => { const k = `w${week}`; return { ...st, checkin: { ...st.checkin, [k]: { ...(st.checkin[k] || {}), [f]: val } } }; });
+  const setCardio = (id, f, val) => updateActive((st) => { const k = weekKey(week); const c = st.cardio[k] || {}; return { ...st, cardio: { ...st.cardio, [k]: { ...c, [id]: { ...(c[id] || {}), [f]: val } } } }; });
+  const toggleMob = (i) => updateActive((st) => { const k = weekKey(week); const c = st.cardio[k] || {}; const m = [...(c.mob || Array(prog.MOB_DAYS.length).fill(false))]; m[i] = !m[i]; return { ...st, cardio: { ...st.cardio, [k]: { ...c, mob: m } } }; });
+  const setCheck = (f, val) => updateActive((st) => { const k = weekKey(week); return { ...st, checkin: { ...st.checkin, [k]: { ...(st.checkin[k] || {}), [f]: val } } }; });
 
   const copy = async (text) => {
     try { await navigator.clipboard.writeText(text); showToast("Copié"); }
@@ -319,8 +319,8 @@ export default function Programme() {
   };
 
   const bilanText = () => {
-    const c = state.checkin[`w${week}`] || {};
-    const ca = state.cardio[`w${week}`] || {};
+    const c = state.checkin[weekKey(week)] || {};
+    const ca = state.cardio[weekKey(week)] || {};
     const done = prog.SESSIONS.filter((s) => doneMap[s.id]);
     const missing = prog.SESSIONS.filter((s) => !doneMap[s.id]).map((s) => s.name);
     const cardioLines = (prog.CARDIO_ITEMS || []).filter((it) => ca[it.id] && ca[it.id].done).map((it) => { const d = ca[it.id]; return `${it.label} ${d.min || "?"} min${d.w ? `, ${d.w} W` : ""}${d.hr ? `, ${d.hr} bpm` : ""}`; });
@@ -328,7 +328,7 @@ export default function Programme() {
     const keys = getKeySlots(prog);
     const keyLines = keys.map((slotId) => {
       const vid = prog.SLOTS[slotId][blockOf(week)];
-      const sessionsW = prog.SESSIONS.map((s) => state.logs[`w${week}_${s.id}`]).filter((l) => l && l.done && l.ex && l.ex[vid]);
+      const sessionsW = prog.SESSIONS.map((s) => state.logs[logKey(week, s.id)]).filter((l) => l && l.done && l.ex && l.ex[vid]);
       if (!sessionsW.length) return null;
       const sets = sessionsW.flatMap((l) => l.ex[vid]).map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null);
       if (!sets.length) return null;
@@ -414,8 +414,8 @@ export default function Programme() {
   })();
 
   const cardio = prog.cardioPlan ? prog.cardioPlan(week) : null;
-  const ca = state.cardio[`w${week}`] || {};
-  const ci = state.checkin[`w${week}`] || {};
+  const ca = state.cardio[weekKey(week)] || {};
+  const ci = state.checkin[weekKey(week)] || {};
 
   if (!loaded) return <div className="min-h-screen bg-slate-900 text-slate-400 flex items-center justify-center">Chargement du journal…</div>;
 
@@ -502,7 +502,7 @@ export default function Programme() {
             <p className="text-sm text-slate-300 mt-3">{PHASE_NOTES[phase.id]}</p>
             <div className="mt-3 divide-y divide-slate-700 border-y border-slate-700">
               {prog.SESSIONS.map((s) => {
-                const l = state.logs[`w${week}_${s.id}`];
+                const l = state.logs[logKey(week, s.id)];
                 const keySlot = s.ex[0][0];
                 const vid = prog.SLOTS[keySlot][blockOf(week)];
                 const sets = l && l.ex && l.ex[vid] ? l.ex[vid].map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null) : [];

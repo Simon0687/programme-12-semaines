@@ -10,6 +10,8 @@
    sont dans src/plan.js (PHASE_NOTES), sorties du moteur en #4.
    ========================================================= */
 
+import { logKey } from "./schema.js";
+
 export const num = (s) => {
   if (s === "" || s == null) return null;
   const n = parseFloat(String(s).replace(",", "."));
@@ -31,7 +33,7 @@ export function history(prog, state, vid) {
   const out = [];
   for (let w = 1; w <= 12; w++) {
     prog.SESSIONS.forEach((s, si) => {
-      const log = state.logs[`w${w}_${s.id}`];
+      const log = state.logs[logKey(w, s.id)];
       if (!log || !log.done) return;
       const sets = ((log.ex && log.ex[vid]) || []).map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null);
       if (sets.length) out.push({ week: w, si, session: s.name, sets });
