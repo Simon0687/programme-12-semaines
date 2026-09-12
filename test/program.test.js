@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioItems, hasMobilityDays, hasCardioContent } from "../src/program.js";
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
+import { DEFAULT_DEFINITION } from "../src/default-program.js";
 
 /* #26 : les attentes ci-dessous (slots clés, jours à note cardio, présence du
    cardio) décrivent le programme hérité. Elles le nomment, au lieu de lire le
@@ -87,5 +88,27 @@ describe("hasCardioItems / hasMobilityDays / hasCardioContent (#13)", () => {
     assert.equal(hasMobilityDays({ CARDIO_ITEMS: prog.CARDIO_ITEMS }), false);
     assert.equal(hasCardioContent({ MOB_DAYS: prog.MOB_DAYS }), true);
     assert.equal(hasCardioItems({ MOB_DAYS: prog.MOB_DAYS }), false);
+  });
+});
+
+describe("buildProgram : le repli d'une définition sans program (#32)", () => {
+  /* Une définition chargée entre #6 et #25 ne porte pas de champ program :
+     parseProgramImport rejetait alors tout fichier qui en déclarait un. Elle
+     doit continuer à se lire contre le programme qu'elle désignait à
+     l'époque — le programme hérité — et non contre le bundle du jour. */
+  const preRegistry = { formatVersion: 1, id: "coach-2026", name: "Programme du coach", weeks: 12, startDate: "2026-03-02", startingLoads: { dc: 60 } };
+
+  test("résout vers le programme hérité, pas vers le bundle courant", () => {
+    const built = buildProgram(preRegistry);
+    assert.deepEqual(built.SESSIONS.map((s) => s.id), LEGACY_DEFINITION.program.SESSIONS.map((s) => s.id));
+  });
+
+  test("ses charges de départ sont quand même injectées", () => {
+    assert.equal(buildProgram(preRegistry).V.dc.start, 60);
+  });
+
+  test("une définition qui porte un program garde le sien", () => {
+    const built = buildProgram(DEFAULT_DEFINITION);
+    assert.deepEqual(built.SESSIONS.map((s) => s.id), DEFAULT_DEFINITION.program.SESSIONS.map((s) => s.id));
   });
 });
