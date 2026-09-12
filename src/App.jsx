@@ -2,8 +2,9 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
 import { SCHEMA_VERSION, emptyJournal, weekKey, dateForSlot, findLog, writeLog, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport } from "./import.js";
-import { listBackups } from "./backup.js";
+import { listBackups, readDroppedBackup } from "./backup.js";
 import { createStore, loadJournal, saveJournal } from "./storage.js";
+import { unusableProgramIds } from "./journal-shape.js";
 import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind } from "./progression.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
@@ -28,7 +29,11 @@ const MIGRATION_CTX = { legacyDefinition: LEGACY_DEFINITION, buildProgram };
    JSON corrompu (#10). Persistant (pas un toast) et affiché hors de tout
    onglet, puisque le problème survient avant même que l'utilisateur en
    choisisse un. */
-const LOAD_ERROR_MESSAGE = "Le journal enregistré n'a pas pu être mis à jour vers le format actuel. Rien n'a été chargé, rien n'a été écrasé.";
+/* Une seule phrase pour deux causes — migration impossible et forme illisible
+   (#32, décisions Q5) : elle ne prétend plus qu'une mise à jour a été tentée,
+   ce qui était faux dans le second cas, et garde la moitié qui compte pour
+   quelqu'un devant une appli bloquée : rien n'a été détruit. */
+const LOAD_ERROR_MESSAGE = "Le journal enregistré n'a pas pu être lu. Rien n'a été chargé, rien n'a été écrasé.";
 const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 const DAYNAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 /* Texte du champ session.after (#22) : quel indice post-séance afficher,
@@ -169,6 +174,12 @@ export default function Programme() {
     return { ...j, programs: { ...j.programs, [id]: { ...j.programs[id], ...fn(j.programs[id]) } } };
   });
 
+  /* Cycles stockés que cette version ne sait pas exécuter (#32). Dérivé à
+     chaque changement de `programs`, jamais écrit dans le journal : un
+     drapeau posé sur l'entrée serait recopié en stockage par withVersion()
+     à la première sauvegarde, et deviendrait une donnée à migrer. */
+  const unusable = useMemo(() => new Set(unusableProgramIds(journal.programs)), [journal.programs]);
+
   const START = parseLocalDate(definition.startDate);
   const today = startOfDay(new Date());
   const dayIdx = Math.floor((today - START) / 86400000);
@@ -198,6 +209,7 @@ export default function Programme() {
   const [loadError, setLoadError] = useState("");
   const [programError, setProgramError] = useState(""); // #6 : rejet d'un fichier de programme
   const [backups, setBackups] = useState([]); // [{ from, value }] — sauvegardes d'avant-migration (#8)
+  const [droppedBackup, setDroppedBackup] = useState(null); // copie d'avant filtrage des lignes illisibles (#32)
   const fileInputRef = useRef(null);
   const skipSave = useRef(true);
 
@@ -206,6 +218,11 @@ export default function Programme() {
       const res = await loadJournal(STORE, KEY, MIGRATION_CTX);
       if (res.ok) {
         setJournal(res.journal);
+        /* #32 : des lignes de séance illisibles ont été écartées. Le dire est
+           la condition qui rend ce filtrage acceptable — l'original est copié
+           sous <clé>_backup_dropped, et le panneau « Données » sait le
+           ressortir. Une perte annoncée se répare ; une perte muette, non. */
+        if (res.dropped) showToast(`${res.dropped} séance${res.dropped > 1 ? "s" : ""} illisible${res.dropped > 1 ? "s" : ""} écartée${res.dropped > 1 ? "s" : ""} : voir « Données ».`);
         if (res.migrated) {
           if (res.backupOk) {
             skipSave.current = false; // Q2 : réécrire la forme migrée dès ce chargement
@@ -230,6 +247,7 @@ export default function Programme() {
       }
       // res.reason === "absent" : rien à faire, l'état initial useState(emptyJournal(DEFAULT_DEFINITION)) tient lieu de journal.
       setBackups(await listBackups(STORE, KEY, SCHEMA_VERSION));
+      setDroppedBackup(await readDroppedBackup(STORE, KEY));
       setLoaded(true);
     })();
   }, []);
@@ -574,11 +592,17 @@ export default function Programme() {
               {Object.keys(journal.programs).length > 1 && (
                 <div className="flex gap-2 flex-wrap">
                   {Object.entries(journal.programs).map(([id, p]) => (
-                    <Btn key={id} small primary={id === journal.activeProgramId} onClick={() => setJournal((j) => ({ ...j, activeProgramId: id }))}>
-                      {(p.definition || DEFAULT_DEFINITION).name}
+                    <Btn key={id} small primary={id === journal.activeProgramId} disabled={unusable.has(id)}
+                      onClick={() => setJournal((j) => ({ ...j, activeProgramId: id }))}>
+                      {(p.definition && p.definition.name) || id}
                     </Btn>
                   ))}
                 </div>
+              )}
+              {unusable.size > 0 && (
+                <p className="text-xs text-slate-400">
+                  {unusable.size === 1 ? "Un cycle enregistré n'est pas exécutable" : `${unusable.size} cycles enregistrés ne sont pas exécutables`} par cette version : ils restent dans le journal et dans l'export, mais ne peuvent pas être activés.
+                </p>
               )}
             </Section>
             <Section title="Données : sauvegarde et restauration">
@@ -590,11 +614,15 @@ export default function Programme() {
               </div>
               <textarea value={ioText} onChange={(e) => { setIoText(e.target.value); setImportError(""); }} rows={4} placeholder="Colle ici un JSON exporté pour le réimporter" className="w-full p-2 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400" />
               {importError && <p role="alert" className="text-sm text-amber-400">{importError}</p>}
-              {backups.length > 0 && (
+              {(backups.length > 0 || droppedBackup) && (
                 <div className="flex gap-2 flex-wrap">
                   {backups.map((b) => (
                     <Btn key={b.from} small onClick={() => setIoText(b.value)}>Afficher la sauvegarde d'avant-migration (v{b.from})</Btn>
                   ))}
+                  {/* #32 : le journal tel qu'il était avant que des séances
+                      illisibles n'en soient écartées. Comme les autres
+                      sauvegardes, elle n'est jamais restaurée toute seule. */}
+                  {droppedBackup && <Btn small onClick={() => setIoText(droppedBackup)}>Afficher le journal d'avant les séances écartées</Btn>}
                 </div>
               )}
             </Section>

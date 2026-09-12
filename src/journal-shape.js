@@ -272,3 +272,19 @@ export function validateDefinition(definition) {
 
   return null;
 }
+
+/* Cycles stockés que l'appli ne peut pas exécuter — mal formés, ou portant
+   une définition que le validateur refuse. Ils restent dans le journal
+   (les rejeter ferait perdre l'accès à un historique intact) mais ne
+   doivent pas pouvoir devenir le cycle actif d'un simple clic : le
+   sélecteur de programmes les rend inactifs à partir de cette liste.
+
+   Dérivé, jamais stocké : marquer l'entrée elle-même reviendrait à écrire
+   ce drapeau dans le journal à la première sauvegarde, withVersion()
+   recopiant `programs` tel quel. */
+export function unusableProgramIds(programs) {
+  if (!isObj(programs)) return [];
+  return Object.entries(programs)
+    .filter(([, entry]) => validateProgramEntry(entry) || validateDefinition(entry.definition))
+    .map(([id]) => id);
+}
