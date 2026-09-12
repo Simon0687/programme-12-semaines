@@ -98,27 +98,57 @@ No code reads this differently - `blockOf()` already does the right thing.
 
 ## Sequencing
 
-1. `chore(programs): add the legacy program as a definition file (#26)` - the
-   JSON plus `src/legacy-program.js`. Nothing imports it yet. **Safe to merge
-   alone.**
-2. `refactor(schema): name the legacy program in the migration ctx (#26)` -
-   `LEGACY_PROGRAM_ID`, `emptyJournal(definition)`, `ctx.legacyDefinition`,
-   `MIGRATIONS[1]`/`[2]` switched over, callers and `testCtx()` updated. Bundle
-   unchanged, so behaviour is identical. **Safe to merge alone.**
-3. `feat(schema)!: pin the definition into every journal entry (#26)` -
-   `SCHEMA_VERSION` 4, `MIGRATIONS[3]`, and the `|| DEFAULT_DEFINITION` fallback
-   removed from `App.jsx`. Carries the `BREAKING CHANGE:` footer. Still no
-   content change.
-4. `test(programs): run the fixtures against the legacy definition (#26)` - the
-   four test files stop reading the bundle. After this step no test asserts
-   anything about `DEFAULT_DEFINITION`'s content.
-5. `feat(programs): make the bundled default a neutral Upper/Lower program (#26)`
-   - add the neutral JSON, point `default-program.js` at it. **This is the step
-   that flips the default, and by now it cannot touch stored history.**
-6. `feat(plan): adapt the method prose to the neutral program (#26)` - `plan.js`.
+*Updated after implementation to describe what actually shipped; the deviations
+from the original plan are listed under "As built" below.*
 
-Steps 1-4 are each mergeable on their own. Step 5 must not land before 3 and 4 -
-that ordering is the whole lesson of the reverted attempt.
+1. `chore(programs): add the legacy program as a definition file (#26)` -
+   `795d67e`. The JSON plus `src/legacy-program.js`. Nothing imports it yet.
+2. `refactor(schema): name the legacy program in the migration ctx (#26)` -
+   `9e26b21`. `LEGACY_PROGRAM_ID`, `ctx.legacyDefinition`, `MIGRATIONS[1]`/`[2]`
+   switched over, callers and `testCtx()` updated. **Nothing stored changes.**
+3. `feat(schema)!: pin the definition into every journal entry (#26)` -
+   `c8956eb`. `SCHEMA_VERSION` 4, `MIGRATIONS[1]` writes the definition,
+   `MIGRATIONS[3]` pins the rest, `emptyJournal(definition)`, and the
+   `|| DEFAULT_DEFINITION` fallback removed from `App.jsx`. `BREAKING CHANGE:`
+   footer. Still no content change.
+4. `test(programs): run the fixtures against the legacy definition (#26)` -
+   `50abf00`. Six test files stop reading the bundle.
+5. `refactor(plan): drive the Plan tab from the definition (#26)` - `2623aea`.
+   `buildPlan(definition)`; each program-specific section takes its content from
+   the data or disappears. Bundle unchanged, nothing moves on screen.
+6. `feat(programs): make the bundled default a neutral Upper/Lower program (#26)`
+   - `08277fc`. **The step that flips the default, and by then it cannot touch
+   stored history.**
+
+Steps 1-5 are each mergeable on their own. Step 6 must not land before 3, 4 and
+5 - that ordering is the whole lesson of the reverted attempt.
+
+## As built - deviations from the plan above
+
+- **`emptyJournal(definition)` moved from step 2 to step 3.** It changes what is
+  written to storage, so it belongs with the version bump; leaving it in step 2
+  would have let two shapes share `schemaVersion: 3`.
+- **Steps 5 and 6 swapped.** `buildPlan` read `profile.maintenanceKcal` and
+  `startingLoads.dc` directly, so the bundle swap would have broken the Plan tab
+  on arrival. Making the Plan tolerant had to come first, while the bundle still
+  carried both.
+- **Step 5 grew.** "Adapt the prose" became "drive the Plan from the definition":
+  the volume table and the fallback paragraphs moved out of `plan.js` and into
+  the definition (`program.volume`, `program.fallback` - additive, the validator
+  already accepts unknown keys), and the anchors sentence and starting-loads
+  paragraph are now derived from the program and the registry. This is the root
+  of the external audit's F4.
+- **One guard added to `storage.js`**, not in the plan: an active entry without a
+  definition returns the `invalid` verdict. It is the direct consequence of
+  removing App.jsx's fallback - without it a hand-edited journal would crash the
+  first render instead of being refused.
+- **Two dead shims removed**: `src/profile.js` had no importer left, and
+  `program.js` re-exported `BASE_V`/`SLOTS`/`SESSIONS`/`CORE`/`WARM` that nothing
+  read. Listed below as a follow-up, but deleting them was forced - they
+  re-exported values the neutral bundle no longer has.
+- **`startingLoads: {}` rather than omitted** in the neutral program:
+  `parseProgramImport` still requires the field. Whether a generated program may
+  omit it is #27's sibling question.
 
 ## Tests
 
@@ -162,13 +192,11 @@ that ordering is the whole lesson of the reverted attempt.
 
 ## Open questions
 
-1. **Where do the definition JSON files live?** `public/programs/` is assumed
-   above: esbuild resolves the relative import at build time *and* the same file
-   is served, so a user can download exactly what the app bundles - which is the
-   strongest form of decision 2. The cost is an import that reaches out of `src/`.
-   The alternative is `src/programs/` plus a copy step into `public/` at build.
-   Confirm `public/programs/`?
-2. **`registry.test.js` "cohérence avec le programme par défaut"** - should it
-   check the neutral program, the legacy one, or both? Both is the useful answer
-   (every `b1`/`b2` in either program must exist in the registry), but it changes
-   the shape of that describe block.
+None - both were settled during implementation.
+
+1. **Where the definition JSON files live: `public/programs/`.** Verified rather
+   than assumed - Node reads them through the import attribute
+   (`with { type: "json" }`) and esbuild inlines them when bundling, so the bytes
+   the app imports and the bytes a user downloads are the same file.
+2. **`registry.test.js` checks every shipped program**, not just the current
+   bundle: the describe block loops over the legacy and the default definitions.
