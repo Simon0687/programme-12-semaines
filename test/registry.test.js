@@ -2,7 +2,16 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import { EXERCISES, EXERCISE_IDS, UNSELECTABLE_IDS, REGISTRY_VERSION, MUSCLE_GROUPS, PATTERNS, EQUIPMENT } from "../src/registry.js";
-import { SLOTS, STARTING_LOADS } from "../src/default-program.js";
+import { DEFAULT_DEFINITION } from "../src/default-program.js";
+import { LEGACY_DEFINITION } from "../src/legacy-program.js";
+
+/* #26 : le registre doit couvrir *tous* les programmes livrés, pas seulement
+   celui qui se trouve être le bundle du moment. Un id manquant ne casse rien
+   à la construction — il produit un exercice `undefined` au rendu. */
+const SHIPPED = [
+  ["programme hérité", LEGACY_DEFINITION],
+  ["bundle par défaut", DEFAULT_DEFINITION],
+];
 
 describe("registry shape", () => {
   test("REGISTRY_VERSION est un entier", () => {
@@ -72,15 +81,17 @@ describe("champs de sélection (#25 Q8)", () => {
   });
 });
 
-describe("cohérence avec le programme par défaut", () => {
-  test("tout b1/b2 référencé par SLOTS existe dans le registre", () => {
-    for (const [id, slot] of Object.entries(SLOTS)) {
-      assert.ok(EXERCISE_IDS.has(slot.b1), `${id}.b1 = ${slot.b1}`);
-      assert.ok(EXERCISE_IDS.has(slot.b2), `${id}.b2 = ${slot.b2}`);
-    }
-  });
+describe("cohérence avec les programmes livrés", () => {
+  for (const [label, def] of SHIPPED) {
+    test(`${label} : tout b1/b2 référencé par SLOTS existe dans le registre`, () => {
+      for (const [id, slot] of Object.entries(def.program.SLOTS)) {
+        assert.ok(EXERCISE_IDS.has(slot.b1), `${id}.b1 = ${slot.b1}`);
+        assert.ok(EXERCISE_IDS.has(slot.b2), `${id}.b2 = ${slot.b2}`);
+      }
+    });
 
-  test("toute clé de STARTING_LOADS existe dans le registre", () => {
-    for (const vid of Object.keys(STARTING_LOADS)) assert.ok(EXERCISE_IDS.has(vid), vid);
-  });
+    test(`${label} : toute clé de startingLoads existe dans le registre`, () => {
+      for (const vid of Object.keys(def.startingLoads || {})) assert.ok(EXERCISE_IDS.has(vid), vid);
+    });
+  }
 });

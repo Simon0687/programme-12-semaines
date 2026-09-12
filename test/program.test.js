@@ -2,15 +2,18 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioItems, hasMobilityDays, hasCardioContent } from "../src/program.js";
-import { DEFAULT_DEFINITION } from "../src/default-program.js";
+import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 
-const prog = buildProgram({});
+/* #26 : les attentes ci-dessous (slots clés, jours à note cardio, présence du
+   cardio) décrivent le programme hérité. Elles le nomment, au lieu de lire le
+   bundle courant qui va cesser d'être ce programme. */
+const prog = buildProgram(LEGACY_DEFINITION);
 
 describe("buildProgram : résolution de program.cardio", () => {
-  const withCardio = (cardio) => ({ program: { ...DEFAULT_DEFINITION.program, cardio } });
+  const withCardio = (cardio) => ({ program: { ...LEGACY_DEFINITION.program, cardio } });
 
   test("absent : bundle cardio par défaut (comme aujourd'hui)", () => {
-    const { cardio, ...p } = DEFAULT_DEFINITION.program;
+    const { cardio, ...p } = LEGACY_DEFINITION.program;
     assert.equal(hasCardioContent(buildProgram({ program: p })), true);
   });
 
@@ -27,7 +30,7 @@ describe("buildProgram : résolution de program.cardio", () => {
 });
 
 describe("getKeySlots", () => {
-  test("bundle par défaut : les six slots key: true, dans l'ordre de déclaration de SLOTS (#22)", () => {
+  test("programme hérité : les six slots key: true, dans l'ordre de déclaration de SLOTS (#22)", () => {
     assert.deepEqual(getKeySlots(prog), ["dc", "latraise", "squat", "pull", "ohp", "hipthrust"]);
   });
 
@@ -38,7 +41,7 @@ describe("getKeySlots", () => {
 });
 
 describe("getCardioDayNotes", () => {
-  test("bundle par défaut : exactement les jours 0 et 4 (note cardio sans séance)", () => {
+  test("programme hérité : exactement les jours 0 et 4 (note cardio sans séance)", () => {
     assert.deepEqual(getCardioDayNotes(prog), [0, 4]);
   });
 
@@ -61,7 +64,7 @@ describe("getCardioDayNotes", () => {
 });
 
 describe("hasCardioItems / hasMobilityDays / hasCardioContent (#13)", () => {
-  test("bundle par défaut : cardio et mobilité tous les deux présents", () => {
+  test("programme hérité : cardio et mobilité tous les deux présents", () => {
     assert.equal(hasCardioItems(prog), true);
     assert.equal(hasMobilityDays(prog), true);
     assert.equal(hasCardioContent(prog), true);

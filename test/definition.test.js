@@ -2,6 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import { DEFAULT_DEFINITION, parseLocalDate } from "../src/definition.js";
+import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 import { buildProgram } from "../src/program.js";
 import { LEGACY_PROGRAM_ID } from "../src/schema.js";
 
@@ -17,12 +18,16 @@ describe("parseLocalDate", () => {
   });
 });
 
-describe("DEFAULT_DEFINITION", () => {
-  test("porte l'id du programme par défaut de la migration v1 -> v2", () => {
-    assert.equal(DEFAULT_DEFINITION.id, LEGACY_PROGRAM_ID);
+describe("définitions livrées", () => {
+  /* #26 : c'est le programme *hérité* qui doit porter cet id — c'est la clé
+     sous laquelle les journaux migrés depuis la v1 sont déjà enregistrés. Le
+     bundle par défaut, lui, est libre d'avoir le sien. */
+  test("le programme hérité porte l'id de la migration v1 -> v2", () => {
+    assert.equal(LEGACY_DEFINITION.id, LEGACY_PROGRAM_ID);
   });
 
-  test("weeks vaut 12", () => {
+  test("weeks vaut 12 pour les deux programmes livrés", () => {
+    assert.equal(LEGACY_DEFINITION.weeks, 12);
     assert.equal(DEFAULT_DEFINITION.weeks, 12);
   });
 });

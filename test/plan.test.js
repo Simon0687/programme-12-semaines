@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "../src/plan.js";
 import { phaseOf } from "../src/progression.js";
-import { PROFILE, STARTING_LOADS } from "../src/profile.js";
+/* #26 : le plan se vérifie contre le profil du programme hérité — le bundle
+   par défaut ne portera plus ni charges de départ ni valeurs personnelles. */
+import { LEGACY_DEFINITION } from "../src/legacy-program.js";
+const { profile: PROFILE, startingLoads: STARTING_LOADS } = LEGACY_DEFINITION;
 
 /* Garde-fous de forme pour les données de l'onglet Plan (#4, #6). Ne
    teste pas le texte (c'est de l'éditorial, il change), seulement que la
