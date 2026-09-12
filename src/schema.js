@@ -15,9 +15,13 @@
    save et export la lisent depuis ce module. */
 export const SCHEMA_VERSION = 3;
 
-/* Identité du cycle par défaut : celui qui existait avant #6, sans fichier
-   chargé. Sert de clé dans `programs` pour le journal migré depuis la v1. */
-export const DEFAULT_PROGRAM_ID = "simon-12s-2026-09";
+/* Identité du cycle hérité : celui qui existait avant #6, sans fichier chargé.
+   Sert de clé dans `programs` pour le journal migré depuis la v1. La valeur ne
+   change pas avec #26 — c'est une clé déjà écrite dans les journaux existants,
+   la renommer serait une migration de plus pour une chaîne que personne ne
+   voit (suivi). Seul le nom de la constante change : « par défaut » devenait
+   faux, puisque le bundle par défaut cesse d'être ce programme. */
+export const LEGACY_PROGRAM_ID = "simon-12s-2026-09";
 
 /* Objet à écrire dans le stockage / l'export : l'enveloppe multi-programme
    au complet, schemaVersion frère d'activeProgramId/programs (#6). */
@@ -28,8 +32,8 @@ export const withVersion = (journal) => ({ schemaVersion: SCHEMA_VERSION, active
    migré (#6) — pas de distinction visible entre "toujours été v2" et
    "migré depuis v1". */
 export const emptyJournal = () => ({
-  activeProgramId: DEFAULT_PROGRAM_ID,
-  programs: { [DEFAULT_PROGRAM_ID]: { definition: null, logs: {}, cardio: {}, checkin: {} } },
+  activeProgramId: LEGACY_PROGRAM_ID,
+  programs: { [LEGACY_PROGRAM_ID]: { definition: null, logs: {}, cardio: {}, checkin: {} } },
 });
 
 /* Cardio et check-in restent indexés par semaine de cycle (#16 decisions-spec
@@ -90,9 +94,9 @@ export const MIGRATIONS = {
      null signifie « le programme fourni avec l'appli » : cette étape ne
      connaît jamais les données du programme, seulement la forme du journal. */
   1: (v1) => ({
-    activeProgramId: DEFAULT_PROGRAM_ID,
+    activeProgramId: LEGACY_PROGRAM_ID,
     programs: {
-      [DEFAULT_PROGRAM_ID]: {
+      [LEGACY_PROGRAM_ID]: {
         definition: null,
         logs: v1.logs || {},
         cardio: v1.cardio || {},
@@ -102,20 +106,23 @@ export const MIGRATIONS = {
   }),
 
   /* v2 (logs indexés w{week}_{sessionId}) -> v3 (logs indexés par id, datés,
-     #16). ctx = { defaultDefinition, buildProgram }, fourni par l'appelant
+     #16). ctx = { legacyDefinition, buildProgram }, fourni par l'appelant
      (App.jsx en prod, test/helpers/migration-ctx.js en test) : schema.js ne
-     peut pas importer program.js/default-program.js sans créer un cycle,
+     peut pas importer program.js/legacy-program.js sans créer un cycle,
      donc la forme de SESSIONS (pour retrouver le jour de chaque slot) est
      injectée plutôt qu'importée. Un programme importé (definition non nulle)
      utilise son propre startDate ; definition: null utilise
-     ctx.defaultDefinition. Une clé qui ne matche pas w{n}_{slot}, ou un slot
+     ctx.legacyDefinition — nommément le programme hérité, et non « le bundle
+     courant » : les dates d'un journal historique se dérivent du programme
+     contre lequel il a été tenu, pas de celui qui est livré aujourd'hui
+     (#26). Une clé qui ne matche pas w{n}_{slot}, ou un slot
      absent de SESSIONS, fait échouer toute la migration (throw, rattrapé par
      migrate() ci-dessous) plutôt que de deviner une date ou de perdre
      silencieusement une séance. */
   2: (v2, ctx) => ({
     ...v2,
     programs: Object.fromEntries(Object.entries(v2.programs).map(([id, p]) => {
-      const definition = p.definition || ctx.defaultDefinition;
+      const definition = p.definition || ctx.legacyDefinition;
       const dayBySlot = Object.fromEntries(ctx.buildProgram(definition).SESSIONS.map((s) => [s.id, s.day]));
       return [id, { ...p, logs: migrateLogsV2ToV3(p.logs, definition.startDate, dayBySlot) }];
     })),
@@ -175,7 +182,7 @@ export function applyChain(data, target, migrations = MIGRATIONS, ctx) {
    Sinon renvoie { ok: true, from, migrated, data }, data portant
    schemaVersion à la version courante. Idempotent : sur un objet déjà à
    jour, data est équivalent à l'entrée.
-   ctx = { defaultDefinition, buildProgram }, requis dès qu'une migration
+   ctx = { legacyDefinition, buildProgram }, requis dès qu'une migration
    traverse la v2 (voir MIGRATIONS[2]) ; ignoré sinon. */
 export function migrate(data, ctx) {
   const from = versionOf(data);

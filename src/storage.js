@@ -19,7 +19,7 @@
      { ok: false, reason: "corrupt" }   // JSON.parse a échoué (#10)
 
    ctx (#16) est transmis tel quel à migrate() : ce module ne sait pas ce
-   qu'il contient (aujourd'hui { defaultDefinition, buildProgram }, requis
+   qu'il contient (aujourd'hui { legacyDefinition, buildProgram }, requis
    dès qu'une migration traverse la v2), seul schema.js en connaît la forme.
    ========================================================= */
 

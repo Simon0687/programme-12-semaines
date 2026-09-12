@@ -48,7 +48,7 @@
    PROFILE         valeurs personnelles citées dans l'onglet Plan.
    ========================================================= */
 
-import { DEFAULT_PROGRAM_ID } from "./schema.js";
+import { LEGACY_PROGRAM_ID } from "./schema.js";
 
 /* ---------- Créneaux : variante bloc 1 / bloc 2 ---------- */
 export const SLOTS = {
@@ -123,7 +123,7 @@ export const PROFILE = {
 /* ---------- Définition complète ---------- */
 export const DEFAULT_DEFINITION = {
   formatVersion: 2, // DEFINITION_FORMAT_VERSION (src/definition.js) — garder synchronisé, voir la note d'en-tête
-  id: DEFAULT_PROGRAM_ID,
+  id: LEGACY_PROGRAM_ID,
   name: "Simon — 12 semaines",
   weeks: 12,
   startDate: START_DATE,

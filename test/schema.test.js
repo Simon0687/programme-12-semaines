@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  SCHEMA_VERSION, DEFAULT_PROGRAM_ID, applyChain, migrate, versionOf,
+  SCHEMA_VERSION, LEGACY_PROGRAM_ID, applyChain, migrate, versionOf,
   weekKey, genId, dateForSlot, findLog, writeLog,
 } from "../src/schema.js";
 import { testCtx } from "./helpers/migration-ctx.js";
@@ -80,8 +80,8 @@ test("migrate : journal v1 (plat) migré vers v3, séances datées sous le progr
   assert.equal(res.from, 1);
   assert.equal(res.migrated, true);
   assert.equal(res.data.schemaVersion, SCHEMA_VERSION);
-  assert.equal(res.data.activeProgramId, DEFAULT_PROGRAM_ID);
-  const active = res.data.programs[DEFAULT_PROGRAM_ID];
+  assert.equal(res.data.activeProgramId, LEGACY_PROGRAM_ID);
+  const active = res.data.programs[LEGACY_PROGRAM_ID];
   assert.equal(active.definition, null); // null => programme fourni avec l'appli
   const logs = Object.values(active.logs);
   assert.equal(logs.length, 2);
@@ -101,7 +101,7 @@ test("migrate : journal non versionné (v1 implicite) migré vers v3", () => {
   assert.equal(res.from, 1);
   assert.equal(res.migrated, true);
   assert.equal(res.data.schemaVersion, SCHEMA_VERSION);
-  const logs = Object.values(res.data.programs[DEFAULT_PROGRAM_ID].logs);
+  const logs = Object.values(res.data.programs[LEGACY_PROGRAM_ID].logs);
   assert.equal(logs.length, 1);
   assert.equal(logs[0].slot, "hautA");
   assert.equal(logs[0].date, "2026-09-07"); // startDate par défaut, semaine 1 jour 1
@@ -110,7 +110,7 @@ test("migrate : journal non versionné (v1 implicite) migré vers v3", () => {
 test("migrate : v1 avec logs/cardio/checkin absents => programme par défaut avec des objets vides", () => {
   const res = migrate({ schemaVersion: 1 }, testCtx());
   assert.equal(res.ok, true);
-  const active = res.data.programs[DEFAULT_PROGRAM_ID];
+  const active = res.data.programs[LEGACY_PROGRAM_ID];
   assert.deepEqual(active.logs, {});
   assert.deepEqual(active.cardio, {});
   assert.deepEqual(active.checkin, {});
@@ -118,7 +118,7 @@ test("migrate : v1 avec logs/cardio/checkin absents => programme par défaut ave
 
 test("migrate : une entrée non validée (done absent) migre avec kind: null", () => {
   const res = migrate({ schemaVersion: 1, logs: { w3_hautB: { ex: {} } } }, testCtx());
-  const logs = Object.values(res.data.programs[DEFAULT_PROGRAM_ID].logs);
+  const logs = Object.values(res.data.programs[LEGACY_PROGRAM_ID].logs);
   assert.equal(logs[0].kind, null);
   assert.equal(logs[0].done, false);
 });

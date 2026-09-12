@@ -8,6 +8,7 @@ import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent, hasCard
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned, computeKind } from "./progression.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
+import { LEGACY_DEFINITION } from "./legacy-program.js";
 
 /* =========================================================
    Programme 12 semaines — Simon
@@ -18,8 +19,11 @@ const KEY = "prog12_simon_v1";
 const STORE = createStore();
 /* Contexte de migration (#16) : injecté dans migrate()/MIGRATIONS[2],
    jamais construit par schema.js lui-même (cycle d'import, voir schema.js
-   MIGRATIONS[2]). */
-const MIGRATION_CTX = { defaultDefinition: DEFAULT_DEFINITION, buildProgram };
+   MIGRATIONS[2]). Depuis #26, la définition transmise est nommément le
+   programme hérité (src/legacy-program.js) et non « le bundle courant » :
+   un journal historique a été tenu contre ce programme-là, et le bundle par
+   défaut va cesser d'être le même. */
+const MIGRATION_CTX = { legacyDefinition: LEGACY_DEFINITION, buildProgram };
 /* Journal présent en stockage mais illisible : schemaVersion hors bornes ou
    JSON corrompu (#10). Persistant (pas un toast) et affiché hors de tout
    onglet, puisque le problème survient avant même que l'utilisateur en

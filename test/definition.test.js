@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { DEFAULT_DEFINITION, parseLocalDate } from "../src/definition.js";
 import { buildProgram } from "../src/program.js";
-import { DEFAULT_PROGRAM_ID } from "../src/schema.js";
+import { LEGACY_PROGRAM_ID } from "../src/schema.js";
 
 describe("parseLocalDate", () => {
   test("renvoie une Date locale à minuit, au 7 septembre 2026", () => {
@@ -19,7 +19,7 @@ describe("parseLocalDate", () => {
 
 describe("DEFAULT_DEFINITION", () => {
   test("porte l'id du programme par défaut de la migration v1 -> v2", () => {
-    assert.equal(DEFAULT_DEFINITION.id, DEFAULT_PROGRAM_ID);
+    assert.equal(DEFAULT_DEFINITION.id, LEGACY_PROGRAM_ID);
   });
 
   test("weeks vaut 12", () => {
