@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { backupKey, backupOnce, listBackups } from "../src/backup.js";
+import { backupDroppedOnce, backupKey, backupOnce, droppedBackupKey, listBackups, readDroppedBackup } from "../src/backup.js";
 import { fakeStore } from "./helpers/fake-store.js";
 
 test("backupKey : formate la clé avec la version d'origine", () => {
@@ -48,4 +48,23 @@ test("listBackups : trouve les copies existantes, bornées à currentVersion - 1
 
 test("listBackups : renvoie [] si le store est indisponible", async () => {
   assert.deepEqual(await listBackups(null, "prog12_simon_v1", 3), []);
+});
+
+test("droppedBackupKey : une clé sans version, la perte n'étant pas un changement de format", () => {
+  assert.equal(droppedBackupKey("prog12_simon_v1"), "prog12_simon_v1_backup_dropped");
+});
+
+test("backupDroppedOnce : écrit la copie verbatim, puis ne l'écrase plus", async () => {
+  const store = fakeStore();
+  assert.equal(await backupDroppedOnce(store, "K", '{"origine":1}'), true);
+  assert.equal(await backupDroppedOnce(store, "K", '{"plus tard":2}'), true);
+  assert.equal(store.data.get("K_backup_dropped"), '{"origine":1}');
+});
+
+test("readDroppedBackup : rend la copie, ou null quand il n'y en a pas", async () => {
+  const store = fakeStore();
+  assert.equal(await readDroppedBackup(store, "K"), null);
+  await backupDroppedOnce(store, "K", '{"origine":1}');
+  assert.equal(await readDroppedBackup(store, "K"), '{"origine":1}');
+  assert.equal(await readDroppedBackup(null, "K"), null);
 });

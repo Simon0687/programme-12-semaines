@@ -8,8 +8,11 @@
 
    loadJournal() rend un verdict typé au lieu de lever, un par situation
    distinguée par l'appelant (App.jsx) :
-     { ok: true,  journal, migrated: false }
-     { ok: true,  journal, migrated: true, backupOk: true | false }
+     { ok: true,  journal, migrated: false, dropped }
+     { ok: true,  journal, migrated: true, backupOk: true | false, dropped }
+     dropped = nombre de lignes de séance illisibles écartées (#32) ; une
+     copie verbatim du journal d'origine est déposée sous
+     <key>_backup_dropped dès qu'il est non nul.
      { ok: false, reason: "no-store" }  // store indisponible (#21 Edge cases)
      { ok: false, reason: "absent" }    // pas de clé : première utilisation
      { ok: false, reason: "too-new" }   // écrit par une version plus récente
@@ -24,8 +27,8 @@
    ========================================================= */
 
 import { migrate, withVersion } from "./schema.js";
-import { validateDefinition, validateEnvelope } from "./journal-shape.js";
-import { backupOnce } from "./backup.js";
+import { sanitizeJournal, validateDefinition, validateEnvelope } from "./journal-shape.js";
+import { backupDroppedOnce, backupOnce } from "./backup.js";
 
 export function createStore() {
   if (typeof window !== "undefined" && window.storage) return window.storage;
@@ -73,11 +76,18 @@ export async function loadJournal(store, key, ctx) {
      parfaitement bien. */
   if (validateDefinition(programs[activeProgramId].definition)) return { ok: false, reason: "invalid" };
 
-  const journal = { activeProgramId, programs };
-  if (!res.migrated) return { ok: true, journal, migrated: false };
+  /* Filtrage des lignes illisibles (#32). La copie de l'original précède le
+     retour : le journal rendu ici est celui que l'autosave réécrira, donc
+     sans cette copie, écarter une ligne reviendrait à la supprimer du
+     stockage au premier geste de l'utilisateur. Même règle que pour une
+     migration (#8) — on ne réécrit jamais sans avoir mis l'original de côté. */
+  const { journal, dropped } = sanitizeJournal({ activeProgramId, programs });
+  if (dropped) await backupDroppedOnce(store, key, raw);
+
+  if (!res.migrated) return { ok: true, journal, migrated: false, dropped };
 
   const backupOk = await backupOnce(store, key, res.from, raw); // #8 : copier l'original avant d'activer la réécriture
-  return { ok: true, journal, migrated: true, backupOk };
+  return { ok: true, journal, migrated: true, backupOk, dropped };
 }
 
 export async function saveJournal(store, key, journal) {

@@ -142,6 +142,38 @@ export function validateProgram(program) {
   return null;
 }
 
+/* Forme d'une ligne de séance (#16). Volontairement minimale : l'identité
+   d'un log est (date, slot) depuis la timeline datée, et c'est ce couple
+   que findLog() et history() interrogent. Le reste — id, kind, updatedAt,
+   deletedAt, schemaVersion — peut manquer sans que rien ne casse, et un
+   journal migré depuis la v1 en est la preuve vivante. */
+export function isLogRow(row) {
+  if (!isObj(row)) return false;
+  if (typeof row.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)) return false;
+  if (typeof row.slot !== "string" || row.slot === "") return false;
+  if (row.ex != null && !isObj(row.ex)) return false;
+  return true;
+}
+
+/* Écarte les lignes illisibles plutôt que de refuser tout le journal
+   (#32, Q3) : une ligne pourrie dans deux ans d'historique ne doit pas
+   coûter l'accès au reste. Rend le journal filtré et le nombre de lignes
+   retirées — ce compte n'est pas décoratif, c'est lui qui empêche la perte
+   d'être silencieuse, et l'appelant écrit une copie de l'original avant
+   que l'autosave ne réécrive la version filtrée. */
+export function sanitizeJournal(journal) {
+  let dropped = 0;
+  const programs = Object.fromEntries(Object.entries(journal.programs).map(([id, entry]) => {
+    if (!isObj(entry) || !isObj(entry.logs)) return [id, entry];
+    const rows = Object.entries(entry.logs);
+    const kept = rows.filter(([, row]) => isLogRow(row));
+    if (kept.length === rows.length) return [id, entry];
+    dropped += rows.length - kept.length;
+    return [id, { ...entry, logs: Object.fromEntries(kept) }];
+  }));
+  return { journal: { ...journal, programs }, dropped };
+}
+
 /* Jugement complet d'une définition, quelle que soit sa provenance — un
    fichier chargé, un journal collé, ou le journal déjà stocké. C'est le
    corps de parseProgramImport d'avant #32, moins JSON.parse et moins la

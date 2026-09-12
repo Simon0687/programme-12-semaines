@@ -48,7 +48,7 @@ test("loadJournal : journal à la version courante chargé inchangé, aucun back
   store.data.set("K", JSON.stringify(current));
 
   const res = await loadJournal(store, "K", testCtx());
-  assert.deepEqual(res, { ok: true, journal: { activeProgramId: "p1", programs: current.programs }, migrated: false });
+  assert.deepEqual(res, { ok: true, journal: { activeProgramId: "p1", programs: current.programs }, migrated: false, dropped: 0 });
   assert.equal([...store.data.keys()].some((k) => k.includes("backup")), false);
 });
 
@@ -218,4 +218,43 @@ test("loadJournal : une définition d'un cycle inactif n'est pas jugée (#32)", 
   const res = await loadJournal(store, "K", testCtx());
   assert.equal(res.ok, true);
   assert.ok(res.journal.programs.p2);
+});
+
+test("loadJournal : une ligne de séance illisible est écartée, les autres survivent (#32)", async () => {
+  const store = fakeStore();
+  const good = { id: "a", date: "2026-01-05", slot: "hautA", ex: { dc: [{ w: 60, r: 8 }] }, done: true };
+  const raw = JSON.stringify({
+    schemaVersion: V, activeProgramId: "p1",
+    programs: { p1: entry({ logs: { a: good, b: 42, c: { date: "pas-une-date", slot: "hautA" }, d: { date: "2026-01-06" } } }) },
+  });
+  store.data.set("K", raw);
+
+  const res = await loadJournal(store, "K", testCtx());
+  assert.equal(res.ok, true);
+  assert.equal(res.dropped, 3);
+  assert.deepEqual(Object.keys(res.journal.programs.p1.logs), ["a"]);
+  assert.deepEqual(res.journal.programs.p1.logs.a, good);
+  assert.equal(store.data.get("K_backup_dropped"), raw); // l'original, à l'octet près, avant toute réécriture
+});
+
+test("loadJournal : aucune ligne écartée -> dropped 0 et aucune copie (#32)", async () => {
+  const store = fakeStore();
+  store.data.set("K", JSON.stringify({
+    schemaVersion: V, activeProgramId: "p1",
+    programs: { p1: entry({ logs: { a: { id: "a", date: "2026-01-05", slot: "hautA" } } }) },
+  }));
+  const res = await loadJournal(store, "K", testCtx());
+  assert.equal(res.dropped, 0);
+  assert.equal(store.data.has("K_backup_dropped"), false);
+});
+
+test("loadJournal : les lignes d'un cycle inactif sont filtrées aussi (#32)", async () => {
+  const store = fakeStore();
+  store.data.set("K", JSON.stringify({
+    schemaVersion: V, activeProgramId: "p1",
+    programs: { p1: entry(), p2: entry({ logs: { x: null } }) },
+  }));
+  const res = await loadJournal(store, "K", testCtx());
+  assert.equal(res.dropped, 1);
+  assert.deepEqual(res.journal.programs.p2.logs, {});
 });
