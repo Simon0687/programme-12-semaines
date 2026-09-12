@@ -11,11 +11,17 @@
    La raison et la phrase sont deux valeurs séparées : l'appelant
    n'inspecte jamais le texte, et les tests portent sur reason — une
    reformulation ne casse donc pas la suite.
+
+   Depuis #32, le *jugement* de forme n'est plus ici : il vit dans
+   src/journal-shape.js, appelé aussi par src/storage.js pour le journal
+   déjà stocké. Ce module garde ce qui lui est propre — JSON.parse, la
+   reconnaissance du document (« est-ce seulement un journal ? un
+   programme ? »), et la normalisation appliquée sur succès.
    ========================================================= */
 
 import { migrate } from "./schema.js";
-import { DEFAULT_DEFINITION, DEFINITION_FORMAT_VERSION, parseLocalDate } from "./definition.js";
-import { EXERCISE_IDS } from "./registry.js";
+import { DEFAULT_DEFINITION } from "./definition.js";
+import { sanitizeJournal, validateDefinition, validateEnvelope, validatePreMigration } from "./journal-shape.js";
 
 export const IMPORT_MESSAGES = {
   "invalid-json": "Le texte collé n'est pas du JSON valide.",
@@ -49,6 +55,9 @@ export function parseJournalImport(text, ctx) {
   if (!parsed || typeof parsed !== "object") return reject("not-a-journal");
   if (!parsed.logs && !parsed.programs) return reject("not-a-journal");
 
+  const ambiguous = validatePreMigration(parsed);
+  if (ambiguous) return reject("not-a-journal", ambiguous.message);
+
   let res;
   try {
     res = migrate(parsed, ctx);
@@ -61,80 +70,22 @@ export function parseJournalImport(text, ctx) {
 
   if (res.invalid) return reject("migration-failed");
   if (!res.ok) return reject("too-new");
-  return { ok: true, data: res.data, migrated: res.migrated };
-}
 
-const isNum = (x) => typeof x === "number" && Number.isFinite(x);
+  /* Les mêmes contrôles que le journal stocké et que le fichier de
+     programme (#32). C'est la porte qui comptait le plus : un import collé
+     est la sortie de secours documentée d'un stockage bloqué (#12), donc
+     la seule qu'on ne peut pas se permettre de laisser ouverte — et avant
+     #32 c'était justement la seule sans validateur derrière. Un journal
+     porteur d'une définition inepte s'installait, puis l'appli plantait
+     au premier rendu. */
+  const badEnvelope = validateEnvelope(res.data);
+  if (badEnvelope) return reject("not-a-journal", badEnvelope.message);
 
-/* startDate doit faire l'aller-retour : parseLocalDate puis reformatage
-   redonnent la même chaîne. Attrape "2027-02-30" que le seul regex laisse
-   passer (JS bascule au 2 mars). */
-function roundTripsAsDate(iso) {
-  const d = parseLocalDate(iso);
-  if (Number.isNaN(d.getTime())) return false;
-  const back = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  return back === iso;
-}
+  const badDefinition = validateDefinition(res.data.programs[res.data.activeProgramId].definition);
+  if (badDefinition) return reject(badDefinition.reason, badDefinition.message);
 
-/* Contrôle de forme d'un program data-only (#25) — SLOTS/SESSIONS/CORE/
-   WARM référençant uniquement des ids du registre fermé (EXERCISE_IDS).
-   Renvoie null si valide, sinon { reason, message } — message pensé pour
-   être recollé à une IA (#19) : chemin JSON + règle violée, jamais un
-   jugement sur le contenu. */
-function validateProgram(program) {
-  if (typeof program !== "object" || program === null || Array.isArray(program)) {
-    return { reason: "invalid-program", message: "Champ invalide : program (objet attendu)" };
-  }
-  for (const field of ["SLOTS", "SESSIONS", "CORE", "WARM"]) {
-    if (program[field] == null) return { reason: "missing-field", message: `Champ manquant : program.${field}` };
-  }
-
-  const { SLOTS, SESSIONS, CORE, WARM } = program;
-
-  if (typeof SLOTS !== "object" || Array.isArray(SLOTS)) return { reason: "invalid-program", message: "Champ invalide : program.SLOTS (objet attendu)" };
-  for (const [slotId, slot] of Object.entries(SLOTS)) {
-    if (typeof slot !== "object" || slot === null) return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId} (objet attendu)` };
-    if (!Array.isArray(slot.reps) || slot.reps.length !== 2 || !slot.reps.every(isNum)) {
-      return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId}.reps (deux nombres attendus)` };
-    }
-    if (!isNum(slot.rest)) return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId}.rest (nombre attendu)` };
-    for (const b of ["b1", "b2"]) {
-      if (typeof slot[b] !== "string") return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId}.${b} (chaîne attendue)` };
-      if (!EXERCISE_IDS.has(slot[b])) return { reason: "unknown-exercise", message: `program.SLOTS.${slotId}.${b} : « ${slot[b]} » n'est pas un exercice du registre.` };
-    }
-  }
-
-  if (!Array.isArray(SESSIONS) || SESSIONS.length === 0) return { reason: "invalid-program", message: "Champ invalide : program.SESSIONS (tableau non vide attendu)" };
-  if (typeof CORE !== "object" || Array.isArray(CORE)) return { reason: "invalid-program", message: "Champ invalide : program.CORE (objet attendu)" };
-  if (typeof WARM !== "object" || Array.isArray(WARM)) return { reason: "invalid-program", message: "Champ invalide : program.WARM (objet attendu)" };
-  for (const [k, v] of Object.entries(WARM)) {
-    if (typeof v !== "string") return { reason: "invalid-program", message: `Champ invalide : program.WARM.${k} (chaîne attendue)` };
-  }
-
-  for (const [i, session] of SESSIONS.entries()) {
-    if (typeof session !== "object" || session === null) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}] (objet attendu)` };
-    if (typeof session.id !== "string" || session.id === "") return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].id (chaîne non vide attendue)` };
-    if (!(session.warm in WARM)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].warm : « ${session.warm} » n'est pas une clé de program.WARM.` };
-    if (!(session.core in CORE)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].core : « ${session.core} » n'est pas une clé de program.CORE.` };
-    if (!Array.isArray(session.ex)) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].ex (tableau attendu)` };
-    for (const [slotId] of session.ex) {
-      if (!(slotId in SLOTS)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].ex : « ${slotId} » n'est pas un slot de program.SLOTS.` };
-    }
-  }
-
-  for (const [coreId, core] of Object.entries(CORE)) {
-    if (typeof core.label !== "string") return { reason: "invalid-program", message: `Champ invalide : program.CORE.${coreId}.label (chaîne attendue)` };
-    if (!Array.isArray(core.ex)) return { reason: "invalid-program", message: `Champ invalide : program.CORE.${coreId}.ex (tableau attendu)` };
-    for (const [slotId] of core.ex) {
-      if (!(slotId in SLOTS)) return { reason: "invalid-program", message: `program.CORE.${coreId}.ex : « ${slotId} » n'est pas un slot de program.SLOTS.` };
-    }
-  }
-
-  if (program.cardio !== undefined && program.cardio !== "default" && program.cardio !== null) {
-    return { reason: "unknown-cardio-rule", message: `program.cardio : « ${program.cardio} » n'est pas une règle cardio connue (attendu "default" ou null).` };
-  }
-
-  return null;
+  const { journal, dropped } = sanitizeJournal(res.data);
+  return { ok: true, data: journal, migrated: res.migrated, dropped };
 }
 
 /* Analyse d'un fichier de programme chargé (#6, durci en #20, program
@@ -147,9 +98,10 @@ function validateProgram(program) {
      unknown-exercise   program ou startingLoads référence un id hors du
                         registre fermé (src/registry.js)
      unknown-cardio-rule program.cardio n'est ni "default" ni null
-   weeks !== 12 garde sa raison propre (spec #6 Q2) ; relâcher 12 est #9/#14.
    Sur succès, `name` absent est complété par `id` (décision #20 Q3) : seul
-   endroit où le validateur normalise plutôt que juger. */
+   endroit où le validateur normalise plutôt que juger — et la raison pour
+   laquelle cette normalisation est restée ici quand le jugement est parti
+   dans journal-shape.js (#32). */
 export function parseProgramImport(text) {
   let parsed;
   try {
@@ -163,57 +115,8 @@ export function parseProgramImport(text) {
     return reject("not-a-program");
   }
 
-  if (parsed.program != null) {
-    const bad = validateProgram(parsed.program);
-    if (bad) return reject(bad.reason, bad.message);
-  }
-
-  /* formatVersion : absent ou ≤ courant accepté ; au-delà, même verdict
-     qu'un journal trop récent — l'action utilisateur est la même. */
-  if (parsed.formatVersion != null) {
-    if (!Number.isInteger(parsed.formatVersion)) {
-      return reject("invalid-field", "Champ invalide : formatVersion (entier attendu)");
-    }
-    if (parsed.formatVersion > DEFINITION_FORMAT_VERSION) return reject("too-new");
-  }
-
-  for (const field of ["id", "startDate", "startingLoads"]) {
-    if (parsed[field] == null) return reject("missing-field", `Champ manquant : ${field}`);
-  }
-  if (typeof parsed.id !== "string" || parsed.id === "") {
-    return reject("invalid-field", "Champ invalide : id (chaîne non vide attendue)");
-  }
-
-  const p = parsed.profile ?? DEFAULT_DEFINITION.profile;
-  if (parsed.profile != null) {
-    if (typeof p !== "object" || Array.isArray(p)) return reject("invalid-field", "Champ invalide : profile (objet attendu)");
-    for (const field of ["maintenanceKcal", "startKcal"]) {
-      if (p[field] == null) return reject("missing-field", `Champ manquant : profile.${field}`);
-      if (!isNum(p[field])) return reject("invalid-field", `Champ invalide : profile.${field} (nombre attendu)`);
-    }
-    if (p.macros == null) return reject("missing-field", "Champ manquant : profile.macros");
-    for (const k of ["p", "f", "c"]) {
-      if (p.macros[k] == null) return reject("missing-field", `Champ manquant : profile.macros.${k}`);
-      if (!isNum(p.macros[k])) return reject("invalid-field", `Champ invalide : profile.macros.${k} (nombre attendu)`);
-    }
-    if (p.targetWeightKg == null) return reject("missing-field", "Champ manquant : profile.targetWeightKg");
-    if (!Array.isArray(p.targetWeightKg) || p.targetWeightKg.length < 2 || !p.targetWeightKg.slice(0, 2).every(isNum)) {
-      return reject("invalid-field", "Champ invalide : profile.targetWeightKg (deux nombres attendus)");
-    }
-  }
-
-  if (parsed.weeks !== 12) {
-    return reject("unsupported-weeks", `Ce programme compte ${parsed.weeks} semaines, 12 attendues.`);
-  }
-
-  if (typeof parsed.startDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(parsed.startDate) || !roundTripsAsDate(parsed.startDate)) {
-    return reject("invalid-field", "Champ invalide : startDate (AAAA-MM-JJ, date réelle attendue)");
-  }
-
-  for (const [vid, load] of Object.entries(parsed.startingLoads)) {
-    if (!isNum(load)) return reject("invalid-field", `Charge de départ invalide pour ${vid} (nombre attendu)`);
-    if (!EXERCISE_IDS.has(vid)) return reject("unknown-exercise", `startingLoads : « ${vid} » n'est pas un exercice du registre.`);
-  }
+  const bad = validateDefinition(parsed);
+  if (bad) return reject(bad.reason, bad.message);
 
   return { ok: true, definition: { ...parsed, profile: parsed.profile ?? DEFAULT_DEFINITION.profile, name: parsed.name ?? parsed.id } };
 }

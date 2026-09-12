@@ -20,17 +20,26 @@
 
 import { EXERCISES } from "./registry.js";
 import { cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./cardio.js";
-import { DEFAULT_DEFINITION } from "./default-program.js";
+import { LEGACY_DEFINITION } from "./legacy-program.js";
 
 export { cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./cardio.js";
 
 /* ---------- Construction du bundle actif (#6, #25) ----------
-   Un cycle fige un catalogue — celui de definition.program, ou par défaut
-   celui de DEFAULT_DEFINITION.program (src/default-program.js) — et y
-   injecte ses charges de départ. `??` couvre aussi une définition stockée
-   avant #25, quand `program` était rejeté à l'import et qu'un tel fichier
-   voulait dire "la structure bundlée, mon profil" : ce comportement ne
-   change pas. Le clone est la ligne qui compte : V[vid].start = load
+   Un cycle fige un catalogue — celui de definition.program — et y injecte
+   ses charges de départ.
+
+   Le repli couvre une définition stockée avant #25, quand `program` était
+   rejeté à l'import et qu'un tel fichier voulait dire « la structure
+   bundlée, mon profil ». Il résout vers LEGACY_DEFINITION, valeur
+   historique figée, et non vers le bundle courant (#32) : depuis #26 le
+   programme livré est un Haut/Bas neutre, si bien qu'un repli sur « ce que
+   l'appli embarque aujourd'hui » relisait ces journaux contre un programme
+   jamais effectué — exactement le piège que #26 a fermé pour
+   `definition: null`, resté vivant un cran plus bas. Un défaut résolu à la
+   lecture est une promesse que le défaut ne changera jamais
+   (docs/ARCHITECTURE.md, invariant 2.1) ; celui-ci ne peut plus changer.
+
+   Le clone est la ligne qui compte : V[vid].start = load
    muterait sinon le registre partagé, et un deuxième cycle en mémoire
    écraserait les charges du premier. Affectation sans condition — pullup
    vaut 0 (poids du corps), un `if (load)` le perdrait.
@@ -38,7 +47,7 @@ export { cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./cardio.j
    bundlée cardioPlan/CARDIO_ITEMS/MOB_DAYS/CARDIO_DAY_NOTES ; null ->
    aucune donnée cardio (rendu conditionnel laissé à #13). */
 export function buildProgram(definition) {
-  const p = (definition && definition.program) || DEFAULT_DEFINITION.program;
+  const p = (definition && definition.program) || LEGACY_DEFINITION.program;
   const V = structuredClone(EXERCISES);
   const startingLoads = (definition && definition.startingLoads) || {};
   for (const [vid, load] of Object.entries(startingLoads)) {

@@ -7,6 +7,10 @@ import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 import { fakeStore } from "./helpers/fake-store.js";
 import { testCtx } from "./helpers/migration-ctx.js";
 
+/* Une définition valide, à l identité près : le cycle actif est jugé comme un
+   fichier chargé depuis #32, donc les fixtures partent du vrai programme. */
+const realDef = (id) => ({ ...LEGACY_DEFINITION, id, name: id });
+
 test("createStore : sans window ni window.storage, se rabat sur le shim localStorage ou renvoie null", () => {
   // Environnement node --test : pas de window global -> createStore() ne doit pas lever.
   assert.equal(createStore(), null);
@@ -38,11 +42,13 @@ test("loadJournal : journal v1 (plat) migré vers v3, backup écrit, forme migr�
 
 test("loadJournal : journal à la version courante chargé inchangé, aucun backup écrit", async () => {
   const store = fakeStore();
-  const current = { schemaVersion: SCHEMA_VERSION, activeProgramId: "p1", programs: { p1: { definition: { id: "p1", startDate: "2026-01-05" }, logs: {}, cardio: {}, checkin: {} } } };
+  /* Depuis #32 la définition du cycle actif passe la même barre qu un fichier
+     chargé : une définition squelettique ne suffit plus à monter une fixture. */
+  const current = { schemaVersion: SCHEMA_VERSION, activeProgramId: "p1", programs: { p1: { definition: realDef("p1"), logs: {}, cardio: {}, checkin: {} } } };
   store.data.set("K", JSON.stringify(current));
 
   const res = await loadJournal(store, "K", testCtx());
-  assert.deepEqual(res, { ok: true, journal: { activeProgramId: "p1", programs: current.programs }, migrated: false });
+  assert.deepEqual(res, { ok: true, journal: { activeProgramId: "p1", programs: current.programs }, migrated: false, dropped: 0 });
   assert.equal([...store.data.keys()].some((k) => k.includes("backup")), false);
 });
 
@@ -123,7 +129,7 @@ test("saveJournal : store indisponible -> échec signalé, pas de levée", async
 
 test("saveJournal : écrit l'enveloppe versionnée sous la clé", async () => {
   const store = fakeStore();
-  const journal = { activeProgramId: "p1", programs: { p1: { definition: null, logs: { x: 1 }, cardio: {}, checkin: {} } } };
+  const journal = { activeProgramId: "p1", programs: { p1: { definition: realDef("p1"), logs: {}, cardio: {}, checkin: {} } } };
 
   assert.deepEqual(await saveJournal(store, "K", journal), { ok: true });
   assert.deepEqual(JSON.parse(store.data.get("K")), { schemaVersion: SCHEMA_VERSION, ...journal });
@@ -134,4 +140,152 @@ test("saveJournal : l'écriture lève -> échec signalé (storageOk doit tomber 
   const journal = { activeProgramId: "p1", programs: {} };
 
   assert.deepEqual(await saveJournal(store, "K", journal), { ok: false, failed: true });
+});
+
+/* --------------------------------------------------------------
+   #32 : formes qui levaient hors de loadJournal, et bloquaient donc
+   l'appli sur son spinner. Chacune doit rendre un verdict.
+   -------------------------------------------------------------- */
+
+const V = SCHEMA_VERSION;
+const goodDef = realDef("p1");
+const entry = (over = {}) => ({ definition: goodDef, logs: {}, cardio: {}, checkin: {}, ...over });
+const wrapped = (over = {}) => ({ schemaVersion: V, activeProgramId: "p1", programs: { p1: entry() }, ...over });
+
+const malformed = [
+  ["enveloppe réduite au seul schemaVersion", { schemaVersion: V }],
+  ["activeProgramId sans programs", { schemaVersion: V, activeProgramId: "p1" }],
+  ["programs null", wrapped({ programs: null })],
+  ["programs chaîne", wrapped({ programs: "texte" })],
+  ["programs tableau", wrapped({ programs: [] })],
+  ["activeProgramId absent", { schemaVersion: V, programs: { p1: entry() } }],
+  ["activeProgramId vide", wrapped({ activeProgramId: "" })],
+  ["entrée de programme null", wrapped({ programs: { p1: null } })],
+  ["entrée de programme nombre", wrapped({ programs: { p1: 42 } })],
+  ["logs null", wrapped({ programs: { p1: entry({ logs: null }) } })],
+  ["cardio nombre", wrapped({ programs: { p1: entry({ cardio: 42 }) } })],
+  ["checkin chaîne", wrapped({ programs: { p1: entry({ checkin: "x" }) } })],
+  ["definition absente", wrapped({ programs: { p1: { logs: {}, cardio: {}, checkin: {} } } })],
+];
+
+for (const [label, journal] of malformed) {
+  test(`loadJournal : ${label} -> reason invalid, ne lève pas (#32)`, async () => {
+    const store = fakeStore();
+    store.data.set("K", JSON.stringify(journal));
+    const res = await loadJournal(store, "K", testCtx());
+    assert.deepEqual(res, { ok: false, reason: "invalid" });
+  });
+}
+
+test("loadJournal : un cycle inactif mal formé ne fait pas tomber le journal (#32)", async () => {
+  const store = fakeStore();
+  store.data.set("K", JSON.stringify(wrapped({
+    programs: { p1: entry(), p2: { definition: { id: "p2" }, logs: null, cardio: {}, checkin: {} } },
+  })));
+  const res = await loadJournal(store, "K", testCtx());
+  assert.equal(res.ok, true);
+  assert.ok(res.journal.programs.p2, "le cycle inactif doit rester stocké, pas disparaître");
+});
+
+test("loadJournal : le journal stocké n'est jamais réécrit par un rejet (#32)", async () => {
+  const store = fakeStore();
+  const raw = JSON.stringify({ schemaVersion: V, activeProgramId: "p1", programs: null });
+  store.data.set("K", raw);
+  await loadJournal(store, "K", testCtx());
+  assert.equal(store.data.get("K"), raw);
+});
+
+test("loadJournal : une définition active que l'import rejetterait est rejetée aussi (#32)", async () => {
+  const store = fakeStore();
+  const badDef = { id: "x", weeks: "douze", startDate: "pas-une-date", program: "n_importe_quoi", startingLoads: {} };
+  store.data.set("K", JSON.stringify({ schemaVersion: V, activeProgramId: "p1", programs: { p1: entry({ definition: badDef }) } }));
+  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
+});
+
+test("loadJournal : une définition sans startingLoads est rejetée comme à l'import (#32)", async () => {
+  const store = fakeStore();
+  const { startingLoads, ...noLoads } = realDef("p1");
+  store.data.set("K", JSON.stringify({ schemaVersion: V, activeProgramId: "p1", programs: { p1: entry({ definition: noLoads }) } }));
+  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
+});
+
+test("loadJournal : une définition d'un cycle inactif n'est pas jugée (#32)", async () => {
+  const store = fakeStore();
+  store.data.set("K", JSON.stringify({
+    schemaVersion: V, activeProgramId: "p1",
+    programs: { p1: entry(), p2: entry({ definition: { id: "p2" } }) },
+  }));
+  const res = await loadJournal(store, "K", testCtx());
+  assert.equal(res.ok, true);
+  assert.ok(res.journal.programs.p2);
+});
+
+test("loadJournal : une ligne de séance illisible est écartée, les autres survivent (#32)", async () => {
+  const store = fakeStore();
+  const good = { id: "a", date: "2026-01-05", slot: "hautA", ex: { dc: [{ w: 60, r: 8 }] }, done: true };
+  const raw = JSON.stringify({
+    schemaVersion: V, activeProgramId: "p1",
+    programs: { p1: entry({ logs: { a: good, b: 42, c: { date: "pas-une-date", slot: "hautA" }, d: { date: "2026-01-06" } } }) },
+  });
+  store.data.set("K", raw);
+
+  const res = await loadJournal(store, "K", testCtx());
+  assert.equal(res.ok, true);
+  assert.equal(res.dropped, 3);
+  assert.deepEqual(Object.keys(res.journal.programs.p1.logs), ["a"]);
+  assert.deepEqual(res.journal.programs.p1.logs.a, good);
+  assert.equal(store.data.get("K_backup_dropped"), raw); // l'original, à l'octet près, avant toute réécriture
+});
+
+test("loadJournal : aucune ligne écartée -> dropped 0 et aucune copie (#32)", async () => {
+  const store = fakeStore();
+  store.data.set("K", JSON.stringify({
+    schemaVersion: V, activeProgramId: "p1",
+    programs: { p1: entry({ logs: { a: { id: "a", date: "2026-01-05", slot: "hautA" } } }) },
+  }));
+  const res = await loadJournal(store, "K", testCtx());
+  assert.equal(res.dropped, 0);
+  assert.equal(store.data.has("K_backup_dropped"), false);
+});
+
+test("loadJournal : les lignes d'un cycle inactif sont filtrées aussi (#32)", async () => {
+  const store = fakeStore();
+  store.data.set("K", JSON.stringify({
+    schemaVersion: V, activeProgramId: "p1",
+    programs: { p1: entry(), p2: entry({ logs: { x: null } }) },
+  }));
+  const res = await loadJournal(store, "K", testCtx());
+  assert.equal(res.dropped, 1);
+  assert.deepEqual(res.journal.programs.p2.logs, {});
+});
+
+test("loadJournal : un journal qui porte des programmes sans schemaVersion est refusé, pas aplati (#32)", async () => {
+  const store = fakeStore();
+  const raw = JSON.stringify({ activeProgramId: "p1", programs: { p1: entry() }, logs: {} });
+  store.data.set("K", raw);
+  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
+  assert.equal(store.data.get("K"), raw); // surtout : ses cycles ne sont pas écrasés par MIGRATIONS[1]
+});
+
+test("saveJournal : refuse d'écrire un journal que le chargement ne saurait pas relire (#32)", async () => {
+  const store = fakeStore();
+  /* withVersion({}) sérialise en {\"schemaVersion\":4} : l'entrée même qui
+     bloquait l'appli au démarrage suivant. L'appli pouvait donc se
+     l'infliger seule, sans journal trafiqué. */
+  assert.deepEqual(await saveJournal(store, "K", {}), { ok: false, failed: true });
+  assert.equal(store.data.has("K"), false);
+});
+
+test("saveJournal : un journal valide s'écrit toujours (#32)", async () => {
+  const store = fakeStore();
+  const journal = { activeProgramId: "p1", programs: { p1: entry() } };
+  assert.deepEqual(await saveJournal(store, "K", journal), { ok: true });
+  assert.deepEqual(JSON.parse(store.data.get("K")), { schemaVersion: V, ...journal });
+});
+
+test("saveJournal : une écriture refusée n'écrase pas le journal déjà stocké (#32)", async () => {
+  const store = fakeStore();
+  store.data.set("K", '{"des":"donnees reelles"}');
+  await saveJournal(store, "K", { activeProgramId: "p1", programs: null });
+  assert.equal(store.data.get("K"), '{"des":"donnees reelles"}');
 });

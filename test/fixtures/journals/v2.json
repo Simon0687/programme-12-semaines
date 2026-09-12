@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 2,
+  "activeProgramId": "simon-12s-2026-09",
+  "programs": {
+    "simon-12s-2026-09": {
+      "definition": null,
+      "logs": {
+        "w1_hautA": {
+          "ex": {
+            "dc": [
+              {
+                "w": 60,
+                "r": 8,
+                "rir": 2
+              },
+              {
+                "w": 60,
+                "r": 7,
+                "rir": 1
+              }
+            ],
+            "incl_db": [
+              {
+                "w": 22,
+                "r": 10,
+                "rir": 2
+              }
+            ]
+          },
+          "notes": "premiere seance",
+          "done": true
+        },
+        "w2_hautA": {
+          "ex": {
+            "dc": [
+              {
+                "w": 60,
+                "r": 8,
+                "rir": 2
+              },
+              {
+                "w": 60,
+                "r": 7,
+                "rir": 1
+              }
+            ],
+            "incl_db": [
+              {
+                "w": 22,
+                "r": 10,
+                "rir": 2
+              }
+            ]
+          },
+          "notes": "",
+          "done": true
+        }
+      },
+      "cardio": {
+        "w1": {
+          "z2": {
+            "done": true,
+            "min": 30
+          },
+          "mob": [
+            true,
+            false,
+            true
+          ]
+        }
+      },
+      "checkin": {
+        "w1": {
+          "poids": "78.5",
+          "sommeil": "4",
+          "douleurs": "non"
+        }
+      }
+    }
+  }
+}
