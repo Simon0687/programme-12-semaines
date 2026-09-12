@@ -175,7 +175,7 @@ export default function Programme() {
   const curWeek = Math.min(definition.weeks, Math.max(1, Math.floor(dayIdx / 7) + 1));
   const weekday = today.getDay();
   const prog = useMemo(() => buildProgram(definition), [definition]);
-  const plan = useMemo(() => buildPlan(definition.profile, definition.startingLoads || {}), [definition]);
+  const plan = useMemo(() => buildPlan(definition), [definition]);
 
   const [loaded, setLoaded] = useState(false);
   const [storageOk, setStorageOk] = useState(true);

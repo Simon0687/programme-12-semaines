@@ -455,6 +455,74 @@
       "upper": "5–10 min : rotations externes à l'élastique 2 × 15 ; open book ou extension thoracique sur rouleau, 10 par côté ; glissés au mur 10 ; puis montée en charge sur le premier exercice : 50 % × 8, 70 % × 4, 85 % × 2.",
       "lower": "5–10 min : cat-camel 10 ; 90/90 hanches 1 min par côté ; dorsiflexion cheville au mur 10 par côté ; pont fessier 15 ; McGill court (curl-up 5, planche latérale 15 s par côté, bird dog 5 par côté) ; montée en charge sur le squat ou le hip thrust : 50 % × 6, 70 % × 4, 85 % × 2."
     },
-    "cardio": "default"
+    "cardio": "default",
+    "volume": [
+      [
+        "Delt latéraux",
+        "5",
+        "Haut A 2 + Haut C 3"
+      ],
+      [
+        "Delt postérieurs",
+        "4",
+        "Haut A 2 + Haut B 2"
+      ],
+      [
+        "Delt antérieurs",
+        "3",
+        "Haut C 3 (développé assis) + les presses pecs"
+      ],
+      [
+        "Pecs",
+        "8",
+        "Haut A 6 (couché 3, incliné 3) + Haut C 2 (pec deck)"
+      ],
+      [
+        "Biceps",
+        "5",
+        "Haut B 2 + Haut C 3"
+      ],
+      [
+        "Triceps",
+        "5",
+        "Haut A 2 + Haut C 3"
+      ],
+      [
+        "Dos",
+        "7",
+        "Haut B 5 (tractions 3, rowing 2) + Bas B 2 (tirage serré)"
+      ],
+      [
+        "Quadriceps",
+        "5",
+        "Bas A 3 (squat) + Bas B 2 (presse)"
+      ],
+      [
+        "Ischios et fessiers",
+        "6",
+        "Bas A 3 (leg curl) + Bas B 3 (hip thrust)"
+      ],
+      [
+        "Mollets",
+        "6",
+        "Bas A 3 + Bas B 3"
+      ],
+      [
+        "Abdos chargés",
+        "10",
+        "2 séries à chaque séance (crunch, relevé de jambes, ab wheel)"
+      ],
+      [
+        "Gainage anti-mouvement",
+        "10",
+        "2 séries à chaque séance (Pallof, planche latérale, carry) + McGill en mobilité"
+      ]
+    ],
+    "fallback": [
+      "4 séances : Haut A, Haut B, Haut C, plus une seule séance jambes fusionnée (squat 3, hip thrust 2, leg curl 2, mollets 3, abdos B).",
+      "3 séances : Haut A, Haut C, plus « tirage + jambes » (tractions 3, rowing appuyé 2, squat 3, leg curl 2, mollets 2, abdos B).",
+      "2 séances : Haut C, plus un full body (squat 3, tractions 3, développé couché 3, élévations latérales 2, leg curl 2, abdos A).",
+      "On ne rattrape jamais la semaine suivante, on reprend le plan. Les groupes prioritaires ne sautent pas deux semaines de suite : si une semaine a été réduite, la suivante commence par Haut C."
+    ]
   }
 }
