@@ -31,6 +31,17 @@ import { DEFINITION_FORMAT_VERSION, parseLocalDate } from "./definition.js";
 const isNum = (x) => typeof x === "number" && Number.isFinite(x);
 const isObj = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
 
+/* Référence à un slot dans SESSIONS[].ex ou CORE[].ex : la paire
+   [id de slot, nombre de séries]. Vérifiée *avant* toute déstructuration
+   (#33) — `for (const [slotId] of session.ex)` levait un TypeError sur un
+   élément non itérable, et depuis #32 ce jeté traverse loadJournal, donc
+   bloque l'appli sur son spinner au lieu de n'être qu'un fichier refusé
+   en silence. Le compte de séries est contrôlé par la même occasion : un
+   entier positif, ce qui règle aussi `-3` et `"trois"`. */
+const isSlotRef = (e) => Array.isArray(e) && e.length === 2
+  && typeof e[0] === "string" && e[0] !== ""
+  && Number.isInteger(e[1]) && e[1] > 0;
+
 /* Forme d'une entrée de `programs` : un cycle et ses trois registres.
    Séparée de validateEnvelope parce qu'elle sert deux fois et à deux
    sévérités — fatale pour le cycle actif (l'appli ne peut rien rendre
@@ -145,16 +156,18 @@ export function validateProgram(program) {
     if (!(session.warm in WARM)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].warm : « ${session.warm} » n'est pas une clé de program.WARM.` };
     if (!(session.core in CORE)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].core : « ${session.core} » n'est pas une clé de program.CORE.` };
     if (!Array.isArray(session.ex)) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].ex (tableau attendu)` };
-    for (const [slotId] of session.ex) {
-      if (!(slotId in SLOTS)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].ex : « ${slotId} » n'est pas un slot de program.SLOTS.` };
+    for (const [j, e] of session.ex.entries()) {
+      if (!isSlotRef(e)) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].ex[${j}] (paire [slot, nombre de séries] attendue, séries entier positif)` };
+      if (!(e[0] in SLOTS)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].ex : « ${e[0]} » n'est pas un slot de program.SLOTS.` };
     }
   }
 
   for (const [coreId, core] of Object.entries(CORE)) {
     if (typeof core.label !== "string") return { reason: "invalid-program", message: `Champ invalide : program.CORE.${coreId}.label (chaîne attendue)` };
     if (!Array.isArray(core.ex)) return { reason: "invalid-program", message: `Champ invalide : program.CORE.${coreId}.ex (tableau attendu)` };
-    for (const [slotId] of core.ex) {
-      if (!(slotId in SLOTS)) return { reason: "invalid-program", message: `program.CORE.${coreId}.ex : « ${slotId} » n'est pas un slot de program.SLOTS.` };
+    for (const [j, e] of core.ex.entries()) {
+      if (!isSlotRef(e)) return { reason: "invalid-program", message: `Champ invalide : program.CORE.${coreId}.ex[${j}] (paire [slot, nombre de séries] attendue, séries entier positif)` };
+      if (!(e[0] in SLOTS)) return { reason: "invalid-program", message: `program.CORE.${coreId}.ex : « ${e[0]} » n'est pas un slot de program.SLOTS.` };
     }
   }
 

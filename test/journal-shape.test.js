@@ -5,7 +5,7 @@ import {
   isLogRow, sanitizeJournal, unusableProgramIds,
   validateDefinition, validateEnvelope, validatePreMigration, validateProgram, validateProgramEntry,
 } from "../src/journal-shape.js";
-import { LEGACY_DEFINITION } from "../src/legacy-program.js";
+import { LEGACY_DEFINITION, LEGACY_DEFINITION as BASE } from "../src/legacy-program.js";
 
 const entry = (over = {}) => ({ definition: LEGACY_DEFINITION, logs: {}, cardio: {}, checkin: {}, ...over });
 const row = (over = {}) => ({ id: "r", date: "2026-09-07", slot: "hautA", ex: {}, done: true, ...over });
@@ -146,5 +146,44 @@ describe("aucune fonction ne lève, pour aucune entrée", () => {
     for (const programs of [{}, { p: entry() }, { p: entry({ logs: { x: null } }) }]) {
       assert.doesNotThrow(() => sanitizeJournal({ activeProgramId: "p", programs }));
     }
+  });
+});
+
+/* --------------------------------------------------------------
+   #33 : contrôles par champ du program.
+   -------------------------------------------------------------- */
+
+
+const prog = (mut) => { const d = JSON.parse(JSON.stringify(BASE)); mut(d.program); return d.program; };
+const firstSlot = () => Object.keys(BASE.program.SLOTS)[0];
+const firstCore = () => Object.keys(BASE.program.CORE)[0];
+
+describe("validateProgram : paires [slot, séries] (#33)", () => {
+  for (const [label, mut] of [
+    ["session.ex = [42]", (p) => { p.SESSIONS[0].ex = [42]; }],
+    ["session.ex = [null]", (p) => { p.SESSIONS[0].ex = [null]; }],
+    ['session.ex = ["dc"] (un seul élément)', (p) => { p.SESSIONS[0].ex = [["dc"]]; }],
+    ["core.ex = [42]", (p) => { p.CORE[firstCore()].ex = [42]; }],
+    ["séries = -3", (p) => { p.SESSIONS[0].ex[0] = [p.SESSIONS[0].ex[0][0], -3]; }],
+    ['séries = "trois"', (p) => { p.SESSIONS[0].ex[0] = [p.SESSIONS[0].ex[0][0], "trois"]; }],
+    ["séries = 0", (p) => { p.SESSIONS[0].ex[0] = [p.SESSIONS[0].ex[0][0], 0]; }],
+    ["séries = 2.5", (p) => { p.SESSIONS[0].ex[0] = [p.SESSIONS[0].ex[0][0], 2.5]; }],
+  ]) {
+    test(`rejette sans lever : ${label}`, () => {
+      let bad;
+      assert.doesNotThrow(() => { bad = validateProgram(prog(mut)); }, `${label} a levé`);
+      assert.ok(bad, `${label} accepté à tort`);
+      assert.ok(bad.message);
+    });
+  }
+
+  test("un slot inconnu garde son message d'origine (#25)", () => {
+    const bad = validateProgram(prog((p) => { p.SESSIONS[0].ex[0] = ["inconnu", 3]; }));
+    assert.equal(bad.reason, "invalid-program");
+    assert.match(bad.message, /n'est pas un slot de program\.SLOTS/);
+  });
+
+  test("les deux programmes livrés passent", () => {
+    assert.equal(validateProgram(BASE.program), null);
   });
 });
