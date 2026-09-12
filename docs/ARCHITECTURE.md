@@ -36,9 +36,10 @@ Module dependencies, as they actually stand - every edge, no others:
 
 | Module | Imports |
 |---|---|
-| `import` | `schema`, `definition`, `registry` |
-| `storage` | `schema`, `backup` |
-| `program` | `registry`, `cardio`, `default-program` |
+| `import` | `schema`, `definition`, `journal-shape` |
+| `storage` | `schema`, `backup`, `journal-shape` |
+| `journal-shape` | `registry`, `definition` |
+| `program` | `registry`, `cardio`, `legacy-program` |
 | `definition` | `default-program` |
 | `plan` | `registry` |
 | `schema`, `registry`, `progression`, `cardio`, `backup`, `default-program`, `legacy-program` | nothing |
@@ -48,6 +49,16 @@ Module dependencies, as they actually stand - every edge, no others:
 load-bearing: it is why migrations take their program knowledge through an
 injected `ctx` instead of importing `program.js`, and why adding a migration
 never risks an import cycle.
+
+`journal-shape.js` (#32) is the one module both import doors and the storage
+adapter depend on - see 2.9. It was made a separate module rather than an
+addition to `schema.js` precisely to protect that leaf status: judging a
+definition needs `EXERCISE_IDS`, and importing `registry.js` into `schema.js`
+would have ended it.
+
+`program.js` depends on `legacy-program` and not on `default-program`: its
+fallback for a definition with no `program` field must resolve to a frozen
+historical value, never to whatever the app currently bundles (2.1).
 
 ---
 
@@ -107,10 +118,9 @@ throwing migration step and turns it into `{ ok: false, invalid: true }` for the
 same reason: no caller should need its own `try`/`catch` to stay closed by
 default.
 
-**This invariant is currently violated in two places**, both tracked: a
-structurally invalid stored journal can throw out of `loadJournal` (#32), and a
-malformed `session.ex` can throw out of `validateProgram` (#33). They are bugs
-against this rule, not exceptions to it.
+**One violation remains**, tracked: a malformed `session.ex` can throw out of
+`validateProgram` (#33). It is a bug against this rule, not an exception to it.
+The stored-journal half was closed by #32 - see 2.9.
 
 ### 2.5 The exercise registry is closed
 
@@ -143,6 +153,33 @@ read it from there. `MIGRATIONS[n]` never stamps the version itself - `migrate()
 does it once, at the end of the chain. A second declaration of a version number
 is how two shapes end up sharing one number, which no migration can then
 untangle.
+
+### 2.9 Every door into the journal goes through one validator
+
+Three doors accept a journal or a definition: the stored journal (`loadJournal`),
+a pasted journal (`parseJournalImport`), a program file (`parseProgramImport`).
+Since #32 all three call `src/journal-shape.js`, and none of them judges shape on
+its own.
+
+The rule is not "validate the input" - it is **one callee, so the bar cannot
+drift**. Before #32 only the file door was guarded; the pasted door, which is the
+documented escape hatch from a blocked store (#12), had no validator at all, and
+a definition rejected as a file installed happily inside a pasted journal.
+
+Three consequences worth keeping:
+
+- **The write is a door too.** `saveJournal` runs the same envelope check, because
+  `withVersion({})` serialises to `{"schemaVersion":4}` - the very value that made
+  the load throw. Without the guard, a state bug could store a journal the loader
+  refuses to read.
+- **Severity is graded, not uniform.** The envelope and the *active* definition are
+  fatal; an inactive cycle that fails only becomes unselectable; an unreadable log
+  row is dropped. Rejecting a whole journal over one bad row would trade an
+  anomaly for the loss of years of history.
+- **Dropping is never silent, and never destructive.** The count is surfaced, and
+  the original bytes are copied to `<key>_backup_dropped` before the filtered
+  journal can be rewritten - the same rule as a pre-migration backup (#8): a
+  rejection is never a rewrite.
 
 ---
 
