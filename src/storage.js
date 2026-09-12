@@ -24,7 +24,7 @@
    ========================================================= */
 
 import { migrate, withVersion } from "./schema.js";
-import { validateEnvelope } from "./journal-shape.js";
+import { validateDefinition, validateEnvelope } from "./journal-shape.js";
 import { backupOnce } from "./backup.js";
 
 export function createStore() {
@@ -63,6 +63,16 @@ export async function loadJournal(store, key, ctx) {
   if (validateEnvelope(res.data)) return { ok: false, reason: "invalid" };
 
   const { activeProgramId, programs } = res.data;
+
+  /* Même barre qu'un fichier chargé, pour le seul cycle actif (#32, Q2) :
+     depuis #26 la définition stockée n'est plus une référence vers le bundle
+     mais le programme que l'appli exécute, donc rien ne justifie qu'elle soit
+     moins vérifiée parce qu'elle arrive du stockage plutôt que d'un fichier.
+     Les cycles inactifs ne sont pas jugés ici — ils ne sont pas exécutés, et
+     les rejeter fermerait l'accès à un journal dont le cycle courant va
+     parfaitement bien. */
+  if (validateDefinition(programs[activeProgramId].definition)) return { ok: false, reason: "invalid" };
+
   const journal = { activeProgramId, programs };
   if (!res.migrated) return { ok: true, journal, migrated: false };
 

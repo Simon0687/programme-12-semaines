@@ -7,6 +7,10 @@ import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 import { fakeStore } from "./helpers/fake-store.js";
 import { testCtx } from "./helpers/migration-ctx.js";
 
+/* Une définition valide, à l identité près : le cycle actif est jugé comme un
+   fichier chargé depuis #32, donc les fixtures partent du vrai programme. */
+const realDef = (id) => ({ ...LEGACY_DEFINITION, id, name: id });
+
 test("createStore : sans window ni window.storage, se rabat sur le shim localStorage ou renvoie null", () => {
   // Environnement node --test : pas de window global -> createStore() ne doit pas lever.
   assert.equal(createStore(), null);
@@ -38,7 +42,9 @@ test("loadJournal : journal v1 (plat) migré vers v3, backup écrit, forme migr�
 
 test("loadJournal : journal à la version courante chargé inchangé, aucun backup écrit", async () => {
   const store = fakeStore();
-  const current = { schemaVersion: SCHEMA_VERSION, activeProgramId: "p1", programs: { p1: { definition: { id: "p1", startDate: "2026-01-05" }, logs: {}, cardio: {}, checkin: {} } } };
+  /* Depuis #32 la définition du cycle actif passe la même barre qu un fichier
+     chargé : une définition squelettique ne suffit plus à monter une fixture. */
+  const current = { schemaVersion: SCHEMA_VERSION, activeProgramId: "p1", programs: { p1: { definition: realDef("p1"), logs: {}, cardio: {}, checkin: {} } } };
   store.data.set("K", JSON.stringify(current));
 
   const res = await loadJournal(store, "K", testCtx());
@@ -142,7 +148,7 @@ test("saveJournal : l'écriture lève -> échec signalé (storageOk doit tomber 
    -------------------------------------------------------------- */
 
 const V = SCHEMA_VERSION;
-const goodDef = { id: "p1", startDate: "2026-01-05" };
+const goodDef = realDef("p1");
 const entry = (over = {}) => ({ definition: goodDef, logs: {}, cardio: {}, checkin: {}, ...over });
 const wrapped = (over = {}) => ({ schemaVersion: V, activeProgramId: "p1", programs: { p1: entry() }, ...over });
 
@@ -187,4 +193,29 @@ test("loadJournal : le journal stocké n'est jamais réécrit par un rejet (#32)
   store.data.set("K", raw);
   await loadJournal(store, "K", testCtx());
   assert.equal(store.data.get("K"), raw);
+});
+
+test("loadJournal : une définition active que l'import rejetterait est rejetée aussi (#32)", async () => {
+  const store = fakeStore();
+  const badDef = { id: "x", weeks: "douze", startDate: "pas-une-date", program: "n_importe_quoi", startingLoads: {} };
+  store.data.set("K", JSON.stringify({ schemaVersion: V, activeProgramId: "p1", programs: { p1: entry({ definition: badDef }) } }));
+  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
+});
+
+test("loadJournal : une définition sans startingLoads est rejetée comme à l'import (#32)", async () => {
+  const store = fakeStore();
+  const { startingLoads, ...noLoads } = realDef("p1");
+  store.data.set("K", JSON.stringify({ schemaVersion: V, activeProgramId: "p1", programs: { p1: entry({ definition: noLoads }) } }));
+  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
+});
+
+test("loadJournal : une définition d'un cycle inactif n'est pas jugée (#32)", async () => {
+  const store = fakeStore();
+  store.data.set("K", JSON.stringify({
+    schemaVersion: V, activeProgramId: "p1",
+    programs: { p1: entry(), p2: entry({ definition: { id: "p2" } }) },
+  }));
+  const res = await loadJournal(store, "K", testCtx());
+  assert.equal(res.ok, true);
+  assert.ok(res.journal.programs.p2);
 });
