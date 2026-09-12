@@ -21,7 +21,7 @@
 
 import { migrate } from "./schema.js";
 import { DEFAULT_DEFINITION } from "./definition.js";
-import { validateDefinition } from "./journal-shape.js";
+import { sanitizeJournal, validateDefinition, validateEnvelope, validatePreMigration } from "./journal-shape.js";
 
 export const IMPORT_MESSAGES = {
   "invalid-json": "Le texte collé n'est pas du JSON valide.",
@@ -55,6 +55,9 @@ export function parseJournalImport(text, ctx) {
   if (!parsed || typeof parsed !== "object") return reject("not-a-journal");
   if (!parsed.logs && !parsed.programs) return reject("not-a-journal");
 
+  const ambiguous = validatePreMigration(parsed);
+  if (ambiguous) return reject("not-a-journal", ambiguous.message);
+
   let res;
   try {
     res = migrate(parsed, ctx);
@@ -67,7 +70,22 @@ export function parseJournalImport(text, ctx) {
 
   if (res.invalid) return reject("migration-failed");
   if (!res.ok) return reject("too-new");
-  return { ok: true, data: res.data, migrated: res.migrated };
+
+  /* Les mêmes contrôles que le journal stocké et que le fichier de
+     programme (#32). C'est la porte qui comptait le plus : un import collé
+     est la sortie de secours documentée d'un stockage bloqué (#12), donc
+     la seule qu'on ne peut pas se permettre de laisser ouverte — et avant
+     #32 c'était justement la seule sans validateur derrière. Un journal
+     porteur d'une définition inepte s'installait, puis l'appli plantait
+     au premier rendu. */
+  const badEnvelope = validateEnvelope(res.data);
+  if (badEnvelope) return reject("not-a-journal", badEnvelope.message);
+
+  const badDefinition = validateDefinition(res.data.programs[res.data.activeProgramId].definition);
+  if (badDefinition) return reject(badDefinition.reason, badDefinition.message);
+
+  const { journal, dropped } = sanitizeJournal(res.data);
+  return { ok: true, data: journal, migrated: res.migrated, dropped };
 }
 
 /* Analyse d'un fichier de programme chargé (#6, durci en #20, program

@@ -27,7 +27,7 @@
    ========================================================= */
 
 import { migrate, withVersion } from "./schema.js";
-import { sanitizeJournal, validateDefinition, validateEnvelope } from "./journal-shape.js";
+import { sanitizeJournal, validateDefinition, validateEnvelope, validatePreMigration } from "./journal-shape.js";
 import { backupDroppedOnce, backupOnce } from "./backup.js";
 
 export function createStore() {
@@ -52,6 +52,11 @@ export async function loadJournal(store, key, ctx) {
   let parsed;
   try { parsed = JSON.parse(raw); }
   catch (e) { return { ok: false, reason: "corrupt" }; }
+
+  /* Même refus d ambiguïté que du côté collé (#32) : un journal stocké dont
+     le schemaVersion a disparu serait relu comme un journal v1 et perdrait ses
+     cycles à la migration. */
+  if (validatePreMigration(parsed)) return { ok: false, reason: "invalid" };
 
   const res = migrate(parsed, ctx);
   if (res.tooNew) return { ok: false, reason: "too-new" };

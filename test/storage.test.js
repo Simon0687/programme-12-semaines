@@ -258,3 +258,11 @@ test("loadJournal : les lignes d'un cycle inactif sont filtrées aussi (#32)", a
   assert.equal(res.dropped, 1);
   assert.deepEqual(res.journal.programs.p2.logs, {});
 });
+
+test("loadJournal : un journal qui porte des programmes sans schemaVersion est refusé, pas aplati (#32)", async () => {
+  const store = fakeStore();
+  const raw = JSON.stringify({ activeProgramId: "p1", programs: { p1: entry() }, logs: {} });
+  store.data.set("K", raw);
+  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
+  assert.equal(store.data.get("K"), raw); // surtout : ses cycles ne sont pas écrasés par MIGRATIONS[1]
+});

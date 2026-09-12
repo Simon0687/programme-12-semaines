@@ -44,6 +44,29 @@ export function validateProgramEntry(entry) {
   return null;
 }
 
+/* Contrôle *avant* migration, sur la donnée brute (#32).
+
+   versionOf() lit « v1 » dès que schemaVersion n'est pas un entier, et
+   MIGRATIONS[1] réécrit alors le document en enveloppe neuve à partir de
+   ses seuls .logs — en ignorant un éventuel .programs. Un export dont le
+   schemaVersion a sauté (troncature, copier-coller partiel, retouche à la
+   main) se voit donc traiter en journal plat : ses cycles disparaissent
+   sans un mot, et l'appli annonce « Données importées ».
+
+   Le document est ambigu, et l'ambiguïté se refuse — un journal v1 réel
+   n'a jamais porté de .programs, la combinaison ne peut pas être
+   authentique. */
+export function validatePreMigration(parsed) {
+  if (!isObj(parsed)) return { reason: "invalid", message: "Ce JSON n'est pas un journal." };
+  if (parsed.programs != null && !Number.isInteger(parsed.schemaVersion)) {
+    return {
+      reason: "invalid",
+      message: "Ce journal contient des programmes mais aucun numéro de version : il serait lu comme un journal de la toute première version, et ses cycles seraient perdus.",
+    };
+  }
+  return null;
+}
+
 /* Enveloppe du journal. Ne juge que ce qui empêche l'appli de rendre quoi
    que ce soit : le reste (un cycle inactif mal formé, une ligne de log
    illisible) se traite sans rejeter tout le journal.

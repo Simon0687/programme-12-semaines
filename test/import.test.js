@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { IMPORT_MESSAGES, parseJournalImport, parseProgramImport } from "../src/import.js";
 import { SCHEMA_VERSION } from "../src/schema.js";
 import { DEFAULT_DEFINITION } from "../src/definition.js";
+import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 import { testCtx } from "./helpers/migration-ctx.js";
 
 /* Plancher valide : les champs que buildPlan() lit vraiment sont requis
@@ -51,16 +52,21 @@ test("parseJournalImport : version trop récente => too-new", () => {
   assert.equal(res.reason, "too-new");
 });
 
-test("parseJournalImport : journal v2 (enveloppe multi-programme) valide => ok, contenu préservé", () => {
+test("parseJournalImport : journal à la version courante valide => ok, contenu préservé", () => {
+  /* #26 a supprimé definition: null, #32 fait passer la définition active par
+     le validateur : une enveloppe à la version courante porte donc une vraie
+     définition et des lignes datées, comme celles que l'appli écrit. */
+  const row = { id: "r1", date: "2026-09-07", slot: "hautA", ex: { dc: [{ w: 60, r: 8 }] }, done: true };
   const journal = {
     schemaVersion: SCHEMA_VERSION,
     activeProgramId: "x",
-    programs: { x: { definition: null, logs: { w1_hautA: { done: true } }, cardio: {}, checkin: {} } },
+    programs: { x: { definition: { ...LEGACY_DEFINITION, id: "x" }, logs: { r1: row }, cardio: {}, checkin: {} } },
   };
   const res = parseJournalImport(JSON.stringify(journal));
   assert.equal(res.ok, true);
   assert.equal(res.migrated, false);
-  assert.deepEqual(res.data.programs.x.logs, { w1_hautA: { done: true } });
+  assert.equal(res.dropped, 0);
+  assert.deepEqual(res.data.programs.x.logs, { r1: row });
 });
 
 test("parseJournalImport : journal v1 (plat, sans schemaVersion) => ok, migré vers la version courante (#6, #16)", () => {
@@ -76,7 +82,7 @@ test("parseJournalImport : journal v1 (plat, sans schemaVersion) => ok, migré v
 });
 
 test("parseJournalImport : accepte .programs à la racine, pas seulement .logs (#6)", () => {
-  const res = parseJournalImport(JSON.stringify({ schemaVersion: SCHEMA_VERSION, activeProgramId: "x", programs: { x: { definition: null, logs: {}, cardio: {}, checkin: {} } } }));
+  const res = parseJournalImport(JSON.stringify({ schemaVersion: SCHEMA_VERSION, activeProgramId: "x", programs: { x: { definition: { ...LEGACY_DEFINITION, id: "x" }, logs: {}, cardio: {}, checkin: {} } } }));
   assert.notEqual(res.reason, "not-a-journal");
   assert.equal(res.ok, true);
 });
@@ -312,4 +318,49 @@ test("parseProgramImport : définition complète valide => ok, préservée (name
 test("parseProgramImport : la définition livrée avec l'appli passe son propre validateur (#20)", () => {
   const res = parseProgramImport(JSON.stringify(DEFAULT_DEFINITION));
   assert.equal(res.ok, true);
+});
+
+/* --------------------------------------------------------------
+   #32 : les trois portes jugent une définition de la même façon.
+   -------------------------------------------------------------- */
+
+const pasted = (definition, logs = {}) => JSON.stringify({
+  schemaVersion: SCHEMA_VERSION,
+  activeProgramId: "x",
+  programs: { x: { definition, logs, cardio: {}, checkin: {} } },
+});
+
+test("parseJournalImport : une définition que le fichier rejetterait est rejetée pour la même raison (#32)", () => {
+  const bad = { id: "x", weeks: "douze", startDate: "pas-une-date", program: "n_importe_quoi", startingLoads: {} };
+  const asJournal = parseJournalImport(pasted(bad), testCtx());
+  const asFile = parseProgramImport(JSON.stringify(bad));
+
+  assert.equal(asJournal.ok, false);
+  assert.equal(asFile.ok, false);
+  assert.equal(asJournal.reason, asFile.reason, "les deux portes doivent rendre la même raison");
+  assert.equal(asJournal.message, asFile.message);
+});
+
+test("parseJournalImport : une enveloppe mal formée est rejetée, sans lever (#32)", () => {
+  for (const journal of [
+    { schemaVersion: SCHEMA_VERSION, programs: { x: {} } },
+    { schemaVersion: SCHEMA_VERSION, activeProgramId: "x", programs: { x: {} } },
+    { schemaVersion: SCHEMA_VERSION, activeProgramId: "x", programs: { x: null } },
+    { schemaVersion: SCHEMA_VERSION, activeProgramId: "absent", programs: { x: { definition: {}, logs: {}, cardio: {}, checkin: {} } } },
+    { logs: {}, programs: { x: {} } },
+  ]) {
+    const res = parseJournalImport(JSON.stringify(journal), testCtx());
+    assert.equal(res.ok, false, `accepté à tort : ${JSON.stringify(journal)}`);
+    assert.ok(res.message, "un rejet doit porter un message affichable");
+  }
+});
+
+test("parseJournalImport : les lignes illisibles d'un journal collé sont écartées et comptées (#32)", () => {
+  const res = parseJournalImport(pasted({ ...LEGACY_DEFINITION, id: "x" }, {
+    r1: { id: "r1", date: "2026-09-07", slot: "hautA", done: true },
+    r2: 42,
+  }), testCtx());
+  assert.equal(res.ok, true);
+  assert.equal(res.dropped, 1);
+  assert.deepEqual(Object.keys(res.data.programs.x.logs), ["r1"]);
 });
