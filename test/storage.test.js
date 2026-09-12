@@ -289,3 +289,18 @@ test("saveJournal : une écriture refusée n'écrase pas le journal déjà stock
   await saveJournal(store, "K", { activeProgramId: "p1", programs: null });
   assert.equal(store.data.get("K"), '{"des":"donnees reelles"}');
 });
+
+test("loadJournal : une définition dont session.ex est mal formé rend un verdict, jamais un jeté (#33)", async () => {
+  /* Régression introduite par #32 : brancher validateDefinition dans le
+     chargement a mis validateProgram — qui levait — sur le chemin du boot,
+     donc un journal stocké pouvait de nouveau bloquer l'appli sur son
+     spinner. C'est ce test qui tient l'invariant annoncé par #32. */
+  const store = fakeStore();
+  const definition = JSON.parse(JSON.stringify(LEGACY_DEFINITION));
+  definition.program.SESSIONS[0].ex = [42];
+  store.data.set("K", JSON.stringify({ schemaVersion: V, activeProgramId: "p1", programs: { p1: entry({ definition }) } }));
+
+  let res;
+  await assert.doesNotReject(async () => { res = await loadJournal(store, "K", testCtx()); });
+  assert.deepEqual(res, { ok: false, reason: "invalid" });
+});

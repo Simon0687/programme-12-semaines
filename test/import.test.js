@@ -198,7 +198,7 @@ test("parseProgramImport : startingLoads non numérique => invalid-field (#20)",
    registre (src/registry.js), pour isoler chaque cas de rejet. */
 const minimalProgram = () => ({
   SLOTS: { dc: { reps: [4, 8], rest: 150, b1: "dc", b2: "dc" } },
-  SESSIONS: [{ id: "s1", warm: "upper", ex: [["dc", 3]], core: "coreA" }],
+  SESSIONS: [{ id: "s1", day: 1, warm: "upper", ex: [["dc", 3]], core: "coreA" }],
   CORE: { coreA: { label: "Abdos", ex: [] } },
   WARM: { upper: "5 min d'échauffement." },
 });

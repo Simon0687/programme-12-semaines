@@ -22,14 +22,31 @@
    jamais un jugement sur le contenu.
 
    Ne lève jamais, pour aucune entrée : c'est l'invariant qui permet à
-   loadJournal() de rester fermé par défaut sans try/catch (#32).
+   loadJournal() de rester fermé par défaut sans try/catch (#32). Il n'a
+   été tenu qu'à partir de #33 — avant, une paire mal formée dans
+   SESSIONS[].ex levait, et depuis que #32 branche ce module dans le
+   chargement, ce jeté bloquait l'appli sur son spinner. La suite
+   test/journal-shape.test.js l'éprouve désormais sur de vrais programmes
+   déformés, pas seulement sur des valeurs absurdes.
    ========================================================= */
 
 import { EXERCISE_IDS } from "./registry.js";
 import { DEFINITION_FORMAT_VERSION, parseLocalDate } from "./definition.js";
+import { AFTER_KINDS } from "./cardio.js";
 
 const isNum = (x) => typeof x === "number" && Number.isFinite(x);
 const isObj = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
+
+/* Référence à un slot dans SESSIONS[].ex ou CORE[].ex : la paire
+   [id de slot, nombre de séries]. Vérifiée *avant* toute déstructuration
+   (#33) — `for (const [slotId] of session.ex)` levait un TypeError sur un
+   élément non itérable, et depuis #32 ce jeté traverse loadJournal, donc
+   bloque l'appli sur son spinner au lieu de n'être qu'un fichier refusé
+   en silence. Le compte de séries est contrôlé par la même occasion : un
+   entier positif, ce qui règle aussi `-3` et `"trois"`. */
+const isSlotRef = (e) => Array.isArray(e) && e.length === 2
+  && typeof e[0] === "string" && e[0] !== ""
+  && Number.isInteger(e[1]) && e[1] > 0;
 
 /* Forme d'une entrée de `programs` : un cycle et ses trois registres.
    Séparée de validateEnvelope parce qu'elle sert deux fois et à deux
@@ -122,8 +139,16 @@ export function validateProgram(program) {
   if (typeof SLOTS !== "object" || Array.isArray(SLOTS)) return { reason: "invalid-program", message: "Champ invalide : program.SLOTS (objet attendu)" };
   for (const [slotId, slot] of Object.entries(SLOTS)) {
     if (typeof slot !== "object" || slot === null) return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId} (objet attendu)` };
+    /* reps : une vraie fourchette, [min, max] avec 0 < min <= max (#33).
+       Le contrôle d'avant n'exigeait que « deux nombres », si bien que
+       [8, 5] et [-5, -1] passaient — le premier affiche « 8–5 reps », le
+       second une fourchette négative, et la double progression compare une
+       performance à une borne qui n'a pas de sens. */
     if (!Array.isArray(slot.reps) || slot.reps.length !== 2 || !slot.reps.every(isNum)) {
       return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId}.reps (deux nombres attendus)` };
+    }
+    if (slot.reps[0] <= 0 || slot.reps[0] > slot.reps[1]) {
+      return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId}.reps (fourchette [min, max] attendue, 0 < min <= max)` };
     }
     if (!isNum(slot.rest)) return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId}.rest (nombre attendu)` };
     for (const b of ["b1", "b2"]) {
@@ -133,6 +158,14 @@ export function validateProgram(program) {
   }
 
   if (!Array.isArray(SESSIONS) || SESSIONS.length === 0) return { reason: "invalid-program", message: "Champ invalide : program.SESSIONS (tableau non vide attendu)" };
+
+  /* Ids de séance uniques (#33). Pas une coquetterie : findLog(logs, date,
+     slot) rend la *première* correspondance, donc deux séances partageant un
+     id rendent la seconde inatteignable — le mode d'échec exact qui avait
+     coulé la première tentative de #26. */
+  const ids = SESSIONS.filter((s) => s && typeof s.id === "string").map((s) => s.id);
+  const duplicate = ids.find((id, i) => ids.indexOf(id) !== i);
+  if (duplicate) return { reason: "invalid-program", message: `program.SESSIONS : l'id « ${duplicate} » est utilisé par deux séances ; chaque séance doit avoir un id unique.` };
   if (typeof CORE !== "object" || Array.isArray(CORE)) return { reason: "invalid-program", message: "Champ invalide : program.CORE (objet attendu)" };
   if (typeof WARM !== "object" || Array.isArray(WARM)) return { reason: "invalid-program", message: "Champ invalide : program.WARM (objet attendu)" };
   for (const [k, v] of Object.entries(WARM)) {
@@ -142,19 +175,45 @@ export function validateProgram(program) {
   for (const [i, session] of SESSIONS.entries()) {
     if (typeof session !== "object" || session === null) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}] (objet attendu)` };
     if (typeof session.id !== "string" || session.id === "") return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].id (chaîne non vide attendue)` };
+
+    /* day : 1 à 7, la plage qu'implique dateForSlot (startDate + 7×(semaine−1)
+       + (day−1)). C'est le contrôle qui ferme la corruption silencieuse de
+       #33 — un day absent ou non numérique donnait "NaN-NaN-NaN", et depuis
+       #16 la date *est* l'identité du log : les séances n'étaient pas mal
+       étiquetées, elles devenaient introuvables par findLog et non triables
+       par history(). Une plage, pas un test d'analyse : day: 99 produit une
+       vraie date, quatorze semaines plus loin.
+       Note : App.jsx compare encore ce champ à today.getDay() (0 = dimanche),
+       ce qui ne coïncide avec l'offset que si startDate tombe un lundi. La
+       plage retenue est correcte sous les deux conventions pour 1-6 ; la
+       contradiction elle-même est une issue à part (design.md, suivis). */
+    if (!Number.isInteger(session.day) || session.day < 1 || session.day > 7) {
+      return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].day (entier de 1 à 7 attendu)` };
+    }
     if (!(session.warm in WARM)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].warm : « ${session.warm} » n'est pas une clé de program.WARM.` };
     if (!(session.core in CORE)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].core : « ${session.core} » n'est pas une clé de program.CORE.` };
+    /* after : facultatif, mais s'il est présent il doit nommer un indice que
+       l'appli sait rendre. App.jsx appelle AFTER_HINTS[session.after](cardio)
+       sans repli : une valeur inconnue n'affiche pas « rien », elle appelle
+       undefined et fait tomber l'écran Séance. La liste vient de cardio.js,
+       qui possède les indices — pas d'une copie tenue à jour à la main. */
+    if (session.after != null && !AFTER_KINDS.includes(session.after)) {
+      return { reason: "invalid-program", message: `program.SESSIONS[${i}].after : « ${session.after} » n'est pas un indice connu (attendu ${AFTER_KINDS.map((k) => `"${k}"`).join(" ou ")}).` };
+    }
+
     if (!Array.isArray(session.ex)) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].ex (tableau attendu)` };
-    for (const [slotId] of session.ex) {
-      if (!(slotId in SLOTS)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].ex : « ${slotId} » n'est pas un slot de program.SLOTS.` };
+    for (const [j, e] of session.ex.entries()) {
+      if (!isSlotRef(e)) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].ex[${j}] (paire [slot, nombre de séries] attendue, séries entier positif)` };
+      if (!(e[0] in SLOTS)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].ex : « ${e[0]} » n'est pas un slot de program.SLOTS.` };
     }
   }
 
   for (const [coreId, core] of Object.entries(CORE)) {
     if (typeof core.label !== "string") return { reason: "invalid-program", message: `Champ invalide : program.CORE.${coreId}.label (chaîne attendue)` };
     if (!Array.isArray(core.ex)) return { reason: "invalid-program", message: `Champ invalide : program.CORE.${coreId}.ex (tableau attendu)` };
-    for (const [slotId] of core.ex) {
-      if (!(slotId in SLOTS)) return { reason: "invalid-program", message: `program.CORE.${coreId}.ex : « ${slotId} » n'est pas un slot de program.SLOTS.` };
+    for (const [j, e] of core.ex.entries()) {
+      if (!isSlotRef(e)) return { reason: "invalid-program", message: `Champ invalide : program.CORE.${coreId}.ex[${j}] (paire [slot, nombre de séries] attendue, séries entier positif)` };
+      if (!(e[0] in SLOTS)) return { reason: "invalid-program", message: `program.CORE.${coreId}.ex : « ${e[0]} » n'est pas un slot de program.SLOTS.` };
     }
   }
 
@@ -261,10 +320,13 @@ export function validateDefinition(definition) {
     return { reason: "invalid-field", message: "Champ invalide : startDate (AAAA-MM-JJ, date réelle attendue)" };
   }
 
-  /* startingLoads non-objet (`5`) passe encore : Object.entries(5) vaut []
-     et la boucle ne s'exécute pas. C'est une lacune connue, listée dans
-     #33 — elle n'est pas comblée ici pour que ce module reste, au
-     comportement près, ce que import.js jugeait déjà. */
+  /* startingLoads doit être un objet (#33) : `5` passait sans bruit, parce
+     qu'Object.entries(5) vaut [] et que la boucle ne s'exécutait jamais —
+     un contrôle qui ne contrôle rien est pire qu'un contrôle absent, il
+     rassure. */
+  if (!isObj(definition.startingLoads)) {
+    return { reason: "invalid-field", message: "Champ invalide : startingLoads (objet attendu)" };
+  }
   for (const [vid, load] of Object.entries(definition.startingLoads)) {
     if (!isNum(load)) return { reason: "invalid-field", message: `Charge de départ invalide pour ${vid} (nombre attendu)` };
     if (!EXERCISE_IDS.has(vid)) return { reason: "unknown-exercise", message: `startingLoads : « ${vid} » n'est pas un exercice du registre.` };
