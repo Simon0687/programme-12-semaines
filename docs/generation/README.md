@@ -13,6 +13,7 @@ re-dériver.
 | [`moteur-generation-programme.md`](moteur-generation-programme.md) | Moteur déterministe, 7 étapes, **zéro appel LLM** : payload → programme | v1, non amendé |
 | [`moteur-generation-programme.notes.md`](moteur-generation-programme.notes.md) | Note de rapprochement du moteur : impact issue par issue, écarts avec l'app, incohérences internes | — |
 | [`catalogue-exercices-v1.json`](catalogue-exercices-v1.json) | 50 exercices × 11 champs de **sélection** (équipement, pattern, muscles, stabilité, articulations…) | v1, `schema_version: 1` |
+| [`decisions-moteur.md`](decisions-moteur.md) | Moteur dans l'app vs pack LLM externe : 4 questions, options, recommandations | **en attente des réponses de Simon** |
 | [`benchmarks/`](benchmarks/) | Rétro-spécifications Alpha Progression et FitAI | sources, non maintenues |
 
 ---
@@ -138,6 +139,11 @@ est à rouvrir. Amendement déposé dans la spec de #25.
 > un choix ne réfute pas son contre-argument. Ce qui suit est laissé tel quel
 > pour que la question puisse être rouverte sans re-dériver le raisonnement.
 >
+> **Rouverte le 2026-09-12** par une question de Simon : un moteur *dans* l'app,
+> troisième chemin absent des deux documents. Options, implications et
+> recommandations dans [`decisions-moteur.md`](decisions-moteur.md) ; ce §4 est
+> réécrit quand elles sont tranchées.
+>
 > Conséquence pratique : **rien ne bloque**. La réconciliation des registres (B3)
 > est sur le chemin critique dans les deux branches et elle est faite (#25, Q7 et
 > Q8). Ce que le choix change, c'est seulement ce que #19 livre — un prompt ou un
@@ -217,7 +223,7 @@ n'est responsable de traitement.
 | B1 — définition sans profil nutrition | issue **#27** |
 | B3 — réconciliation des deux registres | amendement dans la spec de [#25](../features/25-closed-exercise-registry/spec.md), à trancher avant `/design-tech` |
 | Découper `poulie` et `machine` dans le catalogue | catalogue v2, noté en §4.3 du questionnaire |
-| Quel moteur (§4 ci-dessus) | à trancher par Simon, aucune issue ouverte |
+| Quel moteur (§4 ci-dessus) | rouvert le 2026-09-12 : [`decisions-moteur.md`](decisions-moteur.md), en attente des réponses de Simon |
 | B2 — timeline continue | rien à faire : #16 puis #14, déjà dans la file |
 
 ### Le programme neutre de #26 est le premier test de bout en bout
