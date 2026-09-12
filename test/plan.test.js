@@ -71,7 +71,7 @@ describe("PLAN", () => {
 describe("buildPlan : reflète le profil reçu (#6)", () => {
   test("un profil différent change le texte nutrition et charges de départ", () => {
     const otherProfile = { ...PROFILE, maintenanceKcal: 2000, startKcal: 2200, macros: { p: 150, f: 60, c: 300 }, targetWeightKg: [70, 71] };
-    const otherLoads = { ...STARTING_LOADS, dc: 40, squat: 60 };
+    const otherLoads = { ...STARTING_LOADS, dc: 40, legpress: 60 };
     const other = buildPlan(otherProfile, otherLoads);
 
     const nutritionText = other.find((s) => s.id === "nutrition").blocks[0].text;

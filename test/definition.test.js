@@ -25,6 +25,14 @@ describe("DEFAULT_DEFINITION", () => {
   test("weeks vaut 12", () => {
     assert.equal(DEFAULT_DEFINITION.weeks, 12);
   });
+
+  test("le programme par défaut est neutre et ne contient ni squat ni deadlift", () => {
+    const programText = JSON.stringify(DEFAULT_DEFINITION.program);
+    assert.equal(programText.includes("squat"), false);
+    assert.equal(programText.includes("deadlift"), false);
+    assert.equal(programText.includes("dl_conv"), false);
+    assert.equal(programText.includes("dl_"), false);
+  });
 });
 
 /* Le test le plus important de #6 : deux cycles en mémoire ne doivent
