@@ -24,6 +24,7 @@
    ========================================================= */
 
 import { migrate, withVersion } from "./schema.js";
+import { validateEnvelope } from "./journal-shape.js";
 import { backupOnce } from "./backup.js";
 
 export function createStore() {
@@ -53,16 +54,15 @@ export async function loadJournal(store, key, ctx) {
   if (res.tooNew) return { ok: false, reason: "too-new" };
   if (!res.ok) return { ok: false, reason: "invalid" };
 
-  const { activeProgramId, programs } = res.data;
-  /* Item 5 (#21) : un activeProgramId sans entrée dans programs plantait le
-     premier rendu sans message ; traité comme un autre cas "invalid".
-     Depuis #26, une entrée sans définition est du même ordre : la migration
-     en écrit une pour tout journal qui arrive d'une version antérieure, donc
-     il n'en reste qu'en cas de journal trafiqué à la main — App.jsx lit
-     `active.definition` sans repli, justement pour ne pas réintroduire la
-     résolution implicite vers le bundle courant. */
-  if (!programs[activeProgramId] || !programs[activeProgramId].definition) return { ok: false, reason: "invalid" };
+  /* Contrôle de forme avant toute lecture de res.data (#32). L'ordre est
+     ce qui compte : c'est la déstructuration de `programs` qui levait, sur
+     un journal tronqué, l'exception qui bloquait l'appli sur son spinner.
+     Absorbe les cas plus anciens que validateEnvelope couvre aussi — item 5
+     de #21 (activeProgramId sans entrée) et l'entrée sans définition de #26,
+     App.jsx lisant `active.definition` sans repli. */
+  if (validateEnvelope(res.data)) return { ok: false, reason: "invalid" };
 
+  const { activeProgramId, programs } = res.data;
   const journal = { activeProgramId, programs };
   if (!res.migrated) return { ok: true, journal, migrated: false };
 

@@ -135,3 +135,56 @@ test("saveJournal : l'écriture lève -> échec signalé (storageOk doit tomber 
 
   assert.deepEqual(await saveJournal(store, "K", journal), { ok: false, failed: true });
 });
+
+/* --------------------------------------------------------------
+   #32 : formes qui levaient hors de loadJournal, et bloquaient donc
+   l'appli sur son spinner. Chacune doit rendre un verdict.
+   -------------------------------------------------------------- */
+
+const V = SCHEMA_VERSION;
+const goodDef = { id: "p1", startDate: "2026-01-05" };
+const entry = (over = {}) => ({ definition: goodDef, logs: {}, cardio: {}, checkin: {}, ...over });
+const wrapped = (over = {}) => ({ schemaVersion: V, activeProgramId: "p1", programs: { p1: entry() }, ...over });
+
+const malformed = [
+  ["enveloppe réduite au seul schemaVersion", { schemaVersion: V }],
+  ["activeProgramId sans programs", { schemaVersion: V, activeProgramId: "p1" }],
+  ["programs null", wrapped({ programs: null })],
+  ["programs chaîne", wrapped({ programs: "texte" })],
+  ["programs tableau", wrapped({ programs: [] })],
+  ["activeProgramId absent", { schemaVersion: V, programs: { p1: entry() } }],
+  ["activeProgramId vide", wrapped({ activeProgramId: "" })],
+  ["entrée de programme null", wrapped({ programs: { p1: null } })],
+  ["entrée de programme nombre", wrapped({ programs: { p1: 42 } })],
+  ["logs null", wrapped({ programs: { p1: entry({ logs: null }) } })],
+  ["cardio nombre", wrapped({ programs: { p1: entry({ cardio: 42 }) } })],
+  ["checkin chaîne", wrapped({ programs: { p1: entry({ checkin: "x" }) } })],
+  ["definition absente", wrapped({ programs: { p1: { logs: {}, cardio: {}, checkin: {} } } })],
+];
+
+for (const [label, journal] of malformed) {
+  test(`loadJournal : ${label} -> reason invalid, ne lève pas (#32)`, async () => {
+    const store = fakeStore();
+    store.data.set("K", JSON.stringify(journal));
+    const res = await loadJournal(store, "K", testCtx());
+    assert.deepEqual(res, { ok: false, reason: "invalid" });
+  });
+}
+
+test("loadJournal : un cycle inactif mal formé ne fait pas tomber le journal (#32)", async () => {
+  const store = fakeStore();
+  store.data.set("K", JSON.stringify(wrapped({
+    programs: { p1: entry(), p2: { definition: { id: "p2" }, logs: null, cardio: {}, checkin: {} } },
+  })));
+  const res = await loadJournal(store, "K", testCtx());
+  assert.equal(res.ok, true);
+  assert.ok(res.journal.programs.p2, "le cycle inactif doit rester stocké, pas disparaître");
+});
+
+test("loadJournal : le journal stocké n'est jamais réécrit par un rejet (#32)", async () => {
+  const store = fakeStore();
+  const raw = JSON.stringify({ schemaVersion: V, activeProgramId: "p1", programs: null });
+  store.data.set("K", raw);
+  await loadJournal(store, "K", testCtx());
+  assert.equal(store.data.get("K"), raw);
+});

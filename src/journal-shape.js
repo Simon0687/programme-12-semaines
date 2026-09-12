@@ -29,6 +29,50 @@ import { EXERCISE_IDS } from "./registry.js";
 import { DEFINITION_FORMAT_VERSION, parseLocalDate } from "./definition.js";
 
 const isNum = (x) => typeof x === "number" && Number.isFinite(x);
+const isObj = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
+
+/* Forme d'une entrée de `programs` : un cycle et ses trois registres.
+   Séparée de validateEnvelope parce qu'elle sert deux fois et à deux
+   sévérités — fatale pour le cycle actif (l'appli ne peut rien rendre
+   sans lui), simple cause de non-sélection pour les autres (#32, Q3). */
+export function validateProgramEntry(entry) {
+  if (!isObj(entry)) return { reason: "invalid", message: "Entrée de programme invalide (objet attendu)" };
+  if (!isObj(entry.definition)) return { reason: "invalid", message: "Entrée de programme sans définition" };
+  for (const field of ["logs", "cardio", "checkin"]) {
+    if (!isObj(entry[field])) return { reason: "invalid", message: `Entrée de programme : ${field} (objet attendu)` };
+  }
+  return null;
+}
+
+/* Enveloppe du journal. Ne juge que ce qui empêche l'appli de rendre quoi
+   que ce soit : le reste (un cycle inactif mal formé, une ligne de log
+   illisible) se traite sans rejeter tout le journal.
+
+   C'est ici que se ferme le mode d'échec le plus coûteux de #32 : avant,
+   la déstructuration de `programs` dans loadJournal levait sur un journal
+   tronqué, la promesse du chargement était rejetée, `setLoaded(true)`
+   n'arrivait jamais et l'appli restait bloquée sur son spinner — sans
+   accès au panneau qui aurait permis de réparer. Un écran blanc se
+   recharge ; un spinner définitif, non. */
+export function validateEnvelope(journal) {
+  if (!isObj(journal)) return { reason: "invalid", message: "Ce JSON n'est pas un journal." };
+  const { activeProgramId, programs } = journal;
+  if (typeof activeProgramId !== "string" || activeProgramId === "") {
+    return { reason: "invalid", message: "Champ invalide : activeProgramId (chaîne non vide attendue)" };
+  }
+  if (!isObj(programs)) return { reason: "invalid", message: "Champ invalide : programs (objet attendu)" };
+
+  /* Une entrée non-objet (null, un nombre) casse jusqu'au sélecteur de
+     cycles, qui lit p.definition pour tous les programmes stockés. */
+  for (const [id, entry] of Object.entries(programs)) {
+    if (!isObj(entry)) return { reason: "invalid", message: `Champ invalide : programs.${id} (objet attendu)` };
+  }
+
+  if (!programs[activeProgramId]) {
+    return { reason: "invalid", message: `activeProgramId « ${activeProgramId} » n'a pas d'entrée dans programs.` };
+  }
+  return validateProgramEntry(programs[activeProgramId]);
+}
 
 /* startDate doit faire l'aller-retour : parseLocalDate puis reformatage
    redonnent la même chaîne. Attrape "2027-02-30" que le seul regex laisse
