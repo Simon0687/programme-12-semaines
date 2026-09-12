@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
-import { SCHEMA_VERSION, emptyJournal, weekKey, dateForSlot, findLog, writeLog } from "./schema.js";
+import { SCHEMA_VERSION, emptyJournal, weekKey, dateForSlot, findLog, writeLog, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport } from "./import.js";
 import { listBackups } from "./backup.js";
 import { createStore, loadJournal, saveJournal } from "./storage.js";
