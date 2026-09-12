@@ -23,7 +23,8 @@
         ]
       },
       "notes": "premiere seance",
-      "done": true
+      "done": true,
+      "date": "2026-09-06"
     },
     "w2_hautA": {
       "ex": {
@@ -48,7 +49,8 @@
         ]
       },
       "notes": "",
-      "done": true
+      "done": true,
+      "date": "2026-09-14"
     }
   },
   "cardio": {

@@ -106,6 +106,13 @@ Since #16, a log's identity is `(date, slot)`, with `date` derived from
 program therefore never collide, and `kind` (`calibration` / `deload` /
 `normal`) is stamped at write time rather than re-derived from a week number.
 
+**A log's date is its slot's date, not the day it was performed.** Someone who
+trains a day early still fills the slot they trained for, so the migration from a
+v1 journal re-dates each session onto its slot - anything else would hide it from
+`findLog`, which looks sessions up at `dateForSlot(...)`, and invite a duplicate
+entry. The original validation date is not discarded: it is carried into
+`updatedAt`, which is what the Séance tab renders as "Validée le …" (#40).
+
 Cardio and weekly check-in still use `weekKey(week)`. That is a known exception,
 tracked by #29, not a second convention worth copying.
 

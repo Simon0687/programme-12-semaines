@@ -54,6 +54,15 @@ export const genId = () =>
     : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 export const nowIso = () => new Date().toISOString();
 
+/* Horodatage d'un enregistrement repris d'un journal v1 (#40). La v1.0.0
+   écrivait une date de validation (AAAA-MM-JJ) sur chaque séance validée, et
+   App.jsx l'affiche encore — « Validée le … », lu depuis updatedAt. Sans
+   cette reprise, la migration tamponnait tout l'historique à la date de son
+   exécution : toutes les séances d'un cycle se seraient affichées comme
+   validées le même jour, celui de la mise à jour de l'appli. */
+export const validatedAtIso = (date) =>
+  (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) ? `${date}T00:00:00.000Z` : nowIso();
+
 /* date d'un créneau : pas "quand on a cliqué Valider", mais la date réelle du
    calendrier que ce créneau (semaine, jour de la séance) désigne dans le
    cycle en cours — startDate + 7×(semaine-1) + (jour-1). Pure fonction de
@@ -155,10 +164,24 @@ function migrateLogsV2ToV3(logs, startDate, dayBySlot) {
     const week = Number(m[1]);
     const kind = entry.done ? (week === 1 ? "calibration" : week === 7 ? "deload" : "normal") : null;
     const id = genId();
+    /* La date du log est celle du *créneau*, pas celle où la séance a été
+       faite : c'est l'identité choisie par #16, et App.jsx retrouve ses
+       séances par findLog(logs, dateForSlot(...), slot). Un journal v1
+       portait pourtant une vraie date de validation (la v1.0.0 écrivait
+       `date: new Date()...` à la validation, et l'affichait) — souvent
+       décalée d'un jour ou deux du créneau, parce qu'on ne s'entraîne pas
+       le jour prévu.
+
+       Cette date-là ne peut pas devenir l'identité sans rendre la séance
+       introuvable, mais elle n'a pas à disparaître pour autant (#40) :
+       updatedAt, l'un des champs de synchronisation de #16, est fait pour
+       ça. Y écrire nowIso() affirmait qu'un enregistrement vieux d'une
+       semaine venait d'être modifié — faux, et faux de façon indétectable
+       une fois la migration passée. */
     out[id] = {
       id, date: dateForSlot(startDate, week, day), slot: m[2], kind,
       ex: entry.ex || {}, notes: entry.notes || "", done: !!entry.done,
-      updatedAt: nowIso(), deletedAt: null, schemaVersion: SCHEMA_VERSION,
+      updatedAt: validatedAtIso(entry.date), deletedAt: null, schemaVersion: SCHEMA_VERSION,
     };
   }
   return out;
