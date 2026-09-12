@@ -226,3 +226,40 @@ describe("validateProgram : jour de séance (#33)", () => {
     }
   });
 });
+
+describe("validateProgram : fourchettes et unicité (#33)", () => {
+  for (const [label, reps] of [
+    ["inversée [8, 5]", [8, 5]],
+    ["négative [-5, -1]", [-5, -1]],
+    ["min nul [0, 5]", [0, 5]],
+  ]) {
+    test(`rejette une fourchette ${label}`, () => {
+      const bad = validateProgram(prog((p) => { p.SLOTS[firstSlot()].reps = reps; }));
+      assert.ok(bad, `${label} accepté à tort`);
+      assert.match(bad.message, /reps/);
+    });
+  }
+
+  test("accepte une fourchette d'une seule valeur [5, 5]", () => {
+    assert.equal(validateProgram(prog((p) => { p.SLOTS[firstSlot()].reps = [5, 5]; })), null);
+  });
+
+  test("rejette deux séances qui partagent un id", () => {
+    const bad = validateProgram(prog((p) => { p.SESSIONS[1].id = p.SESSIONS[0].id; }));
+    assert.ok(bad);
+    assert.match(bad.message, /id/);
+  });
+});
+
+describe("validateDefinition : startingLoads (#33)", () => {
+  test("rejette un startingLoads qui n'est pas un objet", () => {
+    for (const value of [5, "beaucoup", true]) {
+      const bad = validateDefinition({ ...BASE, startingLoads: value });
+      assert.ok(bad, `startingLoads ${JSON.stringify(value)} accepté à tort`);
+    }
+  });
+
+  test("accepte un startingLoads vide", () => {
+    assert.equal(validateDefinition({ ...BASE, startingLoads: {} }), null);
+  });
+});

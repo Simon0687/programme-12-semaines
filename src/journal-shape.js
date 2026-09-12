@@ -133,8 +133,16 @@ export function validateProgram(program) {
   if (typeof SLOTS !== "object" || Array.isArray(SLOTS)) return { reason: "invalid-program", message: "Champ invalide : program.SLOTS (objet attendu)" };
   for (const [slotId, slot] of Object.entries(SLOTS)) {
     if (typeof slot !== "object" || slot === null) return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId} (objet attendu)` };
+    /* reps : une vraie fourchette, [min, max] avec 0 < min <= max (#33).
+       Le contrôle d'avant n'exigeait que « deux nombres », si bien que
+       [8, 5] et [-5, -1] passaient — le premier affiche « 8–5 reps », le
+       second une fourchette négative, et la double progression compare une
+       performance à une borne qui n'a pas de sens. */
     if (!Array.isArray(slot.reps) || slot.reps.length !== 2 || !slot.reps.every(isNum)) {
       return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId}.reps (deux nombres attendus)` };
+    }
+    if (slot.reps[0] <= 0 || slot.reps[0] > slot.reps[1]) {
+      return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId}.reps (fourchette [min, max] attendue, 0 < min <= max)` };
     }
     if (!isNum(slot.rest)) return { reason: "invalid-program", message: `Champ invalide : program.SLOTS.${slotId}.rest (nombre attendu)` };
     for (const b of ["b1", "b2"]) {
@@ -144,6 +152,14 @@ export function validateProgram(program) {
   }
 
   if (!Array.isArray(SESSIONS) || SESSIONS.length === 0) return { reason: "invalid-program", message: "Champ invalide : program.SESSIONS (tableau non vide attendu)" };
+
+  /* Ids de séance uniques (#33). Pas une coquetterie : findLog(logs, date,
+     slot) rend la *première* correspondance, donc deux séances partageant un
+     id rendent la seconde inatteignable — le mode d'échec exact qui avait
+     coulé la première tentative de #26. */
+  const ids = SESSIONS.filter((s) => s && typeof s.id === "string").map((s) => s.id);
+  const duplicate = ids.find((id, i) => ids.indexOf(id) !== i);
+  if (duplicate) return { reason: "invalid-program", message: `program.SESSIONS : l'id « ${duplicate} » est utilisé par deux séances ; chaque séance doit avoir un id unique.` };
   if (typeof CORE !== "object" || Array.isArray(CORE)) return { reason: "invalid-program", message: "Champ invalide : program.CORE (objet attendu)" };
   if (typeof WARM !== "object" || Array.isArray(WARM)) return { reason: "invalid-program", message: "Champ invalide : program.WARM (objet attendu)" };
   for (const [k, v] of Object.entries(WARM)) {
@@ -289,10 +305,13 @@ export function validateDefinition(definition) {
     return { reason: "invalid-field", message: "Champ invalide : startDate (AAAA-MM-JJ, date réelle attendue)" };
   }
 
-  /* startingLoads non-objet (`5`) passe encore : Object.entries(5) vaut []
-     et la boucle ne s'exécute pas. C'est une lacune connue, listée dans
-     #33 — elle n'est pas comblée ici pour que ce module reste, au
-     comportement près, ce que import.js jugeait déjà. */
+  /* startingLoads doit être un objet (#33) : `5` passait sans bruit, parce
+     qu'Object.entries(5) vaut [] et que la boucle ne s'exécutait jamais —
+     un contrôle qui ne contrôle rien est pire qu'un contrôle absent, il
+     rassure. */
+  if (!isObj(definition.startingLoads)) {
+    return { reason: "invalid-field", message: "Champ invalide : startingLoads (objet attendu)" };
+  }
   for (const [vid, load] of Object.entries(definition.startingLoads)) {
     if (!isNum(load)) return { reason: "invalid-field", message: `Charge de départ invalide pour ${vid} (nombre attendu)` };
     if (!EXERCISE_IDS.has(vid)) return { reason: "unknown-exercise", message: `startingLoads : « ${vid} » n'est pas un exercice du registre.` };
