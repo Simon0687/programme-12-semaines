@@ -95,8 +95,20 @@ export async function loadJournal(store, key, ctx) {
   return { ok: true, journal, migrated: true, backupOk, dropped };
 }
 
+/* La garde à l'écriture ferme la route par laquelle l'appli pouvait
+   s'infliger elle-même le blocage que #32 corrige : withVersion({}) laisse
+   tomber les champs undefined à la sérialisation et écrit littéralement
+   {"schemaVersion":4} — exactement l'entrée qui, au démarrage suivant,
+   faisait lever le chargement. Aucun journal trafiqué à la main n'est
+   nécessaire pour y arriver, un bug d'état suffit.
+
+   Le verdict rendu est celui qui existait déjà pour une écriture en échec,
+   donc l'appelant n'a rien de nouveau à gérer : storageOk tombe, l'appli
+   affiche « Non enregistré » et cesse de réécrire. Un enregistrement qui
+   s'arrête en le disant vaut mieux qu'un journal détruit en silence. */
 export async function saveJournal(store, key, journal) {
   if (!store) return { ok: false, failed: true };
+  if (validateEnvelope(withVersion(journal))) return { ok: false, failed: true };
   try {
     const r = await store.set(key, JSON.stringify(withVersion(journal)), false);
     return r ? { ok: true } : { ok: false, failed: false };

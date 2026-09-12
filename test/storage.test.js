@@ -129,7 +129,7 @@ test("saveJournal : store indisponible -> échec signalé, pas de levée", async
 
 test("saveJournal : écrit l'enveloppe versionnée sous la clé", async () => {
   const store = fakeStore();
-  const journal = { activeProgramId: "p1", programs: { p1: { definition: null, logs: { x: 1 }, cardio: {}, checkin: {} } } };
+  const journal = { activeProgramId: "p1", programs: { p1: { definition: realDef("p1"), logs: {}, cardio: {}, checkin: {} } } };
 
   assert.deepEqual(await saveJournal(store, "K", journal), { ok: true });
   assert.deepEqual(JSON.parse(store.data.get("K")), { schemaVersion: SCHEMA_VERSION, ...journal });
@@ -265,4 +265,27 @@ test("loadJournal : un journal qui porte des programmes sans schemaVersion est r
   store.data.set("K", raw);
   assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
   assert.equal(store.data.get("K"), raw); // surtout : ses cycles ne sont pas écrasés par MIGRATIONS[1]
+});
+
+test("saveJournal : refuse d'écrire un journal que le chargement ne saurait pas relire (#32)", async () => {
+  const store = fakeStore();
+  /* withVersion({}) sérialise en {\"schemaVersion\":4} : l'entrée même qui
+     bloquait l'appli au démarrage suivant. L'appli pouvait donc se
+     l'infliger seule, sans journal trafiqué. */
+  assert.deepEqual(await saveJournal(store, "K", {}), { ok: false, failed: true });
+  assert.equal(store.data.has("K"), false);
+});
+
+test("saveJournal : un journal valide s'écrit toujours (#32)", async () => {
+  const store = fakeStore();
+  const journal = { activeProgramId: "p1", programs: { p1: entry() } };
+  assert.deepEqual(await saveJournal(store, "K", journal), { ok: true });
+  assert.deepEqual(JSON.parse(store.data.get("K")), { schemaVersion: V, ...journal });
+});
+
+test("saveJournal : une écriture refusée n'écrase pas le journal déjà stocké (#32)", async () => {
+  const store = fakeStore();
+  store.data.set("K", '{"des":"donnees reelles"}');
+  await saveJournal(store, "K", { activeProgramId: "p1", programs: null });
+  assert.equal(store.data.get("K"), '{"des":"donnees reelles"}');
 });
