@@ -156,9 +156,9 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
 
 /* ---------- Application ---------- */
 export default function Programme() {
-  const [journal, setJournal] = useState(emptyJournal());
+  const [journal, setJournal] = useState(emptyJournal(DEFAULT_DEFINITION));
   const active = journal.programs[journal.activeProgramId];
-  const definition = active.definition || DEFAULT_DEFINITION;
+  const definition = active.definition;
   /* #22 : un objet neuf à chaque render défait tout useMemo qui en dépend
      (ExerciseCard :104-105, doneMap :272-276), y compris sur le tick 500 ms
      du minuteur de repos (:260). Mémorisé sur active seul : logs/cardio/
@@ -228,7 +228,7 @@ export default function Programme() {
       } else if (res.reason === "no-store") {
         setStorageOk(false);
       }
-      // res.reason === "absent" : rien à faire, l'état initial useState(emptyJournal()) tient lieu de journal.
+      // res.reason === "absent" : rien à faire, l'état initial useState(emptyJournal(DEFAULT_DEFINITION)) tient lieu de journal.
       setBackups(await listBackups(STORE, KEY, SCHEMA_VERSION));
       setLoaded(true);
     })();

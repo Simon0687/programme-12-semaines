@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { createStore, loadJournal, saveJournal } from "../src/storage.js";
-import { SCHEMA_VERSION } from "../src/schema.js";
+import { SCHEMA_VERSION, LEGACY_PROGRAM_ID } from "../src/schema.js";
+import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 import { fakeStore } from "./helpers/fake-store.js";
 import { testCtx } from "./helpers/migration-ctx.js";
 
@@ -35,14 +36,35 @@ test("loadJournal : journal v1 (plat) migré vers v3, backup écrit, forme migr�
   assert.equal(store.data.get("K_backup_pre1"), raw); // #8 : copie verbatim avant réécriture
 });
 
-test("loadJournal : journal v3 (courant) chargé inchangé, aucun backup écrit", async () => {
+test("loadJournal : journal à la version courante chargé inchangé, aucun backup écrit", async () => {
   const store = fakeStore();
-  const v3 = { schemaVersion: SCHEMA_VERSION, activeProgramId: "p1", programs: { p1: { definition: null, logs: {}, cardio: {}, checkin: {} } } };
-  store.data.set("K", JSON.stringify(v3));
+  const current = { schemaVersion: SCHEMA_VERSION, activeProgramId: "p1", programs: { p1: { definition: { id: "p1", startDate: "2026-01-05" }, logs: {}, cardio: {}, checkin: {} } } };
+  store.data.set("K", JSON.stringify(current));
 
   const res = await loadJournal(store, "K", testCtx());
-  assert.deepEqual(res, { ok: true, journal: { activeProgramId: "p1", programs: v3.programs }, migrated: false });
+  assert.deepEqual(res, { ok: true, journal: { activeProgramId: "p1", programs: current.programs }, migrated: false });
   assert.equal([...store.data.keys()].some((k) => k.includes("backup")), false);
+});
+
+test("loadJournal : journal v3 (definition: null) épinglé vers v4, backup pre3 écrit (#26)", async () => {
+  const store = fakeStore();
+  const v3 = { schemaVersion: 3, activeProgramId: LEGACY_PROGRAM_ID, programs: { [LEGACY_PROGRAM_ID]: { definition: null, logs: {}, cardio: {}, checkin: {} } } };
+  const raw = JSON.stringify(v3);
+  store.data.set("K", raw);
+
+  const res = await loadJournal(store, "K", testCtx());
+  assert.equal(res.ok, true);
+  assert.equal(res.migrated, true);
+  assert.deepEqual(res.journal.programs[LEGACY_PROGRAM_ID].definition, LEGACY_DEFINITION);
+  assert.equal(store.data.get("K_backup_pre3"), raw); // #8 : l'original avant l'épinglage
+});
+
+test("loadJournal : entrée active sans définition à la version courante -> reason invalid (#26)", async () => {
+  const store = fakeStore();
+  const unpinned = { schemaVersion: SCHEMA_VERSION, activeProgramId: "p1", programs: { p1: { definition: null, logs: {}, cardio: {}, checkin: {} } } };
+  store.data.set("K", JSON.stringify(unpinned));
+
+  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
 });
 
 test("loadJournal : schemaVersion trop récent -> reason too-new, store non modifié", async () => {

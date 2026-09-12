@@ -6,6 +6,7 @@ import {
   weekKey, genId, dateForSlot, findLog, writeLog,
 } from "../src/schema.js";
 import { testCtx } from "./helpers/migration-ctx.js";
+import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 
 test("weekKey : format des clés cardio/check-in (#24), inchangé par #16 (hors périmètre, #29)", () => {
   assert.equal(weekKey(1), "w1");
@@ -73,7 +74,7 @@ test("migrate : no-op à la version courante (v3), résultat équivalent à l'en
   assert.deepEqual(res.data, input);
 });
 
-test("migrate : journal v1 (plat) migré vers v3, séances datées sous le programme par défaut (#6, #16)", () => {
+test("migrate : journal v1 (plat) migré vers la version courante, séances datées sous le programme hérité (#6, #16, #26)", () => {
   const input = { schemaVersion: 1, logs: { w1_hautA: { done: true }, w7_basA: { done: true, ex: { squat: [{ w: "80", r: "5", rir: "2" }] } } }, cardio: { w1: { z2a: { done: true } } }, checkin: { w1: { poids: "90" } } };
   const res = migrate(input, testCtx());
   assert.equal(res.ok, true);
@@ -82,7 +83,7 @@ test("migrate : journal v1 (plat) migré vers v3, séances datées sous le progr
   assert.equal(res.data.schemaVersion, SCHEMA_VERSION);
   assert.equal(res.data.activeProgramId, LEGACY_PROGRAM_ID);
   const active = res.data.programs[LEGACY_PROGRAM_ID];
-  assert.equal(active.definition, null); // null => programme fourni avec l'appli
+  assert.deepEqual(active.definition, LEGACY_DEFINITION); // #26 : écrite en clair, plus de null résolu à la lecture
   const logs = Object.values(active.logs);
   assert.equal(logs.length, 2);
   const hautA = logs.find((l) => l.slot === "hautA");
@@ -138,11 +139,49 @@ test("migrate : slot absent du programme -> invalid, rien n'est détruit (#16)",
   assert.equal(res.invalid, true);
 });
 
-test("migrate : idempotent sur un objet déjà en v3", () => {
-  const v3 = migrate({ schemaVersion: 1, logs: { w1_hautA: { done: true } } }, testCtx()).data;
-  const again = migrate(v3, testCtx());
+test("migrate : idempotent sur un objet déjà à la version courante", () => {
+  const current = migrate({ schemaVersion: 1, logs: { w1_hautA: { done: true } } }, testCtx()).data;
+  const again = migrate(current, testCtx());
   assert.equal(again.migrated, false);
-  assert.deepEqual(again.data, v3);
+  assert.deepEqual(again.data, current);
+});
+
+/* #26 : `definition: null` voulait dire « le bundle courant », résolu à la
+   lecture — un journal v2/v3 basculait donc avec le programme livré. v3 -> v4
+   l'épingle. */
+test("migrate : v3 avec definition: null épinglée sur le programme hérité (#26)", () => {
+  const v3 = {
+    schemaVersion: 3,
+    activeProgramId: LEGACY_PROGRAM_ID,
+    programs: { [LEGACY_PROGRAM_ID]: { definition: null, logs: {}, cardio: {}, checkin: {} } },
+  };
+  const res = migrate(v3, testCtx());
+  assert.equal(res.ok, true);
+  assert.equal(res.from, 3);
+  assert.equal(res.migrated, true);
+  assert.equal(res.data.schemaVersion, SCHEMA_VERSION);
+  assert.deepEqual(res.data.programs[LEGACY_PROGRAM_ID].definition, LEGACY_DEFINITION);
+});
+
+test("migrate : v3 avec une définition chargée laissée intacte (#6, #26)", () => {
+  const loaded = { id: "mon-cycle", startDate: "2026-03-02", weeks: 12 };
+  const v3 = {
+    schemaVersion: 3,
+    activeProgramId: "mon-cycle",
+    programs: { "mon-cycle": { definition: loaded, logs: {}, cardio: {}, checkin: {} } },
+  };
+  const res = migrate(v3, testCtx());
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.data.programs["mon-cycle"].definition, loaded);
+});
+
+test("migrate : v1 -> v4 d'une traite, les dates viennent du programme hérité (#26)", () => {
+  const res = migrate({ schemaVersion: 1, logs: { w1_hautA: { done: true } } }, testCtx());
+  assert.equal(res.data.schemaVersion, SCHEMA_VERSION);
+  const active = res.data.programs[LEGACY_PROGRAM_ID];
+  assert.deepEqual(active.definition, LEGACY_DEFINITION);
+  const logs = Object.values(active.logs);
+  assert.equal(logs[0].date, "2026-09-07"); // startDate du programme hérité, S1 jour 1
 });
 
 test("migrate : version trop récente => flag de rejet, rien n'est détruit", () => {

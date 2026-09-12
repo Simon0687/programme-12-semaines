@@ -13,7 +13,7 @@
 
 /* Version courante du schéma. Déclarée ici et nulle part ailleurs :
    save et export la lisent depuis ce module. */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /* Identité du cycle hérité : celui qui existait avant #6, sans fichier chargé.
    Sert de clé dans `programs` pour le journal migré depuis la v1. La valeur ne
@@ -28,12 +28,14 @@ export const LEGACY_PROGRAM_ID = "simon-12s-2026-09";
 export const withVersion = (journal) => ({ schemaVersion: SCHEMA_VERSION, activeProgramId: journal.activeProgramId, programs: journal.programs });
 
 /* Première utilisation : aucune clé en stockage. Un seul cycle, celui fourni
-   avec l'appli (definition: null), sous la même identité qu'un journal v1
-   migré (#6) — pas de distinction visible entre "toujours été v2" et
-   "migré depuis v1". */
-export const emptyJournal = () => ({
-  activeProgramId: LEGACY_PROGRAM_ID,
-  programs: { [LEGACY_PROGRAM_ID]: { definition: null, logs: {}, cardio: {}, checkin: {} } },
+   avec l'appli — mais écrit en clair (#26). `definition: null` n'existe plus :
+   c'était une *référence* au bundle courant, résolue à la lecture, si bien que
+   changer le programme livré réinterprétait tout l'historique déjà enregistré.
+   Un journal porte désormais sa définition, et plus rien de stocké ne dépend de
+   ce que l'appli embarque aujourd'hui. */
+export const emptyJournal = (definition) => ({
+  activeProgramId: definition.id,
+  programs: { [definition.id]: { definition, logs: {}, cardio: {}, checkin: {} } },
 });
 
 /* Cardio et check-in restent indexés par semaine de cycle (#16 decisions-spec
@@ -90,14 +92,15 @@ export const writeLog = (logs, date, slot, patch) => {
    la fin de la chaîne. Chaque étape est indépendante : en ajouter une ne
    touche pas les autres. */
 export const MIGRATIONS = {
-  /* v1 (journal plat) -> v2 (enveloppe multi-programme, #6). definition:
-     null signifie « le programme fourni avec l'appli » : cette étape ne
-     connaît jamais les données du programme, seulement la forme du journal. */
-  1: (v1) => ({
+  /* v1 (journal plat) -> v2 (enveloppe multi-programme, #6). Un journal v1 a
+     forcément été tenu contre le programme hérité : cette étape l'écrit donc
+     en clair (#26) au lieu du `definition: null` d'origine, qui ne disait
+     « le programme fourni avec l'appli » qu'au moment de la lecture. */
+  1: (v1, ctx) => ({
     activeProgramId: LEGACY_PROGRAM_ID,
     programs: {
       [LEGACY_PROGRAM_ID]: {
-        definition: null,
+        definition: ctx.legacyDefinition,
         logs: v1.logs || {},
         cardio: v1.cardio || {},
         checkin: v1.checkin || {},
@@ -126,6 +129,20 @@ export const MIGRATIONS = {
       const dayBySlot = Object.fromEntries(ctx.buildProgram(definition).SESSIONS.map((s) => [s.id, s.day]));
       return [id, { ...p, logs: migrateLogsV2ToV3(p.logs, definition.startDate, dayBySlot) }];
     })),
+  }),
+
+  /* v3 -> v4 (#26) : épingle la définition des programmes qui portent encore
+     `definition: null`. C'est le cas d'un journal écrit en v2 ou v3 sans
+     fichier chargé — il désignait le bundle par une référence résolue à la
+     lecture, donc son historique basculait avec le programme livré. Après
+     cette étape, aucune donnée stockée ne dépend plus de ce que l'appli
+     embarque. Un programme qui porte déjà sa définition (fichier chargé en
+     #6, ou journal passé par MIGRATIONS[1] depuis #26) est laissé intact,
+     ce qui rend l'étape idempotente. */
+  3: (v3, ctx) => ({
+    ...v3,
+    programs: Object.fromEntries(Object.entries(v3.programs).map(([id, p]) =>
+      [id, p.definition ? p : { ...p, definition: ctx.legacyDefinition }])),
   }),
 };
 
