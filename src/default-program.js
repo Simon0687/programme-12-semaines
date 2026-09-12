@@ -57,14 +57,20 @@ export const SLOTS = {
   latraise: { reps: [8, 12], rest: 90, fail: true, key: true, b1: "lat_db", b2: "lat_cable" },
   reardelt: { reps: [10, 12], rest: 90, fail: true, b1: "rpd", b2: "rev_cable" },
   tristretch: { reps: [8, 12], rest: 90, b1: "tri_oh", b2: "skull" },
+  squat: { reps: [4, 8], rest: 180, key: true, b1: "squat", b2: "squat" },
+  legcurl: { reps: [8, 12], rest: 90, fail: true, b1: "lc_seat", b2: "lc_lying" },
+  calfstand: { reps: [8, 12], rest: 90, fail: true, b1: "calf_stand", b2: "calf_press" },
+  pull: { reps: [4, 8], rest: 150, key: true, b1: "pullup", b2: "pd_wide" },
   row: { reps: [6, 10], rest: 120, b1: "row_supp", b2: "row_cable" },
   curl2: { reps: [6, 10], rest: 90, b1: "curl_cable", b2: "curl_db" },
   ohp: { reps: [6, 10], rest: 150, key: true, b1: "ohp_db", b2: "ohp_mach" },
   curl1: { reps: [6, 10], rest: 90, fail: true, b1: "curl_preacher", b2: "curl_cable_seat" },
   pushdown: { reps: [8, 12], rest: 90, fail: true, b1: "pushdown", b2: "pushdown_uni" },
+  fly: { reps: [8, 12], rest: 90, fail: true, b1: "pecdeck", b2: "fly_cable" },
+  hipthrust: { reps: [6, 10], rest: 150, key: true, b1: "hipthrust", b2: "hipthrust" },
   quad2: { reps: [8, 12], rest: 120, fail: true, b1: "legpress", b2: "hack" },
-  legcurl: { reps: [8, 12], rest: 90, fail: true, b1: "lc_seat", b2: "lc_lying" },
-  calfstand: { reps: [8, 12], rest: 90, fail: true, b1: "calf_stand", b2: "calf_press" },
+  pullsag: { reps: [6, 10], rest: 120, b1: "pd_close", b2: "row_uni" },
+  calfseat: { reps: [10, 12], rest: 90, fail: true, b1: "calf_seat", b2: "calf_seat" },
   crunch: { reps: [8, 12], rest: 60, fail: true, b1: "crunch", b2: "crunch" },
   pallof: { reps: [8, 12], rest: 60, b1: "pallof", b2: "pallof" },
   hlr: { reps: [8, 12], rest: 60, b1: "hlr", b2: "hlr" },
@@ -74,10 +80,11 @@ export const SLOTS = {
 };
 
 export const SESSIONS = [
-  { id: "upperA", name: "Upper A", sub: "Pecs, épaules, triceps", day: 1, warm: "upper", ex: [["dc", 3], ["incline", 3], ["latraise", 2], ["reardelt", 2], ["tristretch", 2]], core: "coreA" },
-  { id: "lowerA", name: "Lower A", sub: "Jambes, ischios, mollets", day: 2, warm: "lower", ex: [["quad2", 3], ["legcurl", 3], ["calfstand", 3]], core: "coreB", after: "mob" },
-  { id: "upperB", name: "Upper B", sub: "Dos, épaules, biceps", day: 4, warm: "upper", ex: [["row", 3], ["ohp", 3], ["curl2", 2], ["pushdown", 2]], core: "coreC", after: "z2" },
-  { id: "lowerB", name: "Lower B", sub: "Jambes, fessiers, mollets", day: 5, warm: "lower", ex: [["quad2", 3], ["legcurl", 2], ["calfstand", 3]], core: "coreB" },
+  { id: "hautA", name: "Haut A", sub: "Pecs, épaules, triceps", day: 1, warm: "upper", ex: [["dc", 3], ["incline", 3], ["latraise", 2], ["reardelt", 2], ["tristretch", 2]], core: "coreA" },
+  { id: "basA", name: "Bas A", sub: "Squat, ischios, mollets", day: 2, warm: "lower", ex: [["squat", 3], ["legcurl", 3], ["calfstand", 3]], core: "coreB", after: "mob" },
+  { id: "hautB", name: "Haut B", sub: "Dos, delt postérieurs, biceps", day: 3, warm: "upper", ex: [["pull", 3], ["row", 2], ["reardelt", 2], ["curl2", 2]], core: "coreC", after: "z2" },
+  { id: "hautC", name: "Haut C", sub: "Épaules et bras", day: 5, warm: "upper", ex: [["latraise", 3], ["ohp", 3], ["curl1", 3], ["pushdown", 3], ["fly", 2]], core: "coreA" },
+  { id: "basB", name: "Bas B", sub: "Hip thrust, presse, dos sagittal, mollets", day: 6, warm: "lower", ex: [["hipthrust", 3], ["quad2", 2], ["pullsag", 2], ["calfseat", 3]], core: "coreB" },
 ];
 export const CORE = {
   coreA: { label: "Abdos A — flexion chargée + anti-rotation", ex: [["crunch", 2], ["pallof", 2]] },
@@ -88,7 +95,7 @@ export const CORE = {
 /* ---------- Échauffement ---------- */
 export const WARM = {
   upper: "5–10 min : rotations externes à l'élastique 2 × 15 ; open book ou extension thoracique sur rouleau, 10 par côté ; glissés au mur 10 ; puis montée en charge sur le premier exercice : 50 % × 8, 70 % × 4, 85 % × 2.",
-  lower: "5–10 min : cat-camel 10 ; 90/90 hanches 1 min par côté ; dorsiflexion cheville au mur 10 par côté ; pont fessier 15 ; puis montée en charge sur les jambes : 50 % × 6, 70 % × 4, 85 % × 2.",
+  lower: "5–10 min : cat-camel 10 ; 90/90 hanches 1 min par côté ; dorsiflexion cheville au mur 10 par côté ; pont fessier 15 ; McGill court (curl-up 5, planche latérale 15 s par côté, bird dog 5 par côté) ; montée en charge sur le squat ou le hip thrust : 50 % × 6, 70 % × 4, 85 % × 2.",
 };
 
 /* ---------- Profil ---------- */
@@ -97,28 +104,27 @@ export const START_DATE = "2026-09-07";
 export const STARTING_LOADS = {
   dc: 72.5,
   incl_db: 30,
-  row_supp: 80,
+  squat: 105,
   ohp_db: 26,
-  legpress: 110,
-  lc_seat: 35,
-  calf_stand: 35,
+  pullup: 0,
+  pd_close: 90,
 };
 
 export const PROFILE = {
-  bodyweightKg: 75,
-  heightCm: 178,
-  birthdate: "1990-01-01",
-  maintenanceKcal: 2600,
-  startKcal: 2800,
-  macros: { p: 160, f: 70, c: 300 },
-  targetWeightKg: [72, 75],
+  bodyweightKg: 90,
+  heightCm: 193,
+  birthdate: "1987-06-18",
+  maintenanceKcal: 3150,
+  startKcal: 3400,
+  macros: { p: 185, f: 85, c: 470 },
+  targetWeightKg: [92.5, 93.5],
 };
 
 /* ---------- Définition complète ---------- */
 export const DEFAULT_DEFINITION = {
   formatVersion: 2, // DEFINITION_FORMAT_VERSION (src/definition.js) — garder synchronisé, voir la note d'en-tête
   id: DEFAULT_PROGRAM_ID,
-  name: "Programme neutre — 12 semaines",
+  name: "Simon — 12 semaines",
   weeks: 12,
   startDate: START_DATE,
   profile: PROFILE,
