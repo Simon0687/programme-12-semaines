@@ -6,6 +6,8 @@ import {
   validateDefinition, validateEnvelope, validatePreMigration, validateProgram, validateProgramEntry,
 } from "../src/journal-shape.js";
 import { LEGACY_DEFINITION, LEGACY_DEFINITION as BASE } from "../src/legacy-program.js";
+import { DEFAULT_DEFINITION as NEUTRAL } from "../src/default-program.js";
+import { dateForSlot } from "../src/schema.js";
 
 const entry = (over = {}) => ({ definition: LEGACY_DEFINITION, logs: {}, cardio: {}, checkin: {}, ...over });
 const row = (over = {}) => ({ id: "r", date: "2026-09-07", slot: "hautA", ex: {}, done: true, ...over });
@@ -185,5 +187,42 @@ describe("validateProgram : paires [slot, séries] (#33)", () => {
 
   test("les deux programmes livrés passent", () => {
     assert.equal(validateProgram(BASE.program), null);
+  });
+});
+
+describe("validateProgram : jour de séance (#33)", () => {
+  for (const [label, value] of [
+    ["absent", undefined],
+    ['"lundi"', "lundi"],
+    ["99", 99],
+    ["0", 0],
+    ["-1", -1],
+    ["2.5", 2.5],
+    ["null", null],
+  ]) {
+    test(`rejette day ${label}`, () => {
+      const p = prog((x) => { if (value === undefined) delete x.SESSIONS[0].day; else x.SESSIONS[0].day = value; });
+      const bad = validateProgram(p);
+      assert.ok(bad, `day ${label} accepté à tort`);
+      assert.match(bad.message, /day/);
+    });
+  }
+
+  test("accepte day 7 : la date produite est juste, seul l affichage du jour ne suit pas", () => {
+    assert.equal(validateProgram(prog((x) => { x.SESSIONS[0].day = 7; })), null);
+  });
+
+  /* La propriété qui compte, et qui ne se périme pas quand un champ
+     s'ajoute : aucun programme accepté ne peut produire une date NaN. */
+  test("aucun programme accepté ne peut dater une séance en NaN", () => {
+    for (const definition of [BASE, NEUTRAL]) {
+      assert.equal(validateProgram(definition.program), null);
+      for (let week = 1; week <= definition.weeks; week++) {
+        for (const session of definition.program.SESSIONS) {
+          const iso = dateForSlot(definition.startDate, week, session.day);
+          assert.ok(!iso.includes("NaN"), `${definition.id} S${week} ${session.id} -> ${iso}`);
+        }
+      }
+    }
   });
 });

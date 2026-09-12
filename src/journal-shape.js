@@ -153,6 +153,21 @@ export function validateProgram(program) {
   for (const [i, session] of SESSIONS.entries()) {
     if (typeof session !== "object" || session === null) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}] (objet attendu)` };
     if (typeof session.id !== "string" || session.id === "") return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].id (chaîne non vide attendue)` };
+
+    /* day : 1 à 7, la plage qu'implique dateForSlot (startDate + 7×(semaine−1)
+       + (day−1)). C'est le contrôle qui ferme la corruption silencieuse de
+       #33 — un day absent ou non numérique donnait "NaN-NaN-NaN", et depuis
+       #16 la date *est* l'identité du log : les séances n'étaient pas mal
+       étiquetées, elles devenaient introuvables par findLog et non triables
+       par history(). Une plage, pas un test d'analyse : day: 99 produit une
+       vraie date, quatorze semaines plus loin.
+       Note : App.jsx compare encore ce champ à today.getDay() (0 = dimanche),
+       ce qui ne coïncide avec l'offset que si startDate tombe un lundi. La
+       plage retenue est correcte sous les deux conventions pour 1-6 ; la
+       contradiction elle-même est une issue à part (design.md, suivis). */
+    if (!Number.isInteger(session.day) || session.day < 1 || session.day > 7) {
+      return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].day (entier de 1 à 7 attendu)` };
+    }
     if (!(session.warm in WARM)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].warm : « ${session.warm} » n'est pas une clé de program.WARM.` };
     if (!(session.core in CORE)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].core : « ${session.core} » n'est pas une clé de program.CORE.` };
     if (!Array.isArray(session.ex)) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].ex (tableau attendu)` };

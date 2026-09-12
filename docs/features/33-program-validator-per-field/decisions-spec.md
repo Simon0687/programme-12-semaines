@@ -118,10 +118,14 @@ So a Sunday session cannot be expressed correctly at all, and any program whose
 
 **Recommendation.** **C.** The corruption is the blocker; the convention clash is
 a real bug but a separate one, and folding a rendering change into the last issue
-before a release is how blockers slip. Rejecting `day: 0` and `day: 7` now is
-conservative in the right direction - both shipped programs use 1-6, and it
-prevents anyone from newly reaching the broken cases while the convention is
-settled.
+before a release is how blockers slip.
+
+*Corrected while implementing:* an earlier draft of this paragraph said to reject
+`day: 7` as well. That was wrong and the implementation does not do it. `day: 7`
+dates correctly under the offset convention - only the "Aujourd hui" line fails to
+announce it - whereas `day: 0` dates to the Sunday *before* the cycle. Rejecting a
+value that merely displays poorly would forbid a legitimate seven-day program for
+no gain. The range is 1-7.
 
 **Simon's decision.** **C** - enforce 1-7 now, the convention clash gets its own issue. Same reasoning: the corruption is the blocker, and folding a rendering fix into the last issue before a release is how releases slip (2026-09-12).
 
