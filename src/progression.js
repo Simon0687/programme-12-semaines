@@ -97,6 +97,27 @@ export function planned(prog, state, slotId, week, si, date) {
   if (kind === "deload" && base.kind !== "deload") { next = roundTo(next * 0.85, v.incr); why = "décharge −15 %"; }
   return { load: next, text: loadText(v, next), why };
 }
+/* Libellé de la dernière séance où l'exercice a été fait (#30).
+
+   Avant #16 un log portait son numéro de semaine de cycle et App.jsx affichait
+   « Dernière fois (S3, Haut B) ». La timeline datée a retiré `week` de ce que
+   renvoie history(), sans que l'affichage suive : la ligne rendait
+   « Dernière fois (Sundefined, Haut B) » dès la deuxième séance.
+
+   La date est aussi la bonne information à cet endroit, pas seulement celle
+   qui est disponible : deux passages du même programme ont chacun une « S3 »,
+   une date non — et « il y a combien de temps » est ce que le lecteur cherche.
+
+   Formaté depuis la chaîne ISO plutôt qu'en passant par parseLocalDate()
+   (src/definition.js) : progression.js n'importe rien, et cela doit le rester
+   (docs/ARCHITECTURE.md §1). */
+const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+
+export function lastEntryLabel(last) {
+  const [, m, d] = last.date.split("-");
+  return `${Number(d)} ${MONTHS[Number(m) - 1]}, ${last.session}`;
+}
+
 export function loadText(v, l) {
   if (l == null) return "—";
   if ((v.unit || "kg") === "bw") return l > 0 ? `PDC + ${fmt(l)} kg` : "Poids du corps";

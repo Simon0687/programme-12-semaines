@@ -5,7 +5,7 @@ import { parseJournalImport, parseProgramImport } from "./import.js";
 import { listBackups } from "./backup.js";
 import { createStore, loadJournal, saveJournal } from "./storage.js";
 import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
-import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, planned, computeKind } from "./progression.js";
+import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind } from "./progression.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
 import { LEGACY_DEFINITION } from "./legacy-program.js";
@@ -126,7 +126,7 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
         <span className="text-slate-100">Prévu : <span className="text-amber-400 font-medium">{plan.text}</span></span>
         {plan.why && <span className="text-slate-400"> — {plan.why}</span>}
       </div>
-      {last && <div className="text-sm text-slate-400">Dernière fois (S{last.week}, {last.session}) : {setSummary(last.sets, v)}</div>}
+      {last && <div className="text-sm text-slate-400">Dernière fois ({lastEntryLabel(last)}) : {setSummary(last.sets, v)}</div>}
 
       <button onClick={() => setOpen(!open)} className="mt-1 text-sm text-slate-400 inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-amber-400 rounded">
         Technique <ChevronDown size={14} className={open ? "rotate-180" : ""} />
