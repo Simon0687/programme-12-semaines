@@ -1,12 +1,18 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { START_DATE, STARTING_LOADS, PROFILE } from "../src/profile.js";
+import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 import { buildProgram } from "../src/program.js";
 
 /* Garde-fous pour l'extraction du profil (#5) : le refold des charges
    sur V, la date locale, et la forme de PROFILE. Ne fige pas les
-   valeurs éditables (charges, cibles), seulement les invariants. */
+   valeurs éditables (charges, cibles), seulement les invariants.
+
+   #26 : ces invariants se vérifient contre le programme hérité, pas contre
+   le bundle. Le mécanisme testé est le refold de `startingLoads` sur V — il
+   lui faut un programme qui en porte, et le bundle par défaut n'en aura
+   plus (decisions-spec.md, décision 4 : tout part de la rampe « Paliers »). */
+const { startDate: START_DATE, startingLoads: STARTING_LOADS, profile: PROFILE } = LEGACY_DEFINITION;
 
 describe("STARTING_LOADS refold sur V (buildProgram, #6)", () => {
   const { V } = buildProgram({ startingLoads: STARTING_LOADS });

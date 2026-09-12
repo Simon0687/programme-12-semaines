@@ -19,7 +19,7 @@
      { ok: false, reason: "corrupt" }   // JSON.parse a échoué (#10)
 
    ctx (#16) est transmis tel quel à migrate() : ce module ne sait pas ce
-   qu'il contient (aujourd'hui { defaultDefinition, buildProgram }, requis
+   qu'il contient (aujourd'hui { legacyDefinition, buildProgram }, requis
    dès qu'une migration traverse la v2), seul schema.js en connaît la forme.
    ========================================================= */
 
@@ -55,8 +55,13 @@ export async function loadJournal(store, key, ctx) {
 
   const { activeProgramId, programs } = res.data;
   /* Item 5 (#21) : un activeProgramId sans entrée dans programs plantait le
-     premier rendu sans message ; traité comme un autre cas "invalid". */
-  if (!programs[activeProgramId]) return { ok: false, reason: "invalid" };
+     premier rendu sans message ; traité comme un autre cas "invalid".
+     Depuis #26, une entrée sans définition est du même ordre : la migration
+     en écrit une pour tout journal qui arrive d'une version antérieure, donc
+     il n'en reste qu'en cas de journal trafiqué à la main — App.jsx lit
+     `active.definition` sans repli, justement pour ne pas réintroduire la
+     résolution implicite vers le bundle courant. */
+  if (!programs[activeProgramId] || !programs[activeProgramId].definition) return { ok: false, reason: "invalid" };
 
   const journal = { activeProgramId, programs };
   if (!res.migrated) return { ok: true, journal, migrated: false };

@@ -2,7 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import { buildProgram } from "../src/program.js";
-import { STARTING_LOADS } from "../src/profile.js";
+import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 import { planned, history, lastEntry, computeKind } from "../src/progression.js";
 import { dateForSlot } from "../src/schema.js";
 
@@ -21,7 +21,10 @@ import { dateForSlot } from "../src/schema.js";
    (dateForSlot/computeKind, #16) - so every expected value below stays
    exactly what it was before the migration to a dated timeline. */
 
-const prog = buildProgram({ startingLoads: STARTING_LOADS });
+/* #26 : la fixture nomme le programme hérité au lieu de lire le bundle. Toutes
+   les valeurs attendues de ce fichier ont été figées contre ce programme-là ;
+   les faire dépendre de « le défaut » les ferait basculer avec lui. */
+const prog = buildProgram(LEGACY_DEFINITION);
 const START = "2026-01-05"; // lundi, arbitraire - seule la cohérence interne à ce fichier compte
 
 /* ---- fixtures -------------------------------------------------------- */
