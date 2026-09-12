@@ -71,7 +71,7 @@ test("parseJournalImport : journal v1 (plat, sans schemaVersion) => ok, migré v
   assert.ok(res.data.activeProgramId);
   const logs = Object.values(res.data.programs[res.data.activeProgramId].logs);
   assert.equal(logs.length, 1);
-  assert.equal(logs[0].slot, "upperA");
+  assert.equal(logs[0].slot, "hautA");
   assert.equal(logs[0].done, true);
 });
 
