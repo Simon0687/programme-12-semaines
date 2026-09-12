@@ -1,0 +1,95 @@
+{
+  "formatVersion": 2,
+  "id": "upper-lower-4j",
+  "name": "Upper/Lower 4 jours",
+  "weeks": 12,
+  "startDate": "2026-09-14",
+  "startingLoads": {},
+  "program": {
+    "SLOTS": {
+      "press": { "reps": [5, 10], "rest": 150, "key": true, "b1": "dc_db", "b2": "dc_db" },
+      "pulldown": { "reps": [6, 10], "rest": 120, "key": true, "b1": "pd_wide", "b2": "pd_wide" },
+      "latraise": { "reps": [10, 12], "rest": 90, "fail": true, "b1": "lat_cable", "b2": "lat_db" },
+      "triceps": { "reps": [10, 12], "rest": 90, "fail": true, "b1": "pushdown", "b2": "pushdown_uni" },
+      "incline": { "reps": [8, 12], "rest": 120, "b1": "incl_db", "b2": "incl_mach" },
+      "row": { "reps": [6, 10], "rest": 120, "key": true, "b1": "row_cable", "b2": "row_cable" },
+      "ohp": { "reps": [6, 10], "rest": 150, "key": true, "b1": "ohp_db", "b2": "ohp_db" },
+      "reardelt": { "reps": [12, 15], "rest": 90, "fail": true, "b1": "rev_cable", "b2": "reardelt_db" },
+      "curl": { "reps": [8, 12], "rest": 90, "fail": true, "b1": "curl_db", "b2": "curl_cable" },
+      "quad1": { "reps": [6, 10], "rest": 180, "key": true, "b1": "hack", "b2": "hack" },
+      "hinge": { "reps": [8, 12], "rest": 120, "key": true, "b1": "cable_pullthrough", "b2": "cable_pullthrough" },
+      "calfstand": { "reps": [8, 12], "rest": 90, "fail": true, "b1": "calf_stand", "b2": "calf_press" },
+      "quad2": { "reps": [8, 12], "rest": 120, "b1": "legpress", "b2": "legpress" },
+      "legcurl": { "reps": [8, 12], "rest": 90, "fail": true, "b1": "lc_lying", "b2": "lc_seat" },
+      "calfseat": { "reps": [10, 15], "rest": 90, "fail": true, "b1": "calf_seat", "b2": "calf_seat" },
+      "crunch": { "reps": [8, 12], "rest": 60, "fail": true, "b1": "crunch", "b2": "crunch" },
+      "pallof": { "reps": [8, 12], "rest": 60, "b1": "pallof", "b2": "pallof" }
+    },
+    "SESSIONS": [
+      {
+        "id": "upperA",
+        "name": "Upper A",
+        "sub": "Pecs, dos, épaules, triceps",
+        "day": 1,
+        "warm": "upper",
+        "ex": [["press", 4], ["pulldown", 4], ["latraise", 3], ["triceps", 3]],
+        "core": "coreB"
+      },
+      {
+        "id": "lowerA",
+        "name": "Lower A",
+        "sub": "Quadriceps, chaîne postérieure, mollets",
+        "day": 2,
+        "warm": "lower",
+        "ex": [["quad1", 4], ["hinge", 3], ["calfstand", 3]],
+        "core": "coreA"
+      },
+      {
+        "id": "upperB",
+        "name": "Upper B",
+        "sub": "Dos, épaules, biceps",
+        "day": 4,
+        "warm": "upper",
+        "ex": [["incline", 3], ["row", 3], ["ohp", 2], ["reardelt", 3], ["curl", 3]],
+        "core": "coreB"
+      },
+      {
+        "id": "lowerB",
+        "name": "Lower B",
+        "sub": "Quadriceps, ischios, mollets",
+        "day": 5,
+        "warm": "lower",
+        "ex": [["quad2", 3], ["legcurl", 4], ["calfseat", 3]],
+        "core": "coreA"
+      }
+    ],
+    "CORE": {
+      "coreA": { "label": "Abdos — flexion chargée", "ex": [["crunch", 2]] },
+      "coreB": { "label": "Gainage anti-rotation", "ex": [["pallof", 1]] }
+    },
+    "WARM": {
+      "upper": "5–10 min : rotations externes à l'élastique 2 × 15 ; open book ou extension thoracique sur rouleau, 10 par côté ; glissés au mur 10 ; puis montée en charge sur le premier exercice : 50 % × 8, 70 % × 4, 85 % × 2.",
+      "lower": "5–10 min : cat-camel 10 ; 90/90 hanches 1 min par côté ; dorsiflexion cheville au mur 10 par côté ; pont fessier 15 ; puis montée en charge sur le premier exercice : 50 % × 6, 70 % × 4, 85 % × 2."
+    },
+    "cardio": null,
+    "volume": [
+      ["Pectoraux", "7", "Upper A 4 + Upper B 3"],
+      ["Dos", "7", "Upper A 4 + Upper B 3"],
+      ["Quadriceps", "7", "Lower A 4 + Lower B 3"],
+      ["Ischios et fessiers", "7", "Lower A 3 + Lower B 4"],
+      ["Delt latéraux", "3", "Upper A 3"],
+      ["Delt postérieurs", "3", "Upper B 3"],
+      ["Delt antérieurs", "2", "Upper B 2 (développé épaules) + les presses pecs"],
+      ["Biceps", "3", "Upper B 3"],
+      ["Triceps", "3", "Upper A 3"],
+      ["Mollets", "6", "Lower A 3 + Lower B 3"],
+      ["Abdos", "6", "Lower A 2 + Lower B 2 + 1 gainage à chaque séance haute"]
+    ],
+    "fallback": [
+      "3 séances : Upper A, Lower A, plus une séance haute fusionnée (rowing 3, développé épaules 2, curl 2, oiseau 2).",
+      "2 séances : une séance haute (développé 4, tirage vertical 4, élévations latérales 3) et une séance basse (hack squat 4, leg curl 3, mollets 3).",
+      "1 séance : full body — développé 3, tirage vertical 3, presse à cuisses 3, leg curl 2, abdos 2.",
+      "On ne rattrape jamais la semaine suivante, on reprend le plan. Si une semaine a été réduite, la suivante recommence par Upper A."
+    ]
+  }
+}

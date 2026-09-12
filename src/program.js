@@ -22,13 +22,6 @@ import { EXERCISES } from "./registry.js";
 import { cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./cardio.js";
 import { DEFAULT_DEFINITION } from "./default-program.js";
 
-/* ---------- Variantes, structure et cardio du programme par défaut ----------
-   Extraits dans src/registry.js, src/cardio.js et src/default-program.js
-   (#25). Re-exportés ici sous les anciens noms pour une version, le temps
-   qu'aucun import ne cible plus program.js pour ces données — suppression
-   en follow-up. */
-export { EXERCISES as BASE_V } from "./registry.js";
-export { SLOTS, SESSIONS, CORE, WARM } from "./default-program.js";
 export { cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./cardio.js";
 
 /* ---------- Construction du bundle actif (#6, #25) ----------
