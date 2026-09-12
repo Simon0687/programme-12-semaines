@@ -14,7 +14,7 @@
    ========================================================= */
 
 import { migrate } from "./schema.js";
-import { DEFINITION_FORMAT_VERSION, parseLocalDate } from "./definition.js";
+import { DEFAULT_DEFINITION, DEFINITION_FORMAT_VERSION, parseLocalDate } from "./definition.js";
 import { EXERCISE_IDS } from "./registry.js";
 
 export const IMPORT_MESSAGES = {
@@ -177,27 +177,29 @@ export function parseProgramImport(text) {
     if (parsed.formatVersion > DEFINITION_FORMAT_VERSION) return reject("too-new");
   }
 
-  for (const field of ["id", "startDate", "profile", "startingLoads"]) {
+  for (const field of ["id", "startDate", "startingLoads"]) {
     if (parsed[field] == null) return reject("missing-field", `Champ manquant : ${field}`);
   }
   if (typeof parsed.id !== "string" || parsed.id === "") {
     return reject("invalid-field", "Champ invalide : id (chaîne non vide attendue)");
   }
 
-  const p = parsed.profile;
-  if (typeof p !== "object" || Array.isArray(p)) return reject("invalid-field", "Champ invalide : profile (objet attendu)");
-  for (const field of ["maintenanceKcal", "startKcal"]) {
-    if (p[field] == null) return reject("missing-field", `Champ manquant : profile.${field}`);
-    if (!isNum(p[field])) return reject("invalid-field", `Champ invalide : profile.${field} (nombre attendu)`);
-  }
-  if (p.macros == null) return reject("missing-field", "Champ manquant : profile.macros");
-  for (const k of ["p", "f", "c"]) {
-    if (p.macros[k] == null) return reject("missing-field", `Champ manquant : profile.macros.${k}`);
-    if (!isNum(p.macros[k])) return reject("invalid-field", `Champ invalide : profile.macros.${k} (nombre attendu)`);
-  }
-  if (p.targetWeightKg == null) return reject("missing-field", "Champ manquant : profile.targetWeightKg");
-  if (!Array.isArray(p.targetWeightKg) || p.targetWeightKg.length < 2 || !p.targetWeightKg.slice(0, 2).every(isNum)) {
-    return reject("invalid-field", "Champ invalide : profile.targetWeightKg (deux nombres attendus)");
+  const p = parsed.profile ?? DEFAULT_DEFINITION.profile;
+  if (parsed.profile != null) {
+    if (typeof p !== "object" || Array.isArray(p)) return reject("invalid-field", "Champ invalide : profile (objet attendu)");
+    for (const field of ["maintenanceKcal", "startKcal"]) {
+      if (p[field] == null) return reject("missing-field", `Champ manquant : profile.${field}`);
+      if (!isNum(p[field])) return reject("invalid-field", `Champ invalide : profile.${field} (nombre attendu)`);
+    }
+    if (p.macros == null) return reject("missing-field", "Champ manquant : profile.macros");
+    for (const k of ["p", "f", "c"]) {
+      if (p.macros[k] == null) return reject("missing-field", `Champ manquant : profile.macros.${k}`);
+      if (!isNum(p.macros[k])) return reject("invalid-field", `Champ invalide : profile.macros.${k} (nombre attendu)`);
+    }
+    if (p.targetWeightKg == null) return reject("missing-field", "Champ manquant : profile.targetWeightKg");
+    if (!Array.isArray(p.targetWeightKg) || p.targetWeightKg.length < 2 || !p.targetWeightKg.slice(0, 2).every(isNum)) {
+      return reject("invalid-field", "Champ invalide : profile.targetWeightKg (deux nombres attendus)");
+    }
   }
 
   if (parsed.weeks !== 12) {
@@ -213,5 +215,5 @@ export function parseProgramImport(text) {
     if (!EXERCISE_IDS.has(vid)) return reject("unknown-exercise", `startingLoads : « ${vid} » n'est pas un exercice du registre.`);
   }
 
-  return { ok: true, definition: { ...parsed, name: parsed.name ?? parsed.id } };
+  return { ok: true, definition: { ...parsed, profile: parsed.profile ?? DEFAULT_DEFINITION.profile, name: parsed.name ?? parsed.id } };
 }

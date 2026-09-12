@@ -85,12 +85,12 @@ test("migrate : journal v1 (plat) migré vers v3, séances datées sous le progr
   assert.equal(active.definition, null); // null => programme fourni avec l'appli
   const logs = Object.values(active.logs);
   assert.equal(logs.length, 2);
-  const hautA = logs.find((l) => l.slot === "hautA");
-  assert.equal(hautA.kind, "calibration"); // semaine 1
-  assert.equal(hautA.done, true);
-  const basA = logs.find((l) => l.slot === "basA");
-  assert.equal(basA.kind, "deload"); // semaine 7
-  assert.deepEqual(basA.ex, { squat: [{ w: "80", r: "5", rir: "2" }] });
+  const upperA = logs.find((l) => l.slot === "upperA");
+  assert.equal(upperA.kind, "calibration"); // semaine 1
+  assert.equal(upperA.done, true);
+  const lowerA = logs.find((l) => l.slot === "lowerA");
+  assert.equal(lowerA.kind, "deload"); // semaine 7
+  assert.deepEqual(lowerA.ex, { squat: [{ w: "80", r: "5", rir: "2" }] });
   assert.deepEqual(active.cardio, input.cardio); // #16 ne touche pas cardio/checkin (#29)
   assert.deepEqual(active.checkin, input.checkin);
 });
@@ -103,7 +103,7 @@ test("migrate : journal non versionné (v1 implicite) migré vers v3", () => {
   assert.equal(res.data.schemaVersion, SCHEMA_VERSION);
   const logs = Object.values(res.data.programs[DEFAULT_PROGRAM_ID].logs);
   assert.equal(logs.length, 1);
-  assert.equal(logs[0].slot, "hautA");
+  assert.equal(logs[0].slot, "upperA");
   assert.equal(logs[0].date, "2026-09-07"); // startDate par défaut, semaine 1 jour 1
 });
 

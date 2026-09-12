@@ -19,6 +19,18 @@ export const SCHEMA_VERSION = 3;
    chargé. Sert de clé dans `programs` pour le journal migré depuis la v1. */
 export const DEFAULT_PROGRAM_ID = "simon-12s-2026-09";
 
+/* Compatibilité des anciens ids de séances (#16, #26) : le split a changé de
+   « haut/bas » vers « upper/lower », mais les journaux historiques doivent
+   continuer à migrer sans perdre les données. */
+export const LEGACY_SLOT_ALIASES = {
+  hautA: "upperA",
+  basA: "lowerA",
+  hautB: "upperB",
+  hautC: "upperB",
+  basB: "lowerB",
+};
+export const canonicalSlotId = (slot) => LEGACY_SLOT_ALIASES[slot] || slot;
+
 /* Objet à écrire dans le stockage / l'export : l'enveloppe multi-programme
    au complet, schemaVersion frère d'activeProgramId/programs (#6). */
 export const withVersion = (journal) => ({ schemaVersion: SCHEMA_VERSION, activeProgramId: journal.activeProgramId, programs: journal.programs });
@@ -71,8 +83,10 @@ export const dateForSlot = (startDateIso, week, day) => {
    suivantes (onSet répétés avant validation, reopen, etc.) — comportement
    équivalent à l'ancienne clé stable w{week}_{sessionId} pour la même
    session tant que la semaine parcourue ne change pas. */
-export const findLog = (logs, date, slot) =>
-  Object.values(logs).find((r) => r.date === date && r.slot === slot) || null;
+export const findLog = (logs, date, slot) => {
+  const key = canonicalSlotId(slot);
+  return Object.values(logs).find((r) => r.date === date && (r.slot === slot || r.slot === key || canonicalSlotId(r.slot) === key)) || null;
+};
 
 export const writeLog = (logs, date, slot, patch) => {
   const existing = findLog(logs, date, slot);
@@ -126,13 +140,16 @@ function migrateLogsV2ToV3(logs, startDate, dayBySlot) {
   const out = {};
   for (const [key, entry] of Object.entries(logs || {})) {
     const m = /^w(\d+)_(.+)$/.exec(key);
-    const day = m && dayBySlot[m[2]];
-    if (!m || day == null) throw new Error(`clé de log non reconnue : ${key}`);
+    if (!m) throw new Error(`clé de log non reconnue : ${key}`);
+    const rawSlot = m[2];
+    const slot = canonicalSlotId(rawSlot);
+    const day = dayBySlot[slot];
+    if (day == null) throw new Error(`clé de log non reconnue : ${key}`);
     const week = Number(m[1]);
     const kind = entry.done ? (week === 1 ? "calibration" : week === 7 ? "deload" : "normal") : null;
     const id = genId();
     out[id] = {
-      id, date: dateForSlot(startDate, week, day), slot: m[2], kind,
+      id, date: dateForSlot(startDate, week, day), slot, kind,
       ex: entry.ex || {}, notes: entry.notes || "", done: !!entry.done,
       updatedAt: nowIso(), deletedAt: null, schemaVersion: SCHEMA_VERSION,
     };

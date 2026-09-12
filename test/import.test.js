@@ -71,7 +71,7 @@ test("parseJournalImport : journal v1 (plat, sans schemaVersion) => ok, migré v
   assert.ok(res.data.activeProgramId);
   const logs = Object.values(res.data.programs[res.data.activeProgramId].logs);
   assert.equal(logs.length, 1);
-  assert.equal(logs[0].slot, "hautA");
+  assert.equal(logs[0].slot, "upperA");
   assert.equal(logs[0].done, true);
 });
 
@@ -110,13 +110,21 @@ test("parseProgramImport : JSON valide mais aucun champ de programme => not-a-pr
 });
 
 test("parseProgramImport : champ requis manquant => missing-field", () => {
-  for (const field of ["id", "startDate", "profile", "startingLoads"]) {
+  for (const field of ["id", "startDate", "startingLoads"]) {
     const def = minimalDefinition();
     delete def[field];
     const res = parseProgramImport(JSON.stringify(def));
     assert.equal(res.ok, false);
     assert.equal(res.reason, "missing-field", field);
   }
+});
+
+test("parseProgramImport : profile nutrition absent => accepte la définition et remplace par le profil par défaut (#27)", () => {
+  const def = { ...minimalDefinition() };
+  delete def.profile;
+  const res = parseProgramImport(JSON.stringify(def));
+  assert.equal(res.ok, true);
+  assert.deepEqual(res.definition.profile, DEFAULT_DEFINITION.profile);
 });
 
 test("parseProgramImport : sous-champ de profile lu par buildPlan absent => missing-field (#20)", () => {
