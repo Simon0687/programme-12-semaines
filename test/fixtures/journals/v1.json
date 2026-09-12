@@ -1,0 +1,76 @@
+{
+  "logs": {
+    "w1_hautA": {
+      "ex": {
+        "dc": [
+          {
+            "w": 60,
+            "r": 8,
+            "rir": 2
+          },
+          {
+            "w": 60,
+            "r": 7,
+            "rir": 1
+          }
+        ],
+        "incl_db": [
+          {
+            "w": 22,
+            "r": 10,
+            "rir": 2
+          }
+        ]
+      },
+      "notes": "premiere seance",
+      "done": true,
+      "date": "2026-09-06"
+    },
+    "w2_hautA": {
+      "ex": {
+        "dc": [
+          {
+            "w": 60,
+            "r": 8,
+            "rir": 2
+          },
+          {
+            "w": 60,
+            "r": 7,
+            "rir": 1
+          }
+        ],
+        "incl_db": [
+          {
+            "w": 22,
+            "r": 10,
+            "rir": 2
+          }
+        ]
+      },
+      "notes": "",
+      "done": true,
+      "date": "2026-09-14"
+    }
+  },
+  "cardio": {
+    "w1": {
+      "z2": {
+        "done": true,
+        "min": 30
+      },
+      "mob": [
+        true,
+        false,
+        true
+      ]
+    }
+  },
+  "checkin": {
+    "w1": {
+      "poids": "78.5",
+      "sommeil": "4",
+      "douleurs": "non"
+    }
+  }
+}

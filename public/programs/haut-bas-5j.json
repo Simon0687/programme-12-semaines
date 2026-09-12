@@ -1,0 +1,528 @@
+{
+  "formatVersion": 2,
+  "id": "simon-12s-2026-09",
+  "name": "Haut/Bas 5 jours — définition musculaire et condition",
+  "weeks": 12,
+  "startDate": "2026-09-07",
+  "profile": {
+    "bodyweightKg": 90,
+    "heightCm": 193,
+    "birthdate": "1987-06-18",
+    "maintenanceKcal": 3150,
+    "startKcal": 3400,
+    "macros": {
+      "p": 185,
+      "f": 85,
+      "c": 470
+    },
+    "targetWeightKg": [
+      92.5,
+      93.5
+    ]
+  },
+  "startingLoads": {
+    "dc": 72.5,
+    "incl_db": 30,
+    "squat": 105,
+    "ohp_db": 26,
+    "pullup": 0,
+    "pd_close": 90
+  },
+  "program": {
+    "SLOTS": {
+      "dc": {
+        "reps": [
+          4,
+          8
+        ],
+        "rest": 150,
+        "key": true,
+        "b1": "dc",
+        "b2": "dc"
+      },
+      "incline": {
+        "reps": [
+          6,
+          10
+        ],
+        "rest": 120,
+        "b1": "incl_db",
+        "b2": "incl_mach"
+      },
+      "latraise": {
+        "reps": [
+          8,
+          12
+        ],
+        "rest": 90,
+        "fail": true,
+        "key": true,
+        "b1": "lat_db",
+        "b2": "lat_cable"
+      },
+      "reardelt": {
+        "reps": [
+          10,
+          12
+        ],
+        "rest": 90,
+        "fail": true,
+        "b1": "rpd",
+        "b2": "rev_cable"
+      },
+      "tristretch": {
+        "reps": [
+          8,
+          12
+        ],
+        "rest": 90,
+        "b1": "tri_oh",
+        "b2": "skull"
+      },
+      "squat": {
+        "reps": [
+          4,
+          8
+        ],
+        "rest": 180,
+        "key": true,
+        "b1": "squat",
+        "b2": "squat"
+      },
+      "legcurl": {
+        "reps": [
+          8,
+          12
+        ],
+        "rest": 90,
+        "fail": true,
+        "b1": "lc_seat",
+        "b2": "lc_lying"
+      },
+      "calfstand": {
+        "reps": [
+          8,
+          12
+        ],
+        "rest": 90,
+        "fail": true,
+        "b1": "calf_stand",
+        "b2": "calf_press"
+      },
+      "pull": {
+        "reps": [
+          4,
+          8
+        ],
+        "rest": 150,
+        "key": true,
+        "b1": "pullup",
+        "b2": "pd_wide"
+      },
+      "row": {
+        "reps": [
+          6,
+          10
+        ],
+        "rest": 120,
+        "b1": "row_supp",
+        "b2": "row_cable"
+      },
+      "curl2": {
+        "reps": [
+          6,
+          10
+        ],
+        "rest": 90,
+        "b1": "curl_cable",
+        "b2": "curl_db"
+      },
+      "ohp": {
+        "reps": [
+          6,
+          10
+        ],
+        "rest": 150,
+        "key": true,
+        "b1": "ohp_db",
+        "b2": "ohp_mach"
+      },
+      "curl1": {
+        "reps": [
+          6,
+          10
+        ],
+        "rest": 90,
+        "fail": true,
+        "b1": "curl_preacher",
+        "b2": "curl_cable_seat"
+      },
+      "pushdown": {
+        "reps": [
+          8,
+          12
+        ],
+        "rest": 90,
+        "fail": true,
+        "b1": "pushdown",
+        "b2": "pushdown_uni"
+      },
+      "fly": {
+        "reps": [
+          8,
+          12
+        ],
+        "rest": 90,
+        "fail": true,
+        "b1": "pecdeck",
+        "b2": "fly_cable"
+      },
+      "hipthrust": {
+        "reps": [
+          6,
+          10
+        ],
+        "rest": 150,
+        "key": true,
+        "b1": "hipthrust",
+        "b2": "hipthrust"
+      },
+      "quad2": {
+        "reps": [
+          8,
+          12
+        ],
+        "rest": 120,
+        "fail": true,
+        "b1": "legpress",
+        "b2": "hack"
+      },
+      "pullsag": {
+        "reps": [
+          6,
+          10
+        ],
+        "rest": 120,
+        "b1": "pd_close",
+        "b2": "row_uni"
+      },
+      "calfseat": {
+        "reps": [
+          10,
+          12
+        ],
+        "rest": 90,
+        "fail": true,
+        "b1": "calf_seat",
+        "b2": "calf_seat"
+      },
+      "crunch": {
+        "reps": [
+          8,
+          12
+        ],
+        "rest": 60,
+        "fail": true,
+        "b1": "crunch",
+        "b2": "crunch"
+      },
+      "pallof": {
+        "reps": [
+          8,
+          12
+        ],
+        "rest": 60,
+        "b1": "pallof",
+        "b2": "pallof"
+      },
+      "hlr": {
+        "reps": [
+          8,
+          12
+        ],
+        "rest": 60,
+        "b1": "hlr",
+        "b2": "hlr"
+      },
+      "sideplank": {
+        "reps": [
+          20,
+          40
+        ],
+        "rest": 60,
+        "b1": "sideplank",
+        "b2": "sideplank"
+      },
+      "abwheel": {
+        "reps": [
+          6,
+          10
+        ],
+        "rest": 60,
+        "b1": "abwheel",
+        "b2": "abwheel"
+      },
+      "carry": {
+        "reps": [
+          30,
+          45
+        ],
+        "rest": 60,
+        "b1": "carry",
+        "b2": "carry"
+      }
+    },
+    "SESSIONS": [
+      {
+        "id": "hautA",
+        "name": "Haut A",
+        "sub": "Pecs, épaules, triceps",
+        "day": 1,
+        "warm": "upper",
+        "ex": [
+          [
+            "dc",
+            3
+          ],
+          [
+            "incline",
+            3
+          ],
+          [
+            "latraise",
+            2
+          ],
+          [
+            "reardelt",
+            2
+          ],
+          [
+            "tristretch",
+            2
+          ]
+        ],
+        "core": "coreA"
+      },
+      {
+        "id": "basA",
+        "name": "Bas A",
+        "sub": "Squat, ischios, mollets",
+        "day": 2,
+        "warm": "lower",
+        "ex": [
+          [
+            "squat",
+            3
+          ],
+          [
+            "legcurl",
+            3
+          ],
+          [
+            "calfstand",
+            3
+          ]
+        ],
+        "core": "coreB",
+        "after": "mob"
+      },
+      {
+        "id": "hautB",
+        "name": "Haut B",
+        "sub": "Dos, delt postérieurs, biceps",
+        "day": 3,
+        "warm": "upper",
+        "ex": [
+          [
+            "pull",
+            3
+          ],
+          [
+            "row",
+            2
+          ],
+          [
+            "reardelt",
+            2
+          ],
+          [
+            "curl2",
+            2
+          ]
+        ],
+        "core": "coreC",
+        "after": "z2"
+      },
+      {
+        "id": "hautC",
+        "name": "Haut C",
+        "sub": "Épaules et bras",
+        "day": 5,
+        "warm": "upper",
+        "ex": [
+          [
+            "latraise",
+            3
+          ],
+          [
+            "ohp",
+            3
+          ],
+          [
+            "curl1",
+            3
+          ],
+          [
+            "pushdown",
+            3
+          ],
+          [
+            "fly",
+            2
+          ]
+        ],
+        "core": "coreA"
+      },
+      {
+        "id": "basB",
+        "name": "Bas B",
+        "sub": "Hip thrust, presse, dos sagittal, mollets",
+        "day": 6,
+        "warm": "lower",
+        "ex": [
+          [
+            "hipthrust",
+            3
+          ],
+          [
+            "quad2",
+            2
+          ],
+          [
+            "pullsag",
+            2
+          ],
+          [
+            "calfseat",
+            3
+          ]
+        ],
+        "core": "coreB"
+      }
+    ],
+    "CORE": {
+      "coreA": {
+        "label": "Abdos A — flexion chargée + anti-rotation",
+        "ex": [
+          [
+            "crunch",
+            2
+          ],
+          [
+            "pallof",
+            2
+          ]
+        ]
+      },
+      "coreB": {
+        "label": "Abdos B — relevé de jambes + anti-flexion latérale",
+        "ex": [
+          [
+            "hlr",
+            2
+          ],
+          [
+            "sideplank",
+            2
+          ]
+        ]
+      },
+      "coreC": {
+        "label": "Abdos C — anti-extension + portés",
+        "ex": [
+          [
+            "abwheel",
+            2
+          ],
+          [
+            "carry",
+            2
+          ]
+        ]
+      }
+    },
+    "WARM": {
+      "upper": "5–10 min : rotations externes à l'élastique 2 × 15 ; open book ou extension thoracique sur rouleau, 10 par côté ; glissés au mur 10 ; puis montée en charge sur le premier exercice : 50 % × 8, 70 % × 4, 85 % × 2.",
+      "lower": "5–10 min : cat-camel 10 ; 90/90 hanches 1 min par côté ; dorsiflexion cheville au mur 10 par côté ; pont fessier 15 ; McGill court (curl-up 5, planche latérale 15 s par côté, bird dog 5 par côté) ; montée en charge sur le squat ou le hip thrust : 50 % × 6, 70 % × 4, 85 % × 2."
+    },
+    "cardio": "default",
+    "volume": [
+      [
+        "Delt latéraux",
+        "5",
+        "Haut A 2 + Haut C 3"
+      ],
+      [
+        "Delt postérieurs",
+        "4",
+        "Haut A 2 + Haut B 2"
+      ],
+      [
+        "Delt antérieurs",
+        "3",
+        "Haut C 3 (développé assis) + les presses pecs"
+      ],
+      [
+        "Pecs",
+        "8",
+        "Haut A 6 (couché 3, incliné 3) + Haut C 2 (pec deck)"
+      ],
+      [
+        "Biceps",
+        "5",
+        "Haut B 2 + Haut C 3"
+      ],
+      [
+        "Triceps",
+        "5",
+        "Haut A 2 + Haut C 3"
+      ],
+      [
+        "Dos",
+        "7",
+        "Haut B 5 (tractions 3, rowing 2) + Bas B 2 (tirage serré)"
+      ],
+      [
+        "Quadriceps",
+        "5",
+        "Bas A 3 (squat) + Bas B 2 (presse)"
+      ],
+      [
+        "Ischios et fessiers",
+        "6",
+        "Bas A 3 (leg curl) + Bas B 3 (hip thrust)"
+      ],
+      [
+        "Mollets",
+        "6",
+        "Bas A 3 + Bas B 3"
+      ],
+      [
+        "Abdos chargés",
+        "10",
+        "2 séries à chaque séance (crunch, relevé de jambes, ab wheel)"
+      ],
+      [
+        "Gainage anti-mouvement",
+        "10",
+        "2 séries à chaque séance (Pallof, planche latérale, carry) + McGill en mobilité"
+      ]
+    ],
+    "fallback": [
+      "4 séances : Haut A, Haut B, Haut C, plus une seule séance jambes fusionnée (squat 3, hip thrust 2, leg curl 2, mollets 3, abdos B).",
+      "3 séances : Haut A, Haut C, plus « tirage + jambes » (tractions 3, rowing appuyé 2, squat 3, leg curl 2, mollets 2, abdos B).",
+      "2 séances : Haut C, plus un full body (squat 3, tractions 3, développé couché 3, élévations latérales 2, leg curl 2, abdos A).",
+      "On ne rattrape jamais la semaine suivante, on reprend le plan. Les groupes prioritaires ne sautent pas deux semaines de suite : si une semaine a été réduite, la suivante commence par Haut C."
+    ]
+  }
+}

@@ -13,7 +13,17 @@ idea → issue → branch → local dev → commit → push → Netlify preview 
 Every change starts with an issue, however small. That's what gives traceability: six months from now, `git log` explains *what* changed, the issue explains *why*.
 
 - **Milestone** = epic. A milestone groups the issues of one body of work.
-- **Labels**: type (`feat`, `fix`, `chore`, `refactor`, `test`, `docs`) and priority where useful.
+- **Labels**: type (`feat`, `fix`, `chore`, `refactor`, `test`, `docs`) and one priority.
+
+  Priority says *when* an issue gets done, not how important it feels. It is
+  re-evaluated at each merge into `dev`, alongside the Project status.
+
+  | Label | Meaning |
+  |---|---|
+  | `priority: high` | Lands before the next release to `main`: data loss or corruption, a crash, or a regression on shipped behaviour. Worked first. |
+  | `priority: medium` | Next up once `main` is current: it unblocks another planned issue, or removes a real risk without being a bug. Worked in the order the Project shows. |
+  | `priority: low` | Useful, but nothing waits on it: taken at the end of a batch, or when a neighbouring change already touches the same code. |
+  | `priority: later` | Not actionable yet: it needs unfinished major work (a storage migration, another issue) or a product decision first. Do not start it; re-label when the blocker lands. |
 - Describe the problem before the solution. Acceptance criteria prevent a vague "done".
 
 ## 2. Work
@@ -116,6 +126,18 @@ This application's compatibility contract is not an API: it is **the journal for
 | **MAJOR** (x.0.0) | Journal format changes, migration required | move to multi-program |
 
 When torn between MINOR and MAJOR, ask: *does a journal saved by the previous version load without loss?* If not, it's a major.
+
+### Pre-migration backups
+
+Before the app rewrites a journal that was just migrated to the current schema, it copies the original, untouched, under a separate key:
+
+```
+prog12_simon_v1_backup_pre<N>
+```
+
+`<N>` is the `schemaVersion` the journal had *before* migrating — a journal migrated from v1 leaves its original at `prog12_simon_v1_backup_pre1`. Written once per source version, never overwritten, never read automatically.
+
+**To recover:** open the Plan tab's "Données" section — a button appears for each backup found ("Afficher la sauvegarde d'avant-migration (vN)"), dumping the raw original into the visible textarea, ready to copy off the phone. Without the app, the key is readable directly from `localStorage` in devtools.
 
 ## What we don't do
 
