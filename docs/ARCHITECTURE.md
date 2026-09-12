@@ -109,6 +109,25 @@ program therefore never collide, and `kind` (`calibration` / `deload` /
 Cardio and weekly check-in still use `weekKey(week)`. That is a known exception,
 tracked by #29, not a second convention worth copying.
 
+Two consequences the format has to guarantee, both enforced by the validator
+since #33:
+
+- **`SESSIONS[].id` must be unique within a program.** `findLog` returns the
+  first match, so a duplicate id makes the second session unreachable - the
+  failure that sank the first #26 attempt.
+- **`day` must be an integer in 1-7**, because `dateForSlot` reads it as a
+  1-based offset from `startDate`. Anything else produced `"NaN-NaN-NaN"`, and
+  since the date *is* the identity, those rows were unreachable rather than
+  merely mislabelled.
+
+**Known contradiction, not yet resolved:** `App.jsx` matches today's session with
+`SESSIONS[].day === today.getDay()`, where Sunday is `0` - a different convention
+from the offset `dateForSlot` uses. The two agree only because both shipped
+programs start on a Monday. A program starting mid-week has its whole calendar
+mapping shifted, and a Sunday session cannot be expressed correctly. Documented
+in `docs/features/33-program-validator-per-field/decisions-spec.md` Q2; it needs
+its own issue before a generated program can start on any other day.
+
 ### 2.4 Frontiers return verdicts; they do not throw
 
 Every boundary that accepts foreign data - stored JSON, a pasted journal, a
@@ -118,9 +137,12 @@ throwing migration step and turns it into `{ ok: false, invalid: true }` for the
 same reason: no caller should need its own `try`/`catch` to stay closed by
 default.
 
-**One violation remains**, tracked: a malformed `session.ex` can throw out of
-`validateProgram` (#33). It is a bug against this rule, not an exception to it.
-The stored-journal half was closed by #32 - see 2.9.
+**No violation remains.** #32 closed the stored-journal half (see 2.9) and #33
+closed the last one: `validateProgram` destructures no pair it has not checked
+first, so it returns a verdict for any JSON input. The invariant is exercised,
+not merely asserted - `test/journal-shape.test.js` runs every validator over
+deliberately malformed programs, which is what the earlier version of that suite
+failed to do.
 
 ### 2.5 The exercise registry is closed
 

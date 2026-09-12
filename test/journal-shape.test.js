@@ -13,6 +13,13 @@ import { AFTER_KINDS } from "../src/cardio.js";
 const entry = (over = {}) => ({ definition: LEGACY_DEFINITION, logs: {}, cardio: {}, checkin: {}, ...over });
 const row = (over = {}) => ({ id: "r", date: "2026-09-07", slot: "hautA", ex: {}, done: true, ...over });
 
+/* Programmes dérivés du programme hérité, pour les contrôles par champ (#33).
+   Déclarés ici plutôt qu'à leur section : la liste absurd du dernier describe
+   les utilise, et ne pas dépendre de l'ordre d'exécution des suites tient mieux. */
+const prog = (mut) => { const d = JSON.parse(JSON.stringify(BASE)); mut(d.program); return d.program; };
+const firstSlot = () => Object.keys(BASE.program.SLOTS)[0];
+const firstCore = () => Object.keys(BASE.program.CORE)[0];
+
 describe("validateEnvelope", () => {
   test("accepte une enveloppe complète", () => {
     assert.equal(validateEnvelope({ activeProgramId: "p1", programs: { p1: entry() } }), null);
@@ -157,9 +164,6 @@ describe("aucune fonction ne lève, pour aucune entrée", () => {
    -------------------------------------------------------------- */
 
 
-const prog = (mut) => { const d = JSON.parse(JSON.stringify(BASE)); mut(d.program); return d.program; };
-const firstSlot = () => Object.keys(BASE.program.SLOTS)[0];
-const firstCore = () => Object.keys(BASE.program.CORE)[0];
 
 describe("validateProgram : paires [slot, séries] (#33)", () => {
   for (const [label, mut] of [

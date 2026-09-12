@@ -422,12 +422,24 @@ export default function Programme() {
     e.target.value = ""; // permet de recharger le même fichier une deuxième fois
     if (!file) return;
     const reader = new FileReader();
+    /* Le try/catch n'est pas décoratif (#33) : une exception levée ici part
+       dans un gestionnaire d'événement, donc setProgramError ne s'exécute
+       jamais et le panneau reste muet — l'utilisateur a chargé un fichier et
+       il ne se passe rien, sans un mot. Le validateur ne lève plus, mais une
+       lacune future doit dégrader en message, pas en silence. */
     reader.onload = () => {
-      const res = parseProgramImport(String(reader.result));
+      let res;
+      try {
+        res = parseProgramImport(String(reader.result));
+      } catch (e) {
+        setProgramError("Ce fichier n'a pas pu être lu.");
+        return;
+      }
       if (!res.ok) { setProgramError(res.message); return; }
       setProgramError("");
       loadProgram(res.definition);
     };
+    reader.onerror = () => setProgramError("Ce fichier n'a pas pu être lu.");
     reader.readAsText(file);
   };
 

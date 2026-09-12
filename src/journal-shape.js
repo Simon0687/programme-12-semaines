@@ -22,7 +22,12 @@
    jamais un jugement sur le contenu.
 
    Ne lève jamais, pour aucune entrée : c'est l'invariant qui permet à
-   loadJournal() de rester fermé par défaut sans try/catch (#32).
+   loadJournal() de rester fermé par défaut sans try/catch (#32). Il n'a
+   été tenu qu'à partir de #33 — avant, une paire mal formée dans
+   SESSIONS[].ex levait, et depuis que #32 branche ce module dans le
+   chargement, ce jeté bloquait l'appli sur son spinner. La suite
+   test/journal-shape.test.js l'éprouve désormais sur de vrais programmes
+   déformés, pas seulement sur des valeurs absurdes.
    ========================================================= */
 
 import { EXERCISE_IDS } from "./registry.js";
