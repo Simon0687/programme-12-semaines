@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { buildProgram } from "../src/program.js";
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
-import { planned, history, lastEntry, computeKind } from "../src/progression.js";
+import { planned, history, lastEntry, lastEntryLabel, computeKind } from "../src/progression.js";
 import { dateForSlot } from "../src/schema.js";
 
 /* Pins the behaviour of planned() as it shipped in 1.0.0, before #3-#6
@@ -341,5 +341,39 @@ describe("history / lastEntry", () => {
     );
     const entry = lastEntry(prog, st, "lat_db", dateOf(4, "hautA"), si("hautA"));
     assert.equal(entry.date, dateOf(2, "hautA"));
+  });
+});
+
+/* #30 : la régression avait pu être livrée parce que rien ne couvrait le chemin
+   entre lastEntry() et le texte affiché — history() a cessé de renvoyer `week`
+   avec #16, et « S{last.week} » a silencieusement rendu « Sundefined ». Les
+   deux derniers tests ferment ce chemin. */
+describe("lastEntryLabel (#30)", () => {
+  test("formate la date réelle et le nom de la séance", () => {
+    assert.equal(lastEntryLabel({ date: "2026-09-23", session: "Haut B" }), "23 sept., Haut B");
+  });
+
+  test("jour sur un chiffre : pas de zéro de tête", () => {
+    assert.equal(lastEntryLabel({ date: "2026-01-05", session: "Haut A" }), "5 janv., Haut A");
+  });
+
+  test("de lastEntry() au texte affiché : aucun champ manquant", () => {
+    const st = S(
+      { week: 2, sid: "hautA", vid: "lat_db", sets: [set(10, 12, 1)] },
+      { week: 4, sid: "hautA", vid: "lat_db", sets: [set(14, 12, 1)] }
+    );
+    const entry = lastEntry(prog, st, "lat_db", dateOf(4, "hautA"), si("hautA"));
+    assert.equal(lastEntryLabel(entry), "12 janv., Haut A");
+  });
+
+  test("aucune sortie de history() ne produit « undefined » dans le libellé", () => {
+    const st = S(
+      { week: 1, sid: "hautA", vid: "lat_db", sets: [set(10, 12, 2)] },
+      { week: 3, sid: "hautC", vid: "lat_db", sets: [set(12, 12, 1)] },
+      { week: 7, sid: "hautA", vid: "lat_db", sets: [set(9, 12, 3)] }
+    );
+    for (const entry of history(prog, st, "lat_db")) {
+      assert.doesNotMatch(lastEntryLabel(entry), /undefined|NaN/);
+    }
   });
 });
