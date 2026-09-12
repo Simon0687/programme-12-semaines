@@ -99,3 +99,25 @@ test("compatibilité : une sauvegarde d'avant-migration est écrite pour chaque 
     assert.equal(store.data.get(`K_backup_pre${from}`), fixture(name), `${name} : sauvegarde non verbatim`);
   }
 });
+
+test("compatibilité v1 : la date de validation d'origine survit dans updatedAt (#40)", async () => {
+  /* La v1.0.0 écrivait une date de validation par séance, et App.jsx l'affiche
+     toujours (« Validée le … », lu depuis updatedAt). La migration re-date la
+     séance sur son créneau — c'est l'identité voulue par #16 — mais elle ne
+     doit pas pour autant tamponner tout l'historique au jour où la mise à jour
+     a été installée. */
+  const { res } = await load("v1");
+  const early = rowAt(res, "2026-09-07", "hautA"); // faite la veille, le dimanche 6
+  assert.equal(early.updatedAt.slice(0, 10), "2026-09-06");
+
+  for (const row of rows(res)) {
+    assert.notEqual(row.updatedAt.slice(0, 10), new Date().toISOString().slice(0, 10),
+      `${row.slot} porte la date d'exécution de la migration au lieu de la sienne`);
+  }
+});
+
+test("compatibilité : une séance sans date de validation retombe sur l'horodatage courant (#40)", async () => {
+  const { res } = await load("v1");
+  const noDate = rowAt(res, "2026-09-14", "hautA"); // la fixture v1 lui donne une date, l'autre pas
+  assert.ok(noDate.updatedAt, "updatedAt ne doit jamais être vide");
+});
