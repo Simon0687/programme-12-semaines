@@ -11,8 +11,8 @@ this commit with Node probes rather than by reading. `npm test` is green at
 
 Per [docs/external_audit/README.md](../external_audit/README.md), an audit is
 advisory. This document is the verification pass: what survives it, what was
-already tracked, and what the audits missed. It produced three issues, listed in
-section 5.
+already tracked, and what the audits missed. It produced four issues, listed in
+section 6.
 
 A caveat on timing: #26 landed steps 1-3 *while* this triage ran. Both audits
 describe `schemaVersion: 3` and `definition: null`, which the pinning commit
