@@ -6,6 +6,7 @@ import { listBackups, readDroppedBackup } from "./backup.js";
 import { createStore, loadJournal, saveJournal } from "./storage.js";
 import { unusableProgramIds } from "./journal-shape.js";
 import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
+import { AFTER_HINTS } from "./cardio.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind } from "./progression.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
@@ -36,13 +37,6 @@ const MIGRATION_CTX = { legacyDefinition: LEGACY_DEFINITION, buildProgram };
 const LOAD_ERROR_MESSAGE = "Le journal enregistré n'a pas pu être lu. Rien n'a été chargé, rien n'a été écrasé.";
 const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 const DAYNAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
-/* Texte du champ session.after (#22) : quel indice post-séance afficher,
-   et son fragment de texte à partir de cardio = prog.cardioPlan(week). */
-const AFTER_HINTS = {
-  z2: (cardio) => `rameur Z2, ${cardio.z2}`,
-  mob: (cardio) => `bloc mobilité, ${cardio.mob}`,
-};
-
 const addDays = (d, n) =>{ const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const dateLabel = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]}`;

@@ -44,3 +44,18 @@ export const CARDIO_DAY_NOTES = {
   3: " puis rameur Z2",
   4: "rameur intervalles + mobilité",
 };
+
+/* Indices post-séance (#22, déplacés ici depuis App.jsx par #33).
+   Fonctions pures de cardioPlan(week) : elles n'ont jamais eu besoin de
+   React, et elles décrivent la règle cardio — leur place est à côté d'elle.
+   Le déplacement sert surtout à supprimer une source de vérité : le
+   validateur (src/journal-shape.js) contrôle session.after contre
+   AFTER_KINDS, donc le format ne peut plus accepter une valeur que l'appli
+   ne sait pas rendre. App.jsx faisait AFTER_HINTS[session.after](cardio) :
+   sur une valeur inconnue, c'est undefined(...), et l'écran Séance tombe. */
+export const AFTER_HINTS = {
+  z2: (cardio) => `rameur Z2, ${cardio.z2}`,
+  mob: (cardio) => `bloc mobilité, ${cardio.mob}`,
+};
+
+export const AFTER_KINDS = Object.keys(AFTER_HINTS);

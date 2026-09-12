@@ -27,6 +27,7 @@
 
 import { EXERCISE_IDS } from "./registry.js";
 import { DEFINITION_FORMAT_VERSION, parseLocalDate } from "./definition.js";
+import { AFTER_KINDS } from "./cardio.js";
 
 const isNum = (x) => typeof x === "number" && Number.isFinite(x);
 const isObj = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -186,6 +187,15 @@ export function validateProgram(program) {
     }
     if (!(session.warm in WARM)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].warm : « ${session.warm} » n'est pas une clé de program.WARM.` };
     if (!(session.core in CORE)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].core : « ${session.core} » n'est pas une clé de program.CORE.` };
+    /* after : facultatif, mais s'il est présent il doit nommer un indice que
+       l'appli sait rendre. App.jsx appelle AFTER_HINTS[session.after](cardio)
+       sans repli : une valeur inconnue n'affiche pas « rien », elle appelle
+       undefined et fait tomber l'écran Séance. La liste vient de cardio.js,
+       qui possède les indices — pas d'une copie tenue à jour à la main. */
+    if (session.after != null && !AFTER_KINDS.includes(session.after)) {
+      return { reason: "invalid-program", message: `program.SESSIONS[${i}].after : « ${session.after} » n'est pas un indice connu (attendu ${AFTER_KINDS.map((k) => `"${k}"`).join(" ou ")}).` };
+    }
+
     if (!Array.isArray(session.ex)) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].ex (tableau attendu)` };
     for (const [j, e] of session.ex.entries()) {
       if (!isSlotRef(e)) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].ex[${j}] (paire [slot, nombre de séries] attendue, séries entier positif)` };

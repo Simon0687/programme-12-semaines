@@ -8,6 +8,7 @@ import {
 import { LEGACY_DEFINITION, LEGACY_DEFINITION as BASE } from "../src/legacy-program.js";
 import { DEFAULT_DEFINITION as NEUTRAL } from "../src/default-program.js";
 import { dateForSlot } from "../src/schema.js";
+import { AFTER_KINDS } from "../src/cardio.js";
 
 const entry = (over = {}) => ({ definition: LEGACY_DEFINITION, logs: {}, cardio: {}, checkin: {}, ...over });
 const row = (over = {}) => ({ id: "r", date: "2026-09-07", slot: "hautA", ex: {}, done: true, ...over });
@@ -261,5 +262,20 @@ describe("validateDefinition : startingLoads (#33)", () => {
 
   test("accepte un startingLoads vide", () => {
     assert.equal(validateDefinition({ ...BASE, startingLoads: {} }), null);
+  });
+});
+
+describe("validateProgram : indice post-séance (#33)", () => {
+  test("rejette un after que l'appli ne sait pas rendre", () => {
+    const bad = validateProgram(prog((p) => { p.SESSIONS[0].after = "n_importe_quoi"; }));
+    assert.ok(bad, "after inconnu accepté à tort");
+    assert.match(bad.message, /after/);
+  });
+
+  test("accepte un after absent, et chacun des indices connus", () => {
+    assert.equal(validateProgram(prog((p) => { delete p.SESSIONS[0].after; })), null);
+    for (const kind of AFTER_KINDS) {
+      assert.equal(validateProgram(prog((p) => { p.SESSIONS[0].after = kind; })), null, kind);
+    }
   });
 });
