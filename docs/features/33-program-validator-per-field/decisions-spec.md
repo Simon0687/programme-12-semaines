@@ -4,8 +4,9 @@ Source: spec.md
 Scope: product / requirement choices only - how strict the validator is, and what
 a user loses or keeps when it refuses. Implementation choices are settled in
 `design.md`.
-Status: awaiting Simon's answers - the recommendations below are what `design.md`
-is built on, so a different answer means revisiting it.
+Status: settled 2026-09-12. Simon delegated the three calls, with one standing
+constraint: the validation surface is already felt as too complex, so each answer
+takes the option that adds no new concept. `design.md` holds as written.
 
 ---
 
@@ -58,7 +59,7 @@ stays available later if a real journal ever hits it, which is unlikely: reachin
 this state requires a hand-edited definition, since neither import door has ever
 accepted `day: "lundi"` without also throwing.
 
-**Simon's decision.** _(left blank)_
+**Simon's decision.** **A** - reject everywhere, one bar for the three doors. Simon delegated the call on 2026-09-12, asking for the simplest option that does not add a concept; a "strict" flag through validateDefinition would have been exactly that (2026-09-12).
 
 ---
 
@@ -122,7 +123,7 @@ conservative in the right direction - both shipped programs use 1-6, and it
 prevents anyone from newly reaching the broken cases while the convention is
 settled.
 
-**Simon's decision.** _(left blank)_
+**Simon's decision.** **C** - enforce 1-7 now, the convention clash gets its own issue. Same reasoning: the corruption is the blocker, and folding a rendering fix into the last issue before a release is how releases slip (2026-09-12).
 
 ---
 
@@ -152,7 +153,7 @@ validator reject an unknown one, and against what authority?
 source of truth for a vocabulary the app renders, which is precisely the class of
 bug this pair of issues has been closing.
 
-**Simon's decision.** _(left blank)_
+**Simon's decision.** **A** - AFTER_HINTS moves next to the cardio rule it renders and the validator imports the key list. Kept because it *removes* a source of truth rather than adding one: no second copy of the vocabulary to keep in step (2026-09-12).
 
 ---
 
