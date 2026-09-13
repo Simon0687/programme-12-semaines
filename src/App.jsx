@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Zap, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Download, Zap, X } from "lucide-react";
 import { SCHEMA_VERSION, emptyJournal, weekKey, dateForSlot, findLog, writeLog, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport } from "./import.js";
 import { listBackups, readDroppedBackup } from "./backup.js";
 import { createStore, loadJournal, saveJournal } from "./storage.js";
+import { saveFile } from "./file-io.js";
+import { readLastExport, writeLastExport, toIsoDate } from "./export-state.js";
 import { unusableProgramIds } from "./journal-shape.js";
 import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
@@ -19,6 +21,9 @@ import { LEGACY_DEFINITION } from "./legacy-program.js";
 
 const KEY = "prog12_simon_v1";
 const STORE = createStore();
+/* #15 : objets navigateur passés explicitement à file-io.js, jamais lus par
+   lui (ARCHITECTURE §2.7, même raison que le store injecté). */
+const FILE_ENV = typeof window === "undefined" ? {} : { nav: window.navigator, doc: window.document, url: window.URL };
 /* Contexte de migration (#16) : injecté dans migrate()/MIGRATIONS[2],
    jamais construit par schema.js lui-même (cycle d'import, voir schema.js
    MIGRATIONS[2]). Depuis #26, la définition transmise est nommément le
@@ -204,6 +209,8 @@ export default function Programme() {
   const [programError, setProgramError] = useState(""); // #6 : rejet d'un fichier de programme
   const [backups, setBackups] = useState([]); // [{ from, value }] — sauvegardes d'avant-migration (#8)
   const [droppedBackup, setDroppedBackup] = useState(null); // copie d'avant filtrage des lignes illisibles (#32)
+  const [lastExport, setLastExport] = useState(null); // AAAA-MM-JJ du dernier export réussi (#15)
+  const [exportStatus, setExportStatus] = useState("");
   const fileInputRef = useRef(null);
   const skipSave = useRef(true);
 
@@ -242,6 +249,7 @@ export default function Programme() {
       // res.reason === "absent" : rien à faire, l'état initial useState(emptyJournal(DEFAULT_DEFINITION)) tient lieu de journal.
       setBackups(await listBackups(STORE, KEY, SCHEMA_VERSION));
       setDroppedBackup(await readDroppedBackup(STORE, KEY));
+      setLastExport(await readLastExport(STORE, KEY));
       setLoaded(true);
     })();
   }, []);
@@ -342,6 +350,27 @@ export default function Programme() {
   const copy = async (text) => {
     try { await navigator.clipboard.writeText(text); showToast("Copié"); }
     catch (e) { setIoText(text); showToast("Sélectionne le texte ci-dessous pour le copier"); }
+  };
+
+  /* #15 : saveFile() doit être atteint de façon synchrone depuis le clic —
+     Safari abandonne navigator.share si l'appel passe derrière un await.
+     Rien n'est attendu avant l'appel ; la suite se traite dans le .then(). */
+  const exportJournal = () => {
+    const name = `prog12-journal-${toIsoDate(new Date())}.json`;
+    saveFile(FILE_ENV, { name, content: JSON.stringify(withVersion(journal)), type: "application/json" }).then(async (res) => {
+      if (!res.ok) {
+        // Une annulation est un choix, pas une panne : rien à signaler.
+        setExportStatus(res.reason === "cancelled" ? "" : "Impossible d'écrire un fichier sur cet appareil.");
+        return;
+      }
+      /* decisions-spec.md Q2 : « via: download » compte comme un succès, une
+         ancre ne rapportant rien. C'est l'affichage de la date enregistrée,
+         juste à côté, qui garde une valeur optimiste vérifiable à l'œil. */
+      const iso = toIsoDate(new Date());
+      await writeLastExport(STORE, KEY, iso);
+      setLastExport(iso);
+      setExportStatus(name);
+    });
   };
 
   const bilanText = () => {
@@ -612,12 +641,18 @@ export default function Programme() {
               )}
             </Section>
             <Section title="Données : sauvegarde et restauration">
-              <p>{storageOk ? "Le journal est enregistré automatiquement sur cet appareil." : "Stockage automatique indisponible ici."} Avant une mise à jour du fichier, exporte le JSON et colle-le dans le chat ou garde-le : il se réimporte ci-dessous.</p>
+              <p>{storageOk ? "Le journal est enregistré automatiquement sur cet appareil." : "Stockage automatique indisponible ici."} Avant une mise à jour du fichier, télécharge le journal et garde le fichier : il se réimporte ci-dessous.</p>
               <div className="flex gap-2 flex-wrap">
-                <Btn small onClick={() => copy(JSON.stringify(withVersion(journal)))}><Copy size={14} />Exporter le JSON</Btn>
+                <Btn small onClick={exportJournal}><Download size={14} />Télécharger le journal</Btn>
                 <Btn small onClick={() => { setIoText(JSON.stringify(withVersion(journal))); setImportError(""); }}>Afficher le JSON</Btn>
                 <Btn small onClick={importData} disabled={!ioText}>Importer le JSON collé</Btn>
               </div>
+              {/* #15 : la date est affichée, pas seulement enregistrée. Sur le
+                  chemin « ancre », l'app ne peut pas savoir si le fichier a
+                  atterri (decisions-spec.md Q2) — la montrer est ce qui rend
+                  une valeur optimiste vérifiable. */}
+              <p className="text-xs text-slate-400">{lastExport ? `Dernier export : ${dateLabel(parseLocalDate(lastExport))}.` : "Aucun export enregistré sur cet appareil."}</p>
+              {exportStatus && <p className="text-xs text-slate-300">{exportStatus}</p>}
               <textarea value={ioText} onChange={(e) => { setIoText(e.target.value); setImportError(""); }} rows={4} placeholder="Colle ici un JSON exporté pour le réimporter" className="w-full p-2 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400" />
               {importError && <p role="alert" className="text-sm text-amber-400">{importError}</p>}
               {(backups.length > 0 || droppedBackup) && (
