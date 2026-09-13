@@ -11,6 +11,7 @@ import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent, hasCard
 import { AFTER_HINTS } from "./cardio.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind } from "./progression.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
+import { buildBilan } from "./bilan.js";
 import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
 import { LEGACY_DEFINITION } from "./legacy-program.js";
 
@@ -439,20 +440,20 @@ export default function Programme() {
     const cardioPart = hasCardioItems(prog) ? `Cardio : ${cardioLines.length ? cardioLines.join(" ; ") : "aucun"}` : null;
     const mobPart = hasMobilityDays(prog) ? `mobilité ${mob}/${prog.MOB_DAYS.length}` : null;
     const cardioLine = [cardioPart, mobPart].filter(Boolean).join(" — ") || null;
-    const lines = [
-      `Poids moyen : ${c.poids || "?"} kg — tour de taille : ${c.taille || "?"} cm`,
-      `Sommeil moyen : ${c.sommeil || "?"} h`,
-      `Séances : ${done.length}/${prog.SESSIONS.length}${missing.length ? ` — manquées : ${missing.join(", ")}` : ""}`,
+    /* Tout ce qui précède dérive de prog et de state : ça reste ici, c'est ce
+       qu'App.jsx sait faire. buildBilan n'assemble que le texte, et n'importe
+       donc rien (#41, design.md décision 2). */
+    return buildBilan({
+      week,
+      range: weekRange(START, week),
+      phaseLabel: phase.label,
+      checkin: c,
+      doneCount: done.length,
+      sessionCount: prog.SESSIONS.length,
+      missing,
       cardioLine,
-      `Exos clés : ${keyLines.length ? keyLines.join(" ; ") : "aucune séance validée"}`,
-      `Douleurs : ${c.douleurs || "aucune"} / RIR ressenti global : ${c.rir || "?"} / énergie : ${c.energie || "?"}/5`,
-      `Nutrition : ${c.nutrition || "RAS"}`,
-      `Remarques : ${c.remarques || "—"}`,
-    ].filter(Boolean);
-    return [
-      `Bilan S${week} (${weekRange(START, week)}) — ${phase.label}`,
-      ...lines.map((l, i) => `${i + 1}. ${l}`),
-    ].join("\n");
+      keyLines,
+    });
   };
 
   /* Un rejet reste affiché dans le panneau ; le toast garde son rôle de
