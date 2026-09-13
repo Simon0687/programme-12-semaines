@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+    * { box-sizing: border-box; }
+    a { color: #fbbf24; }
+    a:hover { color: #f59e0b; }
+    input, button { font: inherit; }
+    .noscroll { scrollbar-width: none; -ms-overflow-style: none; }
+    .noscroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  </style>
+</helmet>
+<div style="width: 390px; height: 844px; background: #0f172a; color: #f1f5f9; display: flex; flex-direction: column; overflow: hidden; font-variant-numeric: tabular-nums;">
+
+  <div style="flex-shrink: 0; background: #0f172a; border-bottom: 1px solid #334155; padding: 6px 16px 8px;">
+    <button style="height: 44px; margin-left: -8px; padding: 0 8px; background: none; border: 0; color: #cbd5e1; display: inline-flex; align-items: center; gap: 4px; font-size: 14px; cursor: pointer;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>S&eacute;ance Haut A
+    </button>
+    <div style="font-size: 20px; line-height: 26px; font-weight: 600;">Presse inclin&eacute;e machine ou Smith</div>
+  </div>
+
+  <div class="noscroll" style="flex: 1; overflow-y: auto; padding: 0 16px 24px;">
+
+    <div style="margin-top: 24px;">
+      <div style="font-size: 16px; line-height: 24px; color: #f1f5f9; font-weight: 500;">Jamais fait.</div>
+      <p style="font-size: 14px; line-height: 22px; color: #94a3b8; margin: 4px 0 0;">Aucune s&eacute;rie enregistr&eacute;e pour cet exercice, dans aucun cycle. La premi&egrave;re s&eacute;rie valid&eacute;e ouvrira ici sa courbe, ses records et son historique.</p>
+    </div>
+
+    <div style="font-size: 14px; line-height: 20px; color: #94a3b8; margin-top: 32px;">Technique</div>
+    <p style="font-size: 14px; line-height: 22px; color: #cbd5e1; margin: 4px 0 0;">Poign&eacute;es au niveau du haut des pecs, omoplates plaqu&eacute;es. Pousser fort, freiner 2&ndash;3 s.</p>
+
+  </div>
+
+  <div style="flex-shrink: 0; background: #0f172a; border-top: 1px solid #334155; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));">
+    <div style="height: 56px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: #fbbf24; font-weight: 500;">Semaine</div>
+    <div style="height: 56px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: #94a3b8;">Plan</div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {}
+</script>
+</body>
+</html>

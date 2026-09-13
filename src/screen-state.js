@@ -23,8 +23,15 @@
 
 export const SCREEN_KEY = "prog12_screen";
 
-const SCREENS = ["semaine", "seance", "plan"];
+const SCREENS = ["semaine", "seance", "plan", "exercice"];
 const HOME = { screen: "semaine", sessionId: null };
+
+/* EXERCISE_IDS est un Set, prog.SESSIONS une liste : le module ne sait ce
+   qu’est ni l’un ni l’autre et se contente d’interroger ce qu’on lui
+   présente (§2.7, même règle que le store injecté). */
+const knows = (ids, v) =>
+  typeof v === "string" && v !== "" && !!ids &&
+  (typeof ids.has === "function" ? ids.has(v) : Array.isArray(ids) && ids.includes(v));
 
 export function readScreen(storage) {
   if (!storage) return null;
@@ -34,7 +41,11 @@ export function readScreen(storage) {
     const v = JSON.parse(raw);
     if (!v || typeof v !== "object") return null;
     if (!SCREENS.includes(v.screen)) return null;
-    return { screen: v.screen, sessionId: typeof v.sessionId === "string" ? v.sessionId : null };
+    const out = { screen: v.screen, sessionId: typeof v.sessionId === "string" ? v.sessionId : null };
+    /* exerciseId ne voyage que sur l’écran qui s’en sert : les trois autres
+       gardent la forme à deux champs qu’ils avaient avant #17. */
+    if (v.screen === "exercice") out.exerciseId = typeof v.exerciseId === "string" ? v.exerciseId : null;
+    return out;
   } catch (e) {
     return null; // navigation privée, quota, ou valeur illisible : on repart de zéro
   }
@@ -43,10 +54,12 @@ export function readScreen(storage) {
 export function writeScreen(storage, state) {
   if (!storage || !state || !SCREENS.includes(state.screen)) return false;
   try {
-    storage.setItem(SCREEN_KEY, JSON.stringify({
+    const payload = {
       screen: state.screen,
       sessionId: typeof state.sessionId === "string" ? state.sessionId : null,
-    }));
+    };
+    if (state.screen === "exercice") payload.exerciseId = typeof state.exerciseId === "string" ? state.exerciseId : null;
+    storage.setItem(SCREEN_KEY, JSON.stringify(payload));
     return true;
   } catch (e) {
     return false;
@@ -61,9 +74,23 @@ export function writeScreen(storage, state) {
 
    C'est aussi ce qui remplace le travail de l'effet supprimé (App.jsx) :
    garantir que sessionId ne pointe jamais vers rien. */
-export function resolveScreen(saved, sessionIds) {
+export function resolveScreen(saved, sessionIds, exerciseIds) {
   if (!saved || !SCREENS.includes(saved.screen)) return HOME;
+
+  /* #17 : la fiche exercice ne tient qu’à son exercice. Le sessionId n’y est
+     que l’adresse de retour — s’il désigne une séance d’un autre cycle, on le
+     laisse tomber sans fermer la fiche, et le retour ramène sur Semaine.
+     C’est déjà le comportement dont un futur onglet « Exercices » aura besoin :
+     il ouvrira la fiche sans aucune séance. */
+  if (saved.screen === "exercice") {
+    if (!knows(exerciseIds, saved.exerciseId)) return HOME;
+    return {
+      screen: "exercice",
+      sessionId: knows(sessionIds, saved.sessionId) ? saved.sessionId : null,
+      exerciseId: saved.exerciseId,
+    };
+  }
+
   if (saved.screen !== "seance") return { screen: saved.screen, sessionId: null };
-  const known = Array.isArray(sessionIds) && sessionIds.includes(saved.sessionId);
-  return known ? { screen: "seance", sessionId: saved.sessionId } : HOME;
+  return knows(sessionIds, saved.sessionId) ? { screen: "seance", sessionId: saved.sessionId } : HOME;
 }

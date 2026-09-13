@@ -11,6 +11,9 @@ import { unusableProgramIds } from "./journal-shape.js";
 import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind } from "./progression.js";
+import { setSummary } from "./display.js";
+import { EXERCISE_IDS } from "./registry.js";
+import ExerciseSheet from "./ExerciseSheet.jsx";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { buildBilan } from "./bilan.js";
 import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
@@ -62,17 +65,6 @@ const weekRange = (start, w) => {
   return `${a.getDate()}${a.getMonth() === b.getMonth() ? "" : " " + MONTHS[a.getMonth()]} – ${dateLabel(b)}`;
 };
 
-/* ---------- Résumé des séries ---------- */
-function setSummary(sets, v) {
-  if (!sets || !sets.length) return "—";
-  const unit = v.unit || "kg";
-  const kg = Math.max(...sets.map((s) => (s.w == null ? 0 : s.w)));
-  const reps = sets.map((s) => (s.r == null ? "?" : s.r)).join("/");
-  const rir = [...new Set(sets.map((s) => (s.rir == null ? "?" : s.rir)))].join("-");
-  const kgTxt = unit === "time" || unit === "reps" ? "" : unit === "bw" ? (kg > 0 ? `+${fmt(kg)} kg ` : "PDC ") : `${fmt(kg)} kg `;
-  return `${kgTxt}${reps}${unit === "time" || unit === "carry" ? " s" : ""} @ ${rir} RIR`;
-}
-
 /* ---------- Petits composants ---------- */
 function Section({ title, children, open: o0 = false }) {
   const [open, setOpen] = useState(o0);
@@ -106,7 +98,7 @@ function Btn({ children, onClick, primary, small, disabled }) {
 }
 
 /* ---------- Carte exercice ---------- */
-function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, rows, onSet, onTimer }) {
+function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, rows, onSet, onTimer, onOpen }) {
   const slot = prog.SLOTS[slotId];
   const vid = slot[blockOf(week)];
   const v = prog.V[vid];
@@ -155,7 +147,12 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
     <div className="py-4 border-b border-slate-700">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="font-medium text-slate-100 leading-snug">{idx}. {v.name}</div>
+          {/* #17 : le nom ouvre la fiche de l’exercice. La cible existait déjà —
+              c’est la première chose qu’on lit — et le chevron la signale. */}
+          <button onClick={() => onOpen(vid)} className="text-left focus:outline-none focus:ring-2 focus:ring-amber-400 rounded">
+            <span className="font-medium text-slate-100 leading-snug">{idx}. {v.name}</span>
+            <ChevronRight size={15} className="inline text-slate-500 ml-1 mb-0.5" />
+          </button>
           <div className="text-sm text-slate-400 mt-0.5">
             {sets} × {repLabel}{v.side ? " par côté" : ""}, RIR {phase.rir}
             {failOk && <span className="ml-2 inline-flex items-center gap-1 text-amber-400"><Zap size={13} />dernière série à l'échec OK</span>}
@@ -246,11 +243,17 @@ export default function Programme() {
      quitter Séance ne laisse pas traîner un identifiant. Restaurée au montage
      depuis sessionStorage, puis validée contre le programme actif : une séance
      mémorisée peut appartenir à un cycle qu'on a quitté depuis. */
-  const [nav, setNav] = useState(() => resolveScreen(readScreen(SCREEN_STORAGE), prog.SESSIONS.map((s) => s.id)));
+  const [nav, setNav] = useState(() => resolveScreen(readScreen(SCREEN_STORAGE), prog.SESSIONS.map((s) => s.id), EXERCISE_IDS));
   const screen = nav.screen;
   const goSemaine = () => setNav({ screen: "semaine", sessionId: null });
   const goPlan = () => setNav({ screen: "plan", sessionId: null });
   const openSession = (id) => setNav({ screen: "seance", sessionId: id });
+  /* #17 : la fiche garde le sessionId en poche — il n’y est que l’adresse du
+     retour, jamais un contexte. Ouverte sans séance (ce que fera un futur
+     onglet « Exercices »), le retour ramène sur Semaine et rien d’autre ne
+     change dans l’écran. */
+  const openExercise = (vid) => setNav({ screen: "exercice", sessionId: nav.sessionId, exerciseId: vid });
+  const closeExercise = () => (nav.sessionId ? setNav({ screen: "seance", sessionId: nav.sessionId }) : goSemaine());
   const [week, setWeek] = useState(curWeek);
   /* #16 : date nominale du créneau (semaine parcourue + jour de la séance)
      dans le cycle actif — remplace w{week}_{sessionId} comme identité de
@@ -647,6 +650,9 @@ export default function Programme() {
     : dayIdx >= definition.weeks * 7 ? `Les ${definition.weeks} semaines sont terminées : bilan et programme suivant.`
     : null;
 
+  const backSession = nav.sessionId ? prog.SESSIONS.find((s) => s.id === nav.sessionId) : null;
+  const backLabel = backSession ? `Séance ${backSession.name}` : "Semaine";
+
   const cardio = prog.cardioPlan ? prog.cardioPlan(week) : null;
   const ca = state.cardio[weekKey(week)] || {};
   const ci = state.checkin[weekKey(week)] || {};
@@ -661,7 +667,7 @@ export default function Programme() {
             C'est la bascule dont tout le reste découle — les flèches de semaine
             n'avaient de sens au-dessus de Séance que parce qu'on pouvait y
             arriver sans avoir choisi. */}
-        {screen !== "seance" && (
+        {screen !== "seance" && screen !== "exercice" && (
           <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-700 px-4 pt-3 pb-2">
             <div className="flex items-center justify-between">
               <button onClick={() => setWeek(Math.max(1, week - 1))} aria-label="Semaine précédente" className="h-11 w-11 rounded-md bg-slate-800 border border-slate-700 inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-amber-400"><ChevronLeft size={18} /></button>
@@ -728,12 +734,12 @@ export default function Programme() {
                 <Section title="Échauffement">{prog.WARM[session.warm]}</Section>
                 {session.ex.map(([slotId, n], i) => (
                   <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} state={state}
-                    rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
+                    rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onOpen={openExercise} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 <div className="pt-4 text-sm text-slate-400">{prog.CORE[session.core].label}</div>
                 {prog.CORE[session.core].ex.map(([slotId, n], i) => (
                   <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} state={state}
-                    rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
+                    rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onOpen={openExercise} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 {session.after && cardio && (
                   <p className="text-sm text-slate-400 mt-3">
@@ -751,6 +757,12 @@ export default function Programme() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* #17 : la fiche ne reçoit ni prog, ni week, ni session — voir
+            l’en-tête de ExerciseSheet.jsx. */}
+        {screen === "exercice" && (
+          <ExerciseSheet journal={journal} exerciseId={nav.exerciseId} backLabel={backLabel} onBack={closeExercise} />
         )}
 
         {screen === "semaine" && (

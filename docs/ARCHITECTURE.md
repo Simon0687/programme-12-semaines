@@ -42,6 +42,8 @@ Module dependencies, as they actually stand - every edge, no others:
 | `program` | `registry`, `cardio`, `legacy-program` |
 | `definition` | `default-program` |
 | `plan` | `registry` |
+| `display` | `progression` |
+| `exercise-history` | `progression` |
 | `schema`, `registry`, `progression`, `cardio`, `backup`, `default-program`, `legacy-program`, `file-io`, `export-state`, `bilan`, `screen-state` | nothing |
 
 `progression.js`, `registry.js`, `cardio.js`, `backup.js`, `schema.js` and
@@ -49,6 +51,12 @@ Module dependencies, as they actually stand - every edge, no others:
 load-bearing: it is why migrations take their program knowledge through an
 injected `ctx` instead of importing `program.js`, and why adding a migration
 never risks an import cycle.
+
+`display.js` and `exercise-history.js` (#17) both sit *above* `progression.js`
+and never the reverse: the engine stays a leaf. That is why `setSummary()` moved
+to `display.js` rather than next to `loadText()` as #23 expected, and why
+`loadText()` did not move at all - `planned()` calls it, so following #23 to the
+letter would have made a leaf of the engine import a view module.
 
 `journal-shape.js` (#32) is the one module both import doors and the storage
 adapter depend on - see 2.9. It was made a separate module rather than an
@@ -144,7 +152,17 @@ throwing migration step and turns it into `{ ok: false, invalid: true }` for the
 same reason: no caller should need its own `try`/`catch` to stay closed by
 default.
 
-**No violation remains.** #32 closed the stored-journal half (see 2.9) and #33
+**One known gap, and it predates #17.** `isLogRow` (`journal-shape.js`) checks
+that a log row has a `date`, a `slot`, and that `ex` is an object - it never
+looks *inside* `ex`. A row where `ex.dc` holds the string `"87,5"` passes the
+filter and makes `history()` throw `TypeError: ... .map is not a function`
+(verified 2026-09-14, on the active program). A frontier therefore admits a row
+the engine then throws on. `exercise-history.js` is closed by default on that
+payload; tightening `isLogRow` would change a frontier verdict and start
+dropping rows at load, so it is tracked by #38 rather than shipped alongside a
+screen.
+
+Everything else holds. #32 closed the stored-journal half (see 2.9) and #33
 closed the last one: `validateProgram` destructures no pair it has not checked
 first, so it returns a verdict for any JSON input. The invariant is exercised,
 not merely asserted - `test/journal-shape.test.js` runs every validator over
@@ -160,13 +178,28 @@ registry before #19 could generate anything.
 
 ### 2.6 Domain modules never import React
 
-Only `App.jsx` and `main.jsx` do. Every other module in `src/` loads under
-`node --test` as it is, which is why the suite runs without a DOM, a renderer or
-a build step.
+A file that imports React emits markup and wires events; every value it displays
+is computed by a module that loads under `node --test`. That is why the suite
+runs without a DOM, a renderer or a build step - and it is the bar a new
+component file has to clear, not a fixed list of filenames.
+
+The rule used to read "only `App.jsx` and `main.jsx`". #17 added
+`ExerciseSheet.jsx` and changed the *wording* rather than the list, on purpose:
+a list of two watches itself, a list of three stops watching itself, and each
+addition is individually justifiable. A rule about content forbids what actually
+needs forbidding. `chartGeometry()` (`display.js`) is the test case - the
+sheet’s chart is forty lines of arithmetic, unit-tested without a DOM, and the
+component only turns its output into `<svg>`.
+
+The second reason that file exists is enforcement of a different kind.
+`ExerciseSheet` takes four props - journal, exerciseId, backLabel, onBack - and
+neither `prog`, `week` nor `session`. Inside `App.jsx` all three are lexically
+in scope, so "the sheet needs no session context" would have been an
+honour-system claim; a prop list makes it checkable.
 
 The corollary is a rule about where code goes: anything that can be decided
-without rendering belongs outside `App.jsx`. What remains inside it today
-(display formatting, summary text) is debt, tracked by #23.
+without rendering belongs outside a component. What remains inside `App.jsx`
+today is debt, tracked by #23; `setSummary()` left with #17.
 
 ### 2.7 The store is injected, never reached for
 
