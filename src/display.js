@@ -55,6 +55,19 @@ export function dateShort(iso) {
 export function monthShort(iso) {
   return MONTHS[Number(String(iso).split("-")[1]) - 1];
 }
+/* « mars – juin 2026 », ou les deux années quand le cycle les traverse.
+   Sert d’en-tête au séparateur de cycle dans l’historique. */
+export function periodLabel(fromIso, toIso) {
+  const y1 = String(fromIso).slice(0, 4), y2 = String(toIso).slice(0, 4);
+  const a = monthShort(fromIso), b = monthShort(toIso);
+  if (y1 !== y2) return `${a} ${y1} – ${b} ${y2}`;
+  return a === b ? `${a} ${y2}` : `${a} – ${b} ${y2}`;
+}
+
+/* Les deux seuls kind qui se disent à l’écran : un « normal » n’a rien à
+   annoncer, et une pastille sur chaque ligne ne dirait plus rien. */
+export const KIND_LABELS = { calibration: "calibration", deload: "décharge" };
+
 function isoOfDay(n) {
   return new Date(n * 86400000).toISOString().slice(0, 10);
 }
