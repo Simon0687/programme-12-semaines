@@ -7,3 +7,5 @@ node_modules/
 .vercel/
 public/dist/
 .vscode/
+design/**/*.html
+!design/**/*.dc.html

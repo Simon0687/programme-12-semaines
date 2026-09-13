@@ -1,0 +1,48 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "1 — Séance → fiche", "x": 0, "y": 0, "w": 390, "h": 844 },
+    { "file": "FicheHaut.dc.html", "title": "2 — Développé couché, haut de page", "x": 470, "y": 0, "w": 390, "h": 844 },
+    { "file": "FicheBas.dc.html", "title": "3 — Développé couché, suite", "x": 940, "y": 0, "w": 390, "h": 844 },
+    { "file": "Tractions.dc.html", "title": "4 — Tractions : poids du corps", "x": 1410, "y": 0, "w": 390, "h": 844 },
+    { "file": "PlancheLaterale.dc.html", "title": "5 — Planche latérale : secondes", "x": 1880, "y": 0, "w": 390, "h": 844 },
+    { "file": "Vide.dc.html", "title": "6 — Jamais fait", "x": 2350, "y": 0, "w": 390, "h": 844 }
+  ],
+  "annotations": [
+    {
+      "id": "note-nav",
+      "x": 0,
+      "y": -210,
+      "w": 390,
+      "text": "Le nom de l'exercice devient la cible : un tap ouvre sa fiche.\n\nLa fiche ne lit que l'id d'exercice. Le point d'entrée n'est qu'une adresse de retour, donc le futur onglet « Exercices » (en pointillé) n'aura rien à rouvrir : même écran, autre libellé de retour.\n\nÀ trancher : la carte garde-t-elle son dépliant « Technique » alors que la fiche la porte aussi ?"
+    },
+    {
+      "id": "note-courbe",
+      "x": 470,
+      "y": -210,
+      "w": 390,
+      "text": "Abscisse en temps réel, pas en numéro de séance : les trois semaines d'arrêt entre les deux cycles se voient, et c'est le but.\n\nDeux traits, un par cycle — relier au travers de la coupure inventerait une continuité qui n'a pas eu lieu.\n\nPoints creux = calibration et décharge. Les exclure ferait des trous inexpliqués ; les afficher pleins ferait lire un −15 % programmé comme une régression.\n\nLa séance du 7 sept., ouverte sur la planche 1, n'est nulle part ici : la fiche ne montre que le validé. Un record annoncé en série 1 qu'une série 3 démentirait ne serait pas un record. Rien à coder — history() filtre déjà sur rec.done."
+    },
+    {
+      "id": "note-records",
+      "x": 940,
+      "y": -210,
+      "w": 390,
+      "text": "L'historique traverse les cycles, sans jamais les mélanger : un séparateur, et le nom de séance de l'époque (« Pousser ») lu dans la définition épinglée de ce cycle-là, pas dans le programme d'aujourd'hui. C'est l'invariant §2.1 — stocker la valeur, pas la référence — qui rend ça possible.\n\nDétails : muscles, équipement, articulations, type. Aucune donnée nouvelle — tout vient de EXERCISES[id] (#25), qui portait ces champs pour un générateur sans qu'aucun écran ne les lise. Le muscle dominant en ambre, les autres en gris : c'est la distinction principal/secondaire, sans légende à lire."
+    },
+    {
+      "id": "note-unites",
+      "x": 1410,
+      "y": -210,
+      "w": 390,
+      "text": "Même écran, même code : la fiche trace ce qui progresse selon l'unité du registre. Ici le lest, avec « PDC » comme origine de l'axe.\n\nOuverte depuis le futur onglet, donc sans contexte de séance — et la fin de courbe montre six semaines sans tractions depuis que le bloc 2 a basculé sur le tirage vertical."
+    },
+    {
+      "id": "note-vide",
+      "x": 2350,
+      "y": -210,
+      "w": 390,
+      "text": "En secondes (planche 5), la table de records se réduit à sa meilleure tenue — une ligne, pas un tableau vide. Et cette fiche n'a pas de section Détails : sideplank est dans UNSELECTABLE_IDS, sans champs muscles ni équipement. Une section qui manque plutôt qu'une section vide.\n\nJamais fait (planche 6) : même règle. La technique devient le contenu principal, ce qui est exactement ce qu'on vient chercher sur un exercice qu'on n'a pas encore pratiqué."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}
