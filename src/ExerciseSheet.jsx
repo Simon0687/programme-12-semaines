@@ -25,7 +25,7 @@ import { ChevronLeft } from "lucide-react";
 import { EXERCISES } from "./registry.js";
 import { exerciseHistory, recordsFor, seriesByCycle } from "./exercise-history.js";
 import { loadText } from "./progression.js";
-import { setSummary, dateShort, periodLabel, chartGeometry, axisLabel, KIND_LABELS } from "./display.js";
+import { setSummary, dateShort, periodLabel, chartGeometry, axisLabel, detailRows, KIND_LABELS } from "./display.js";
 
 const CHART = { w: 358, h: 162 };
 
@@ -119,6 +119,36 @@ function Records({ records, v, copy }) {
   );
 }
 
+/* Muscles, équipement, articulations, type : aucune donnée nouvelle, tout
+   vient de EXERCISES[id]. #25 avait stocké ces champs pour un générateur et
+   aucun écran ne les avait jamais lus. Le muscle dominant en ambre, les
+   autres en gris : c’est la distinction principal/secondaire, sans légende à
+   lire ni anneau à déchiffrer pour trois valeurs. */
+function Details({ rows }) {
+  const label = "w-36 shrink-0 text-sm text-slate-400";
+  return (
+    <>
+      <div className="mt-6 text-sm text-slate-400">Détails</div>
+      <div className="mt-2 flex flex-col gap-1.5">
+        {rows.muscles.map((m) => (
+          <div key={m.key} className="flex items-center gap-2.5">
+            <div className="w-36 shrink-0 text-sm text-slate-300">{m.label}</div>
+            <div className="flex-1 h-1.5 rounded-full bg-slate-800">
+              <div className={`h-1.5 rounded-full ${m.dominant ? "bg-amber-400" : "bg-slate-600"}`} style={{ width: `${m.pct}%` }} />
+            </div>
+            <div className="w-10 text-right text-sm text-slate-400">{m.pct} %</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex flex-col gap-1.5">
+        {rows.equipement && <div className="flex gap-2.5"><div className={label}>Équipement</div><div className="text-sm text-slate-300">{rows.equipement}</div></div>}
+        {rows.articulations && <div className="flex gap-2.5"><div className={label}>Articulations</div><div className="text-sm text-slate-300">{rows.articulations}</div></div>}
+        {rows.type && <div className="flex gap-2.5"><div className={label}>Type</div><div className="text-sm text-slate-300">{rows.type}</div></div>}
+      </div>
+    </>
+  );
+}
+
 function HistoryRow({ entry, v }) {
   const kind = KIND_LABELS[entry.kind];
   return (
@@ -144,6 +174,9 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
   const groups = useMemo(() => byCycle(entries), [entries]);
   const records = useMemo(() => recordsFor(entries, unit), [entries, unit]);
   const geo = useMemo(() => chartGeometry(seriesByCycle(entries, unit), CHART), [entries, unit]);
+  /* null pour les quatre ids sans champs de sélection (#25) : une section
+     absente, jamais une section vide. */
+  const details = useMemo(() => detailRows(v), [v]);
 
   /* resolveScreen garantit un id connu ; ce repli existe pour que le
      composant ne soit pas le seul endroit du code à supposer le contraire. */
@@ -212,6 +245,8 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
             <p className="mt-1 text-sm text-slate-300 leading-relaxed">{v.cue}</p>
           </>
         )}
+
+        {details && <Details rows={details} />}
       </div>
     </>
   );
