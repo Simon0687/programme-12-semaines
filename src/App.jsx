@@ -122,6 +122,35 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
   const fields = unit === "time" || unit === "reps" ? ["r", "rir"] : ["w", "r", "rir"];
   const repLabel = unit === "time" || unit === "carry" ? `${slot.reps[0]}–${slot.reps[1]} s` : `${slot.reps[0]}–${slot.reps[1]} reps`;
 
+  /* #42 : « faite » est dérivé, pas stocké. Une série compte quand elle porte
+     ses valeurs — c'est déjà la règle du moteur, planned() ne retient une
+     série que si r != null (progression.js). Stocker un drapeau par série
+     serait un champ neuf dans le journal, donc une migration, pour le seul
+     confort de pouvoir décocher.
+
+     RIR exclu du critère pour la même raison : planned() ne le lit jamais. Il
+     est informatif, donc pré-rempli quand la phase donne un chiffre unique et
+     laissé vide en calibration et en décharge, où la cible est une fourchette. */
+  const filled = (row, f) => String((row && row[f]) ?? "").trim() !== "";
+  const doneFields = fields.filter((f) => f !== "rir");
+  const rowDone = (i) => doneFields.every((f) => filled(rows[i], f));
+  const nextIdx = Array.from({ length: sets }).findIndex((_, i) => !rowDone(i));
+  const rirTarget = /^\d+$/.test(String(phase.rir)) ? String(phase.rir) : null;
+
+  /* Remplit ce qui manque, n'écrase jamais ce qui est là, et lance le repos.
+     Sur une série déjà complète, relance simplement le repos : un bouton vert
+     qui ne fait rien serait une fausse affordance, et effacer une saisie
+     derrière un tap serait pire. */
+  const validateRow = (i) => {
+    const row = rows[i] || {};
+    if (!rowDone(i)) {
+      if (fields.includes("w") && !filled(row, "w") && plan.load != null) onSet(vid, i, "w", fmt(plan.load));
+      if (!filled(row, "r")) onSet(vid, i, "r", String(slot.reps[1]));
+      if (rirTarget && !filled(row, "rir")) onSet(vid, i, "rir", rirTarget);
+    }
+    onTimer(slot.rest, v.name);
+  };
+
   return (
     <div className="py-4 border-b border-slate-700">
       <div className="flex items-start justify-between gap-3">
@@ -149,20 +178,30 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
       </button>
       {open && <p className="text-sm text-slate-300 leading-relaxed mt-1">{v.cue}</p>}
 
-      <div className="mt-3 grid gap-2" style={{ gridTemplateColumns: fields.length === 3 ? "2rem 1fr 1fr 1fr" : "2rem 1fr 1fr" }}>
+      <div className="mt-3 grid gap-2" style={{ gridTemplateColumns: fields.length === 3 ? "2rem 1fr 1fr 1fr 2.75rem" : "2rem 1fr 1fr 2.75rem" }}>
         <div />
         {cols.map((c) => <div key={c} className="text-xs text-slate-400 text-center">{c}</div>)}
+        <div />
         {Array.from({ length: sets }).map((_, i) => {
           const row = rows[i] || {};
+          const done = rowDone(i);
+          const isNext = i === nextIdx;
           return [
-            <div key={`n${i}`} className="text-sm text-slate-400 self-center">S{i + 1}</div>,
+            <div key={`n${i}`} className={`text-sm self-center ${done ? "text-emerald-400" : isNext ? "text-slate-100" : "text-slate-400"}`}>S{i + 1}</div>,
             ...fields.map((f) => (
               <input key={`${i}${f}`} inputMode="decimal" aria-label={`Série ${i + 1} ${f}`}
                 value={row[f] == null ? "" : row[f]}
                 placeholder={f === "w" && plan.load != null ? fmt(plan.load) : ""}
                 onChange={(e) => onSet(vid, i, f, e.target.value)}
-                className="h-11 w-full text-center rounded-md bg-slate-800 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400" style={{ fontVariantNumeric: "tabular-nums" }} />
+                className={`h-11 w-full text-center rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 ${done ? "bg-slate-900 border border-slate-800 text-slate-400" : isNext ? "bg-slate-800 border border-slate-600 text-slate-100" : "bg-slate-800 border border-slate-700 text-slate-100"}`} style={{ fontVariantNumeric: "tabular-nums" }} />
             )),
+            /* #42 : remplit depuis « Prévu », marque la série et lance le repos.
+               Les champs restent modifiables : corriger, c'est taper par-dessus. */
+            <button key={`v${i}`} onClick={() => validateRow(i)}
+              aria-label={done ? `Relancer le repos après la série ${i + 1}` : `Valider la série ${i + 1}`}
+              className={`h-11 w-11 rounded-md inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-amber-400 ${done ? "bg-emerald-400 border border-emerald-400 text-slate-900" : isNext ? "bg-slate-800 border border-amber-400 text-amber-400" : "bg-slate-800 border border-slate-700 text-slate-600"}`}>
+              <Check size={20} strokeWidth={2.5} />
+            </button>,
           ];
         })}
       </div>
