@@ -678,16 +678,32 @@ export default function Programme() {
         {tab === "semaine" && (
           <div className="px-4">
             <p className="text-sm text-slate-300 mt-3">{PHASE_NOTES[phase.id]}</p>
-            <div className="mt-3 divide-y divide-slate-700 border-y border-slate-700">
+            {/* #41 : le compte remplace le badge que portait la barre du bas.
+                Il monte ici parce que Semaine devient l'écran d'accueil : ce
+                qu'on vient y chercher, c'est où on en est. */}
+            <div className="mt-5 flex items-baseline justify-between gap-3">
+              <span className="text-sm text-slate-400">Séances de la semaine</span>
+              <span className={`text-sm ${weekDoneCount === prog.SESSIONS.length ? "text-emerald-400" : "text-slate-400"}`}>{weekDoneCount} sur {prog.SESSIONS.length} validées</span>
+            </div>
+            <div className="mt-2 divide-y divide-slate-700 border-y border-slate-700">
               {prog.SESSIONS.map((s) => {
                 const l = findLog(state.logs, dateOf(s.id), s.id);
                 const keySlot = s.ex[0][0];
                 const vid = prog.SLOTS[keySlot][blockOf(week)];
                 const sets = l && l.ex && l.ex[vid] ? l.ex[vid].map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null) : [];
+                /* #41 : ce repère fait le travail de l'effet d'auto-sélection
+                   qu'on supprime — dire quelle séance est celle du jour — sans
+                   choisir à la place de l'utilisateur. Seulement sur la semaine
+                   en cours : « aujourd'hui » n'a pas de sens en S7 quand on
+                   feuillette une semaine passée. */
+                const isToday = week === curWeek && s.day === weekday;
                 return (
                   <button key={s.id} onClick={() => { setSessionId(s.id); setTab("seance"); }} className="w-full py-3 flex items-center justify-between text-left focus:outline-none focus:ring-2 focus:ring-amber-400 rounded">
                     <div>
-                      <div className="font-medium inline-flex items-center gap-2">{l && l.done ? <Check size={16} className="text-emerald-400" /> : <span className="w-4 h-4 rounded-full border border-slate-600 inline-block" />}{s.name} <span className="text-slate-400 font-normal text-sm">{DAYNAMES[s.day]}</span></div>
+                      <div className="font-medium inline-flex items-center gap-2 flex-wrap">
+                        {l && l.done ? <Check size={16} className="text-emerald-400" /> : <span className="w-4 h-4 rounded-full border border-slate-600 inline-block" />}{s.name} <span className="text-slate-400 font-normal text-sm">{DAYNAMES[s.day]}</span>
+                        {isToday && <span className="rounded-full px-2 py-0.5 text-xs bg-amber-400 text-slate-900 font-medium">aujourd'hui</span>}
+                      </div>
                       <div className="text-sm text-slate-400 pl-6">{prog.V[vid].name} : {sets.length ? setSummary(sets, prog.V[vid]) : "—"}</div>
                     </div>
                     <ChevronRight size={16} className="text-slate-500" />
