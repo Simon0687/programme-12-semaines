@@ -5,7 +5,7 @@ import { parseJournalImport, parseProgramImport } from "./import.js";
 import { listBackups, readDroppedBackup, backupPreImportOnce, readPreImportBackup } from "./backup.js";
 import { createStore, loadJournal, saveJournal } from "./storage.js";
 import { saveFile, readFile } from "./file-io.js";
-import { readLastExport, writeLastExport, toIsoDate } from "./export-state.js";
+import { readLastExport, writeLastExport, toIsoDate, isExportStale, journalHasContent, daysBetween } from "./export-state.js";
 import { unusableProgramIds } from "./journal-shape.js";
 import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
@@ -210,6 +210,8 @@ export default function Programme() {
   const [backups, setBackups] = useState([]); // [{ from, value }] — sauvegardes d'avant-migration (#8)
   const [droppedBackup, setDroppedBackup] = useState(null); // copie d'avant filtrage des lignes illisibles (#32)
   const [preImportBackup, setPreImportBackup] = useState(null); // copie d'avant le premier import (#11)
+  const [exportWarnDismissed, setExportWarnDismissed] = useState(false); // masqué pour cette session seulement (#15)
+  const [persisted, setPersisted] = useState(null); // true | false | null (indisponible ici) — #15
   const [lastExport, setLastExport] = useState(null); // AAAA-MM-JJ du dernier export réussi (#15)
   const [exportStatus, setExportStatus] = useState("");
   const fileInputRef = useRef(null);
@@ -253,6 +255,19 @@ export default function Programme() {
       setDroppedBackup(await readDroppedBackup(STORE, KEY));
       setPreImportBackup(await readPreImportBackup(STORE, KEY));
       setLastExport(await readLastExport(STORE, KEY));
+      /* #15 : demander à chaque chargement plutôt qu'une fois pour toutes.
+         Les navigateurs accordent ou refusent sur des heuristiques
+         d'engagement, sans invite, donc répéter ne dérange personne — et un
+         refus d'aujourd'hui peut devenir un accord demain, une fois la PWA
+         plus utilisée. Rien n'est stocké : persisted() répond à tout moment
+         (decisions-spec.md Q6). */
+      try {
+        const s = navigator.storage;
+        if (s && typeof s.persist === "function") {
+          await s.persist();
+          setPersisted(await s.persisted());
+        }
+      } catch (e) { /* API absente ou refusée : persisted reste null */ }
       setLoaded(true);
     })();
   }, []);
@@ -309,6 +324,16 @@ export default function Programme() {
   }, [journal.activeProgramId]);
 
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2500); };
+
+  /* #15 : « jamais exporté » compte comme périmé, mais un journal vide n'a
+     rien à perdre — c'est ici, et pas dans export-state.js, que les deux se
+     composent : le module ne connaît pas le journal, App.jsx oui. */
+  const todayIso = toIsoDate(today);
+  const exportStale = useMemo(
+    () => journalHasContent(journal) && isExportStale(lastExport, todayIso),
+    [journal, lastExport, todayIso],
+  );
+
   const phase = phaseOf(week);
   const session = prog.SESSIONS.find((s) => s.id === sessionId);
   const si = prog.SESSIONS.findIndex((s) => s.id === sessionId);
@@ -572,6 +597,24 @@ export default function Programme() {
 
         {loadError && <p role="alert" className="mx-4 mt-3 text-sm text-amber-400">{loadError}</p>}
 
+        {/* #15 : rendu ici, hors de tout onglet, pour la même raison que
+            loadError — un rappel qu'on ne voit qu'en allant dans le panneau
+            d'export ne sert à rien, puisque quelqu'un qui n'a pas exporté
+            depuis un mois n'y va pas. Masquable pour la session : le voir
+            revenir au lancement suivant est le comportement correct. */}
+        {!loadError && exportStale && !exportWarnDismissed && (
+          <div className="mx-4 mt-3 flex items-start justify-between gap-3 rounded-md border border-slate-700 bg-slate-800 p-3">
+            <p className="text-sm text-amber-400">
+              {lastExport
+                ? `Dernier export il y a ${daysBetween(lastExport, todayIso)} jours. Télécharge une copie du journal : onglet Plan, section Données.`
+                : "Aucune copie de ce journal n'a jamais quitté cet appareil. Télécharge-la : onglet Plan, section Données."}
+            </p>
+            <button onClick={() => setExportWarnDismissed(true)} aria-label="Masquer ce rappel" className="shrink-0 h-11 w-11 -my-1 -mr-1 inline-flex items-center justify-center text-slate-400 rounded focus:outline-none focus:ring-2 focus:ring-amber-400">
+              <X size={18} />
+            </button>
+          </div>
+        )}
+
         {tab === "seance" && (
           <div className="px-4">
             <p className="text-sm text-slate-300 mt-3">{todayLine}</p>
@@ -713,6 +756,16 @@ export default function Programme() {
                   atterri (decisions-spec.md Q2) — la montrer est ce qui rend
                   une valeur optimiste vérifiable. */}
               <p className="text-xs text-slate-400">{lastExport ? `Dernier export : ${dateLabel(parseLocalDate(lastExport))}.` : "Aucun export enregistré sur cet appareil."}</p>
+              {/* #15 : dire ce que le navigateur a répondu, en clair. Un
+                  stockage « éligible à l'éviction » est la raison d'être de
+                  tout ce panneau — la nommer vaut mieux que la sous-entendre. */}
+              <p className="text-xs text-slate-400">
+                {persisted === true
+                  ? "Le navigateur a marqué ce stockage comme persistant : il ne sera pas vidé pour faire de la place."
+                  : persisted === false
+                    ? "Le navigateur n'a pas accordé de stockage persistant : il peut vider ces données pour faire de la place. Le fichier reste la vraie sauvegarde."
+                    : "Ce navigateur ne dit pas si le stockage est persistant."}
+              </p>
               {exportStatus && <p className="text-xs text-slate-300">{exportStatus}</p>}
               {importError && <p role="alert" className="text-sm text-amber-400">{importError}</p>}
               {pendingImport && (
