@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Download, Upload, Zap, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Download, Upload, Zap, X } from "lucide-react";
 import { SCHEMA_VERSION, emptyJournal, weekKey, dateForSlot, findLog, writeLog, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport } from "./import.js";
 import { listBackups, readDroppedBackup, backupPreImportOnce, readPreImportBackup } from "./backup.js";
@@ -238,6 +238,7 @@ export default function Programme() {
   const [persisted, setPersisted] = useState(null); // true | false | null (indisponible ici) — #15
   const [lastExport, setLastExport] = useState(null); // AAAA-MM-JJ du dernier export réussi (#15)
   const [exportStatus, setExportStatus] = useState("");
+  const [bilanStatus, setBilanStatus] = useState("");
   const fileInputRef = useRef(null);
   const journalInputRef = useRef(null);
   const skipSave = useRef(true);
@@ -405,15 +406,18 @@ export default function Programme() {
   const toggleMob = (i) => updateActive((st) => { const k = weekKey(week); const c = st.cardio[k] || {}; const m = [...(c.mob || Array(prog.MOB_DAYS.length).fill(false))]; m[i] = !m[i]; return { ...st, cardio: { ...st.cardio, [k]: { ...c, mob: m } } }; });
   const setCheck = (f, val) => updateActive((st) => { const k = weekKey(week); return { ...st, checkin: { ...st.checkin, [k]: { ...(st.checkin[k] || {}), [f]: val } } }; });
 
-  /* Le repli écrivait le texte dans setIoText, c'est-à-dire dans la zone
-     d'import JSON de l'onglet Plan : depuis le Bilan, « ci-dessous » ne
-     désignait pas cette zone mais le <pre> juste en dessous, qui affiche
-     déjà bilanText(). Le message tombait juste par accident, pendant que le
-     bilan atterrissait dans le champ d'import d'un autre onglet et y armait
-     « Importer ». Le <pre> suffit : le repli n'a plus rien à écrire. */
-  const copy = async (text) => {
-    try { await navigator.clipboard.writeText(text); showToast("Copié"); }
-    catch (e) { showToast("Sélectionne le texte ci-dessous pour le copier"); }
+  /* #41 : le bilan sort en fichier, comme le journal — un seul geste à
+     connaître pour les deux. Ça retire aussi le presse-papier du chemin, qui
+     n'existe pas hors contexte sécurisé : en testant via l'IP du réseau
+     local, « Copier » n'a jamais rien copié, il tombait silencieusement sur
+     son repli. Même règle de synchronicité que l'export du journal : rien
+     n'est attendu avant saveFile(). */
+  const downloadBilan = () => {
+    const name = `bilan-S${week}-${toIsoDate(new Date())}.txt`;
+    saveFile(FILE_ENV, { name, content: bilanText(), type: "text/plain" }).then((res) => {
+      if (!res.ok) setBilanStatus(res.reason === "cancelled" ? "" : "Impossible d'écrire un fichier sur cet appareil.");
+      else setBilanStatus(name);
+    });
   };
 
   /* #15 : saveFile() doit être atteint de façon synchrone depuis le clic —
@@ -766,7 +770,7 @@ export default function Programme() {
                 accordéon. */}
             <div className="mt-5 border-t border-slate-700">
               <Section title={<>Bilan de la semaine <span className={bilanFilled === 0 ? "font-normal text-amber-400" : bilanFilled === BILAN_FIELDS ? "font-normal text-emerald-400" : "font-normal text-slate-400"}>· {bilanFilled === 0 ? "à remplir" : bilanFilled === BILAN_FIELDS ? "complet" : `${bilanFilled} sur ${BILAN_FIELDS}`}</span></>}>
-                <p>À remplir le dimanche, puis à copier dans le chat. Séances, exos clés et notes de séance sont repris automatiquement. Indispensable à saisir : poids et RIR. Le reste est optionnel.</p>
+                <p>À remplir le dimanche, puis à envoyer dans le chat. Séances, exos clés et notes de séance sont repris automatiquement. Indispensable à saisir : poids et RIR. Le reste est optionnel.</p>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Poids moyen 7 pesées (kg)" value={ci.poids} onChange={(v) => setCheck("poids", v)} type="number" />
                   <Field label="Tour de taille au nombril (cm)" value={ci.taille} onChange={(v) => setCheck("taille", v)} type="number" />
@@ -782,10 +786,15 @@ export default function Programme() {
                   <Field label="Écarts nutrition" value={ci.nutrition} onChange={(v) => setCheck("nutrition", v)} placeholder="RAS" wide />
                   <Field label="Remarques" value={ci.remarques} onChange={(v) => setCheck("remarques", v)} wide />
                 </div>
-                <div className="flex gap-3">
-                  <Btn primary onClick={() => copy(bilanText())}><Copy size={16} />Copier le bilan</Btn>
+                {/* #41 : un bouton, pas de pavé de texte. L'aperçu ne servait
+                    plus de repli depuis que le presse-papier a quitté ce
+                    chemin, et un bilan qui fait maintenant neuf lignes ne se
+                    relit pas dans une section repliée — on l'ouvre dans le
+                    chat, là où on l'envoie. */}
+                <div className="flex items-center gap-3">
+                  <Btn primary onClick={downloadBilan}><Download size={16} />Télécharger le bilan</Btn>
+                  <span className="text-xs text-slate-500">{bilanStatus}</span>
                 </div>
-                <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-slate-800 border border-slate-700 rounded-md p-3">{bilanText()}</pre>
               </Section>
             </div>
           </div>
