@@ -143,6 +143,12 @@ validées" line on the Semaine hub.
   turns out to be more than wording, it belongs to #34, not here.
 - The `weekDoneCount` badge disappears from the nav. Confirmed by the spec's
   Out of scope; the count survives on the hub.
+- **`getCardioDayNotes` has no caller left in `src/`.** Its only consumer was
+  the deleted auto-selection effect, which used it to open straight onto
+  "Cardio et mobilité" on days without a session. It and `CARDIO_DAY_NOTES`
+  are kept rather than deleted: the latter is part of the program format, and
+  removing a field because one screen stopped reading it is a decision for #34,
+  not a cleanup to slip into this issue. Both comments now say so.
 
 ## Decisions
 

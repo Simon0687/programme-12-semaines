@@ -1,10 +1,10 @@
 /* =========================================================
    Analyse des imports collé et fichier (#7, #6)
 
-   Le panneau « Données » de l'onglet Plan accepte un journal collé dans
-   une zone de texte (parseJournalImport) et, depuis #6, un fichier de
-   programme (parseProgramImport). Chacun rend un verdict typé au lieu de
-   lever :
+   Le panneau « Données » de l'onglet Plan accepte un journal
+   (parseJournalImport) et un programme (parseProgramImport), tous deux sous
+   forme de fichier choisi par l'utilisateur — la zone de collage a disparu
+   en #15. Chacun rend un verdict typé au lieu de lever :
      { ok: true,  data | definition, migrated? }
      { ok: false, reason, message }
 

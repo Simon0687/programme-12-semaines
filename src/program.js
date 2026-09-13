@@ -76,10 +76,17 @@ export function getKeySlots(prog) {
 }
 
 /* Jours (0 = dimanche … 6 = samedi) qui ont une note cardio mais aucune
-   séance — ceux où l'onglet Séance ouvre directement sur "Cardio et
-   mobilité". Un jour avec à la fois une séance et une note cardio (ex.
-   mercredi : Haut B + rameur après) n'en fait pas partie : la note s'y
-   affiche en complément de la séance, pas à sa place. */
+   séance. Un jour avec à la fois une séance et une note cardio (ex. mercredi :
+   Haut B + rameur après) n'en fait pas partie : la note y complète la séance,
+   elle ne la remplace pas.
+
+   #41 : plus aucun appelant dans src/. Son unique consommateur était l'effet
+   qui devinait la séance à ouvrir — il servait à basculer directement sur
+   « Cardio et mobilité » les jours sans séance — et cet effet est supprimé
+   depuis qu'on choisit sa séance depuis Semaine. La fonction et
+   CARDIO_DAY_NOTES restent : ce dernier appartient au format de programme, et
+   le retirer parce qu'une UI a cessé de le lire est une décision de #34, pas
+   un nettoyage à faire en passant. */
 export function getCardioDayNotes(prog) {
   const sessionDays = new Set(prog.SESSIONS.map((s) => s.day));
   return Object.keys(prog.CARDIO_DAY_NOTES || {})

@@ -15,9 +15,12 @@
                     id "int" = intervalles, masquée quand
                     cardioPlan(w).intervals est null.
    MOB_DAYS[] — libellés des 3 jours de mobilité (cases à cocher).
-   CARDIO_DAY_NOTES[jour] — fragment cardio ajouté à la ligne « Aujourd'hui »
-                    de la Séance (jour : 0 = dimanche … 6 = samedi ;
-                    jours sans cardio absents).
+   CARDIO_DAY_NOTES[jour] — fragment cardio par jour (0 = dimanche … 6 =
+                    samedi ; jours sans cardio absents). Plus lu par l'appli
+                    depuis #41 : la ligne « Aujourd'hui » qui le portait a
+                    été remplacée par la pastille du même nom sur la liste de
+                    Semaine. Conservé — c'est du format de programme, son
+                    sort appartient à #34.
    ========================================================= */
 
 export const cardioPlan = (w) => {

@@ -13,7 +13,7 @@
      Avant #26 la fonction recevait (profile, startingLoads) et le reste du
      texte était écrit en dur autour du programme de Simon — squat, hip
      thrust, rameur, cinq séances nommées. Un programme chargé s'affichait
-     donc correctement dans l'onglet Séance pendant que le Plan décrivait
+     donc correctement dans l'écran Séance pendant que le Plan décrivait
      un autre programme. Elle reçoit maintenant la définition entière et
      chaque section qui parle d'un programme précis tire son contenu de la
      donnée, ou disparaît quand cette donnée est absente :

@@ -42,7 +42,7 @@ Module dependencies, as they actually stand - every edge, no others:
 | `program` | `registry`, `cardio`, `legacy-program` |
 | `definition` | `default-program` |
 | `plan` | `registry` |
-| `schema`, `registry`, `progression`, `cardio`, `backup`, `default-program`, `legacy-program`, `file-io`, `export-state` | nothing |
+| `schema`, `registry`, `progression`, `cardio`, `backup`, `default-program`, `legacy-program`, `file-io`, `export-state`, `bilan`, `screen-state` | nothing |
 
 `progression.js`, `registry.js`, `cardio.js`, `backup.js`, `schema.js` and
 `legacy-program.js` import nothing from the app. `schema.js` being a leaf is
@@ -111,7 +111,7 @@ trains a day early still fills the slot they trained for, so the migration from 
 v1 journal re-dates each session onto its slot - anything else would hide it from
 `findLog`, which looks sessions up at `dateForSlot(...)`, and invite a duplicate
 entry. The original validation date is not discarded: it is carried into
-`updatedAt`, which is what the Séance tab renders as "Validée le …" (#40).
+`updatedAt`, which is what the Séance screen renders as "Validée le …" (#40).
 
 Cardio and weekly check-in still use `weekKey(week)`. That is a known exception,
 tracked by #29, not a second convention worth copying.

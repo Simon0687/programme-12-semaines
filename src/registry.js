@@ -13,7 +13,7 @@
 
    ---------------------------------------------------------
    EXERCISES[id] — catalogue d'exercices, clé = slug court
-     Champs d'exécution (ce que l'onglet Séance affiche/enregistre) :
+     Champs d'exécution (ce que l'écran Séance affiche/enregistre) :
        name     libellé affiché
        incr     pas de charge pour la progression, en kg. Absent => pas
                 de charge suivie (sideplank « time », abwheel « reps »).
