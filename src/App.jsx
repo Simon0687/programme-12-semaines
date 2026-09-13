@@ -41,6 +41,12 @@ const MIGRATION_CTX = { legacyDefinition: LEGACY_DEFINITION, buildProgram };
    ce qui était faux dans le second cas, et garde la moitié qui compte pour
    quelqu'un devant une appli bloquée : rien n'a été détruit. */
 const LOAD_ERROR_MESSAGE = "Le journal enregistré n'a pas pu être lu. Rien n'a été chargé, rien n'a été écrasé.";
+/* #41 : les sept champs saisis du bilan, dans l'ordre du formulaire. La liste
+   n'est pas décorative — elle sert au compteur affiché sur l'en-tête de la
+   section repliée, qui est ce qui permet de savoir où on en est sans déplier.
+   « douleurs » n'y est plus : la douleur remonte des notes de séance. */
+const BILAN_KEYS = ["poids", "taille", "sommeil", "energie", "rir", "nutrition", "remarques"];
+const BILAN_FIELDS = BILAN_KEYS.length;
 const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 const DAYNAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 const addDays = (d, n) =>{ const r = new Date(d); r.setDate(r.getDate() + n); return r; };
@@ -576,6 +582,7 @@ export default function Programme() {
   const cardio = prog.cardioPlan ? prog.cardioPlan(week) : null;
   const ca = state.cardio[weekKey(week)] || {};
   const ci = state.checkin[weekKey(week)] || {};
+  const bilanFilled = BILAN_KEYS.filter((k) => (ci[k] || "") !== "").length;
 
   if (!loaded) return <div className="min-h-screen bg-slate-900 text-slate-400 flex items-center justify-center">Chargement du journal…</div>;
 
@@ -716,31 +723,35 @@ export default function Programme() {
                 <CardioView prog={prog} week={week} cardio={cardio} ca={ca} setCardio={setCardio} toggleMob={toggleMob} compact />
               </div>
             )}
-          </div>
-        )}
 
-        {tab === "bilan" && (
-          <div className="px-4">
-            <p className="text-sm text-slate-300 mt-3">Bilan de la semaine {week}, à remplir le dimanche puis à copier dans le chat. Séances, exos clés et notes de séance sont repris automatiquement. Indispensable à saisir : poids et RIR. Le reste est optionnel.</p>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <Field label="Poids moyen 7 pesées (kg)" value={ci.poids} onChange={(v) => setCheck("poids", v)} type="number" />
-              <Field label="Tour de taille au nombril (cm)" value={ci.taille} onChange={(v) => setCheck("taille", v)} type="number" />
-              <Field label="Sommeil moyen (h)" value={ci.sommeil} onChange={(v) => setCheck("sommeil", v)} type="number" />
-              <Field label="Énergie (1–5)" value={ci.energie} onChange={(v) => setCheck("energie", v)} type="number" />
-              <Field label="RIR ressenti global" value={ci.rir} onChange={(v) => setCheck("rir", v)} placeholder="ex. 1, ou dérive vers 2–3" wide />
-              {/* #41 : plus de champ « Douleurs » à ressaisir le dimanche. La
-                  douleur est déjà écrite dans les notes de chaque séance, au
-                  moment où elle est ressentie, et ces notes remontent
-                  maintenant dans le texte du bilan. Rien n'est supprimé du
-                  stockage : checkin.wN.douleurs reste dans les journaux
-                  existants et dans l'export, simplement plus affiché. */}
-              <Field label="Écarts nutrition" value={ci.nutrition} onChange={(v) => setCheck("nutrition", v)} placeholder="RAS" wide />
-              <Field label="Remarques" value={ci.remarques} onChange={(v) => setCheck("remarques", v)} wide />
+            {/* #41 : le bilan est une chose de la semaine, il vit donc dans la
+                semaine — replié, avec son état lisible sans déplier. Réutilise
+                le <Section> de l'onglet Plan plutôt que d'inventer un second
+                accordéon. */}
+            <div className="mt-5 border-t border-slate-700">
+              <Section title={<>Bilan de la semaine <span className={bilanFilled === 0 ? "font-normal text-amber-400" : bilanFilled === BILAN_FIELDS ? "font-normal text-emerald-400" : "font-normal text-slate-400"}>· {bilanFilled === 0 ? "à remplir" : bilanFilled === BILAN_FIELDS ? "complet" : `${bilanFilled} sur ${BILAN_FIELDS}`}</span></>}>
+                <p>À remplir le dimanche, puis à copier dans le chat. Séances, exos clés et notes de séance sont repris automatiquement. Indispensable à saisir : poids et RIR. Le reste est optionnel.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Poids moyen 7 pesées (kg)" value={ci.poids} onChange={(v) => setCheck("poids", v)} type="number" />
+                  <Field label="Tour de taille au nombril (cm)" value={ci.taille} onChange={(v) => setCheck("taille", v)} type="number" />
+                  <Field label="Sommeil moyen (h)" value={ci.sommeil} onChange={(v) => setCheck("sommeil", v)} type="number" />
+                  <Field label="Énergie (1–5)" value={ci.energie} onChange={(v) => setCheck("energie", v)} type="number" />
+                  <Field label="RIR ressenti global" value={ci.rir} onChange={(v) => setCheck("rir", v)} placeholder="ex. 1, ou dérive vers 2–3" wide />
+                  {/* #41 : plus de champ « Douleurs » à ressaisir le dimanche. La
+                      douleur est déjà écrite dans les notes de chaque séance, au
+                      moment où elle est ressentie, et ces notes remontent
+                      maintenant dans le texte du bilan. Rien n'est supprimé du
+                      stockage : checkin.wN.douleurs reste dans les journaux
+                      existants et dans l'export, simplement plus affiché. */}
+                  <Field label="Écarts nutrition" value={ci.nutrition} onChange={(v) => setCheck("nutrition", v)} placeholder="RAS" wide />
+                  <Field label="Remarques" value={ci.remarques} onChange={(v) => setCheck("remarques", v)} wide />
+                </div>
+                <div className="flex gap-3">
+                  <Btn primary onClick={() => copy(bilanText())}><Copy size={16} />Copier le bilan</Btn>
+                </div>
+                <pre className="whitespace-pre-wrap text-sm text-slate-300 bg-slate-800 border border-slate-700 rounded-md p-3">{bilanText()}</pre>
+              </Section>
             </div>
-            <div className="mt-4 flex gap-3">
-              <Btn primary onClick={() => copy(bilanText())}><Copy size={16} />Copier le bilan</Btn>
-            </div>
-            <pre className="mt-3 whitespace-pre-wrap text-sm text-slate-300 bg-slate-800 border border-slate-700 rounded-md p-3">{bilanText()}</pre>
           </div>
         )}
 
@@ -826,15 +837,13 @@ export default function Programme() {
 
         {/* Navigation */}
         <nav className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700">
-          <div className="max-w-md mx-auto grid grid-cols-4">
-            {[["seance", "Séance"], ["semaine", "Semaine"], ["bilan", "Bilan"], ["plan", "Plan"]].map(([id, label]) => (
+          {/* #41 : le badge de progression est parti avec cet onglet — il vit
+              maintenant en tête de la liste des séances, sur l'écran où l'on
+              atterrit et où l'on venait le lire. */}
+          <div className="max-w-md mx-auto grid grid-cols-3">
+            {[["seance", "Séance"], ["semaine", "Semaine"], ["plan", "Plan"]].map(([id, label]) => (
               <button key={id} onClick={() => setTab(id)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${tab === id ? "text-amber-400 font-medium" : "text-slate-400"}`}>
                 {label}
-                {id === "semaine" && (
-                  <span className={`ml-1 rounded-full px-1.5 py-0.5 text-xs ${weekDoneCount === prog.SESSIONS.length ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-800 text-slate-300"}`}>
-                    {weekDoneCount}/{prog.SESSIONS.length}
-                  </span>
-                )}
               </button>
             ))}
           </div>
