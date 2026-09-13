@@ -127,17 +127,21 @@ This application's compatibility contract is not an API: it is **the journal for
 
 When torn between MINOR and MAJOR, ask: *does a journal saved by the previous version load without loss?* If not, it's a major.
 
-### Pre-migration backups
+### Safety copies
 
-Before the app rewrites a journal that was just migrated to the current schema, it copies the original, untouched, under a separate key:
+Before the app overwrites a journal, it copies the original, untouched, under a separate key. Three situations produce one:
 
 ```
-prog12_simon_v1_backup_pre<N>
+prog12_simon_v1_backup_pre<N>      before a migration rewrites the journal
+prog12_simon_v1_backup_dropped     before unreadable session rows are filtered out
+prog12_simon_v1_backup_preimport   before an imported file replaces the journal
 ```
 
-`<N>` is the `schemaVersion` the journal had *before* migrating — a journal migrated from v1 leaves its original at `prog12_simon_v1_backup_pre1`. Written once per source version, never overwritten, never read automatically.
+`<N>` is the `schemaVersion` the journal had *before* migrating — a journal migrated from v1 leaves its original at `prog12_simon_v1_backup_pre1`. All three are written once, never overwritten, never read automatically. That a second import does not overwrite the copy from before the first is the point, not an oversight: the state worth recovering is the one from before any of this started.
 
-**To recover:** open the Plan tab's "Données" section — a button appears for each backup found ("Afficher la sauvegarde d'avant-migration (vN)"), dumping the raw original into the visible textarea, ready to copy off the phone. Without the app, the key is readable directly from `localStorage` in devtools.
+**To recover:** open the Plan tab's "Données" section — a button appears for each copy found and **downloads it as a file**, ready to keep or to feed back through "Importer un fichier". Without the app, the keys are readable directly from `localStorage` in devtools.
+
+Beside these sits `prog12_simon_v1_last_export`, which is not a copy: it holds the date of the last successful export, and unlike the backups it is overwritten each time.
 
 ## What we don't do
 

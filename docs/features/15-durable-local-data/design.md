@@ -18,7 +18,8 @@ Spec: [spec.md](spec.md). Decisions: [decisions-spec.md](decisions-spec.md).
 |---|---|
 | `src/file-io.js` | **New.** `saveFile()` (share sheet, then download anchor) and `readFile()` (FileReader wrapper). Imports nothing. |
 | `src/export-state.js` | **New.** `lastExportKey()`, `readLastExport()`, `writeLastExport()`, `isExportStale()`, `journalHasContent()`. Imports nothing. |
-| `src/App.jsx` | Données panel (≈614-634): export, import, backups. `importData` (≈387). New `lastExport` / `persisted` state near the other `useState` (≈198-207). Banner beside `loadError` (≈481). `ioText` / `setIoText` / the `<textarea>` removed. |
+| `src/App.jsx` | Données panel: export, import, backups, persistence line. `importData`. New `lastExport` / `persisted` / `pendingImport` / `preImportBackup` state. Banner beside `loadError`. `ioText` / `setIoText` / the `<textarea>` removed. **Also `copy()` and the Bilan's "Afficher" button** — see the correction below. |
+| `src/backup.js` | **Not foreseen in the first draft.** Gains `preImportBackupKey`, `backupPreImportOnce`, `readPreImportBackup`, and a shared `readOne` helper behind the two readers. |
 | `src/import.js` | `IMPORT_MESSAGES["invalid-json"]` only — the text says "Le texte **collé**", which stops being true. `reason` codes untouched, so tests are unaffected. |
 | `test/file-io.test.js` | **New.** |
 | `test/export-state.test.js` | **New.** |
@@ -26,9 +27,22 @@ Spec: [spec.md](spec.md). Decisions: [decisions-spec.md](decisions-spec.md).
 | `CONTRIBUTING.md` | §"Pre-migration backups": recovery is a download, not a textarea. |
 | `docs/ARCHITECTURE.md` | §1 dependency table: two new rows, both importing nothing. |
 
-`src/storage.js`, `src/backup.js`, `src/schema.js` and `src/journal-shape.js`
-are **not** touched. The journal's shape, its validators and its migrations are
-all out of this change.
+`src/storage.js`, `src/schema.js` and `src/journal-shape.js` are **not**
+touched. The journal's shape, its validators and its migrations are all out of
+this change.
+
+### Correction found during implementation
+
+The first draft of this design said `copy()` survives untouched and that the
+two `setIoText` defects belong to #41. That was wrong, and the error only shows
+up when the textarea is actually removed: `copy()`'s clipboard fallback wrote
+into `setIoText` (`App.jsx:352`), and the Bilan's "Afficher" button did too
+(`App.jsx:620`). Deleting the textarea without touching them would have left
+the Bilan writing into a control that no longer exists.
+
+Both are therefore fixed here, in the step that removes the textarea. `copy()`
+still survives with exactly one caller — "Copier le bilan" — which is what #41
+turns into a download. The split with #41 holds; only its boundary moved.
 
 ## Approach
 

@@ -42,7 +42,7 @@ Module dependencies, as they actually stand - every edge, no others:
 | `program` | `registry`, `cardio`, `legacy-program` |
 | `definition` | `default-program` |
 | `plan` | `registry` |
-| `schema`, `registry`, `progression`, `cardio`, `backup`, `default-program`, `legacy-program` | nothing |
+| `schema`, `registry`, `progression`, `cardio`, `backup`, `default-program`, `legacy-program`, `file-io`, `export-state` | nothing |
 
 `progression.js`, `registry.js`, `cardio.js`, `backup.js`, `schema.js` and
 `legacy-program.js` import nothing from the app. `schema.js` being a leaf is
