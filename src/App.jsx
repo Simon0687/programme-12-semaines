@@ -11,6 +11,7 @@ import { unusableProgramIds } from "./journal-shape.js";
 import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind } from "./progression.js";
+import { setSummary } from "./display.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { buildBilan } from "./bilan.js";
 import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
@@ -61,17 +62,6 @@ const weekRange = (start, w) => {
   const a = addDays(start, (w - 1) * 7), b = addDays(a, 6);
   return `${a.getDate()}${a.getMonth() === b.getMonth() ? "" : " " + MONTHS[a.getMonth()]} – ${dateLabel(b)}`;
 };
-
-/* ---------- Résumé des séries ---------- */
-function setSummary(sets, v) {
-  if (!sets || !sets.length) return "—";
-  const unit = v.unit || "kg";
-  const kg = Math.max(...sets.map((s) => (s.w == null ? 0 : s.w)));
-  const reps = sets.map((s) => (s.r == null ? "?" : s.r)).join("/");
-  const rir = [...new Set(sets.map((s) => (s.rir == null ? "?" : s.rir)))].join("-");
-  const kgTxt = unit === "time" || unit === "reps" ? "" : unit === "bw" ? (kg > 0 ? `+${fmt(kg)} kg ` : "PDC ") : `${fmt(kg)} kg `;
-  return `${kgTxt}${reps}${unit === "time" || unit === "carry" ? " s" : ""} @ ${rir} RIR`;
-}
 
 /* ---------- Petits composants ---------- */
 function Section({ title, children, open: o0 = false }) {
