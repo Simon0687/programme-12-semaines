@@ -17,6 +17,10 @@ const full = {
   missing: [],
   cardioLine: "Cardio : Z2 45 min — mobilité 2/3",
   keyLines: ["Développé couché haltères : 32 kg 10/10/9/9 @ 1 RIR", "Hack squat : 90 kg 9/9/8/8 @ 1 RIR"],
+  notes: [
+    { session: "Upper A", text: "épaule droite sensible sur le développé épaules, 2/10" },
+    { session: "Lower A", text: "hack squat solide" },
+  ],
 };
 
 test("buildBilan : un bilan complet, ligne à ligne", () => {
@@ -27,9 +31,10 @@ test("buildBilan : un bilan complet, ligne à ligne", () => {
     "3. Séances : 4/4",
     "4. Cardio : Z2 45 min — mobilité 2/3",
     "5. Exos clés : Développé couché haltères : 32 kg 10/10/9/9 @ 1 RIR ; Hack squat : 90 kg 9/9/8/8 @ 1 RIR",
-    "6. Douleurs : épaule 2/10 / RIR ressenti global : dérive vers 2 / énergie : 3/5",
+    "6. RIR ressenti global : dérive vers 2 / énergie : 3/5",
     "7. Nutrition : deux restaurants",
     "8. Remarques : RAS",
+    "9. Notes de séance : Upper A — épaule droite sensible sur le développé épaules, 2/10 ; Lower A — hack squat solide",
   ].join("\n"));
 });
 
@@ -41,10 +46,37 @@ test("buildBilan : rien de rempli => des ? et des repli, jamais de trou", () => 
     "2. Sommeil moyen : ? h",
     "3. Séances : 0/4",
     "4. Exos clés : aucune séance validée",
-    "5. Douleurs : aucune / RIR ressenti global : ? / énergie : ?/5",
+    "5. RIR ressenti global : ? / énergie : ?/5",
     "6. Nutrition : RAS",
     "7. Remarques : —",
   ].join("\n"));
+});
+
+/* ---------- les notes de séance remplacent le champ « Douleurs » ---------- */
+
+test("buildBilan : « Douleurs » a disparu du texte, même si le journal en porte encore", () => {
+  /* checkin.douleurs reste en stockage dans les journaux existants — rien
+     n'est détruit — mais il n'alimente plus le bilan. */
+  const out = buildBilan({ ...full, checkin: { ...full.checkin, douleurs: "épaule 2/10" }, notes: [] });
+  assert.ok(!out.includes("Douleurs"));
+  assert.ok(!out.includes("épaule 2/10"));
+});
+
+test("buildBilan : les notes sont attribuées à leur séance", () => {
+  const out = buildBilan({ ...full, notes: [{ session: "Upper B", text: "coude gênant sur les curls" }] });
+  assert.ok(out.includes("9. Notes de séance : Upper B — coude gênant sur les curls"));
+});
+
+test("buildBilan : aucune note => pas de ligne, pas de « aucune »", () => {
+  const out = buildBilan({ ...full, notes: [] });
+  assert.ok(!out.includes("Notes de séance"));
+  assert.ok(out.trim().endsWith("8. Remarques : RAS"));
+});
+
+test("buildBilan : une séance sans note n'apporte rien à la ligne", () => {
+  const out = buildBilan({ ...full, notes: [{ session: "Upper A", text: "" }, { session: "Lower A", text: "RAS" }] });
+  assert.ok(out.includes("9. Notes de séance : Lower A — RAS"));
+  assert.ok(!out.includes("Upper A —"));
 });
 
 test("buildBilan : une ligne absente disparaît de la numérotation (#13)", () => {

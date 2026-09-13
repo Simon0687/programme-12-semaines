@@ -440,6 +440,13 @@ export default function Programme() {
     const cardioPart = hasCardioItems(prog) ? `Cardio : ${cardioLines.length ? cardioLines.join(" ; ") : "aucun"}` : null;
     const mobPart = hasMobilityDays(prog) ? `mobilité ${mob}/${prog.MOB_DAYS.length}` : null;
     const cardioLine = [cardioPart, mobPart].filter(Boolean).join(" — ") || null;
+    /* #41 : les notes écrites pendant chaque séance remontent dans le bilan.
+       Elles sont lues ici à la génération, jamais recopiées dans checkin :
+       une synthèse stockée périmerait dès qu'on rouvre une séance pour
+       corriger une note, et checkin n'a pas d'updatedAt pour arbitrer. */
+    const notes = prog.SESSIONS
+      .map((s) => ({ session: s.name, text: ((findLog(state.logs, dateOf(s.id), s.id) || {}).notes || "").trim() }))
+      .filter((n) => n.text !== "");
     /* Tout ce qui précède dérive de prog et de state : ça reste ici, c'est ce
        qu'App.jsx sait faire. buildBilan n'assemble que le texte, et n'importe
        donc rien (#41, design.md décision 2). */
@@ -453,6 +460,7 @@ export default function Programme() {
       missing,
       cardioLine,
       keyLines,
+      notes,
     });
   };
 
@@ -697,14 +705,19 @@ export default function Programme() {
 
         {tab === "bilan" && (
           <div className="px-4">
-            <p className="text-sm text-slate-300 mt-3">Bilan de la semaine {week}, à remplir le dimanche puis à copier dans le chat. Indispensable : poids, séances, exos clés (auto), douleurs et RIR. Le reste est optionnel.</p>
+            <p className="text-sm text-slate-300 mt-3">Bilan de la semaine {week}, à remplir le dimanche puis à copier dans le chat. Séances, exos clés et notes de séance sont repris automatiquement. Indispensable à saisir : poids et RIR. Le reste est optionnel.</p>
             <div className="grid grid-cols-2 gap-3 mt-3">
               <Field label="Poids moyen 7 pesées (kg)" value={ci.poids} onChange={(v) => setCheck("poids", v)} type="number" />
               <Field label="Tour de taille au nombril (cm)" value={ci.taille} onChange={(v) => setCheck("taille", v)} type="number" />
               <Field label="Sommeil moyen (h)" value={ci.sommeil} onChange={(v) => setCheck("sommeil", v)} type="number" />
               <Field label="Énergie (1–5)" value={ci.energie} onChange={(v) => setCheck("energie", v)} type="number" />
               <Field label="RIR ressenti global" value={ci.rir} onChange={(v) => setCheck("rir", v)} placeholder="ex. 1, ou dérive vers 2–3" wide />
-              <Field label="Douleurs (0–10, où, depuis quand)" value={ci.douleurs} onChange={(v) => setCheck("douleurs", v)} placeholder="aucune" wide />
+              {/* #41 : plus de champ « Douleurs » à ressaisir le dimanche. La
+                  douleur est déjà écrite dans les notes de chaque séance, au
+                  moment où elle est ressentie, et ces notes remontent
+                  maintenant dans le texte du bilan. Rien n'est supprimé du
+                  stockage : checkin.wN.douleurs reste dans les journaux
+                  existants et dans l'export, simplement plus affiché. */}
               <Field label="Écarts nutrition" value={ci.nutrition} onChange={(v) => setCheck("nutrition", v)} placeholder="RAS" wide />
               <Field label="Remarques" value={ci.remarques} onChange={(v) => setCheck("remarques", v)} wide />
             </div>

@@ -33,17 +33,29 @@ export function buildBilan({
   missing = [],
   cardioLine = null,
   keyLines = [],
+  notes = [],
 }) {
   const c = checkin || {};
+  /* #41 : la douleur n'est plus un champ hebdomadaire à ressaisir, elle
+     remonte des notes de séance — là où elle est écrite au moment où elle est
+     ressentie. Calculée à chaque génération, jamais stockée : une synthèse
+     posée dans checkin périmerait dès qu'on rouvre une séance pour corriger
+     une note, et rien ne permettrait d'arbitrer (decisions-spec.md Q1). */
+  const written = (notes || []).filter((n) => n && n.text);
+  const noteLine = written.length
+    ? `Notes de séance : ${written.map((n) => `${n.session} — ${n.text}`).join(" ; ")}`
+    : null;
+
   const lines = [
     `Poids moyen : ${c.poids || "?"} kg — tour de taille : ${c.taille || "?"} cm`,
     `Sommeil moyen : ${c.sommeil || "?"} h`,
     `Séances : ${doneCount}/${sessionCount}${missing.length ? ` — manquées : ${missing.join(", ")}` : ""}`,
     cardioLine,
     `Exos clés : ${keyLines.length ? keyLines.join(" ; ") : "aucune séance validée"}`,
-    `Douleurs : ${c.douleurs || "aucune"} / RIR ressenti global : ${c.rir || "?"} / énergie : ${c.energie || "?"}/5`,
+    `RIR ressenti global : ${c.rir || "?"} / énergie : ${c.energie || "?"}/5`,
     `Nutrition : ${c.nutrition || "RAS"}`,
     `Remarques : ${c.remarques || "—"}`,
+    noteLine,
   ].filter(Boolean);
 
   return [
