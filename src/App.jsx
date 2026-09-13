@@ -5,9 +5,10 @@ import { parseJournalImport, parseProgramImport } from "./import.js";
 import { listBackups, readDroppedBackup, backupPreImportOnce, readPreImportBackup } from "./backup.js";
 import { createStore, loadJournal, saveJournal } from "./storage.js";
 import { saveFile, readFile } from "./file-io.js";
+import { readScreen, writeScreen, resolveScreen } from "./screen-state.js";
 import { readLastExport, writeLastExport, toIsoDate, isExportStale, journalHasContent, daysBetween } from "./export-state.js";
 import { unusableProgramIds } from "./journal-shape.js";
-import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
+import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind } from "./progression.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
@@ -25,6 +26,10 @@ const STORE = createStore();
 /* #15 : objets navigateur passés explicitement à file-io.js, jamais lus par
    lui (ARCHITECTURE §2.7, même raison que le store injecté). */
 const FILE_ENV = typeof window === "undefined" ? {} : { nav: window.navigator, doc: window.document, url: window.URL };
+/* #41 : sessionStorage passe par la même porte que le reste — injecté dans
+   screen-state.js, jamais lu par lui (ARCHITECTURE §2.7). En navigation
+   privée, Safari fait lever l'accès lui-même, d'où le try autour. */
+const SCREEN_STORAGE = (() => { try { return typeof window === "undefined" ? null : window.sessionStorage; } catch (e) { return null; } })();
 /* Contexte de migration (#16) : injecté dans migrate()/MIGRATIONS[2],
    jamais construit par schema.js lui-même (cycle d'import, voir schema.js
    MIGRATIONS[2]). Depuis #26, la définition transmise est nommément le
@@ -197,7 +202,16 @@ export default function Programme() {
   const [loaded, setLoaded] = useState(false);
   const [storageOk, setStorageOk] = useState(true);
   const [saveStatus, setSaveStatus] = useState("");
-  const [tab, setTab] = useState("seance");
+  /* #41 : l'écran et la séance ouverte sont une seule valeur, pas deux. Elles
+     changent toujours ensemble — on n'ouvre pas Séance sans dire laquelle, et
+     quitter Séance ne laisse pas traîner un identifiant. Restaurée au montage
+     depuis sessionStorage, puis validée contre le programme actif : une séance
+     mémorisée peut appartenir à un cycle qu'on a quitté depuis. */
+  const [nav, setNav] = useState(() => resolveScreen(readScreen(SCREEN_STORAGE), prog.SESSIONS.map((s) => s.id)));
+  const screen = nav.screen;
+  const goSemaine = () => setNav({ screen: "semaine", sessionId: null });
+  const goPlan = () => setNav({ screen: "plan", sessionId: null });
+  const openSession = (id) => setNav({ screen: "seance", sessionId: id });
   const [week, setWeek] = useState(curWeek);
   /* #16 : date nominale du créneau (semaine parcourue + jour de la séance)
      dans le cycle actif — remplace w{week}_{sessionId} comme identité de
@@ -206,7 +220,10 @@ export default function Programme() {
      definition.startDate différents, donc jamais la même date pour
      "semaine 1" : c'est ce qui évite l'écrasement (#16 spec.md Decision 3). */
   const dateOf = (sid) => dateForSlot(definition.startDate, week, prog.SESSIONS.find((s) => s.id === sid).day);
-  const [sessionId, setSessionId] = useState(prog.SESSIONS[0].id);
+  /* Le repli garde `session` toujours défini, y compris quand on est sur
+     Semaine et que nav.sessionId est null. C'est ce qui permet de supprimer
+     les gardes qu'imposait l'ancienne sentinelle "cardio". */
+  const sessionId = nav.sessionId || prog.SESSIONS[0].id;
   const [timer, setTimer] = useState(null);
   const [, setTick] = useState(0);
   const [toast, setToast] = useState("");
@@ -313,20 +330,26 @@ export default function Programme() {
   }, [prog, state, week, definition.startDate]);
   const weekDoneCount = useMemo(() => Object.values(doneMap).filter(Boolean).length, [doneMap]);
 
+  /* #41 : l'effet qui devinait la séance à afficher est supprimé. Il n'existait
+     que parce qu'on atterrissait sur Séance sans avoir choisi — il essayait le
+     jour de la semaine, puis le cardio, puis la première séance non validée.
+     Maintenant qu'on ne peut y arriver qu'en tapant une ligne de Semaine, ses
+     trois replis n'ont plus de cas. Sa moitié utile — dire quelle séance est
+     celle du jour — est devenue la pastille « aujourd'hui » sur la liste. */
+
   useEffect(() => {
-    const byDay = week === curWeek ? prog.SESSIONS.find((s) => s.day === weekday) : null;
-    if (byDay && !doneMap[byDay.id]) { setSessionId(byDay.id); return; }
-    if (week === curWeek && getCardioDayNotes(prog).includes(weekday)) { setSessionId("cardio"); return; }
-    const next = prog.SESSIONS.find((s) => !doneMap[s.id]);
-    setSessionId(next ? next.id : hasCardioContent(prog) ? "cardio" : prog.SESSIONS[0].id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [week, loaded]);
+    writeScreen(SCREEN_STORAGE, nav);
+  }, [nav]);
 
   useEffect(() => {
     // #6 : basculer de cycle change START (definition.startDate), donc la
     // semaine "aujourd'hui" ; sans ça, week resterait sur la valeur du
-    // cycle précédent. sessionId suit via l'effet ci-dessus (dépend de week).
+    // cycle précédent.
     setWeek(curWeek);
+    /* #41 : et la séance ouverte peut appartenir au cycle qu'on vient de
+       quitter. resolveScreen la renvoie sur Semaine plutôt que d'ouvrir
+       Séance sur un identifiant que prog.SESSIONS ne connaît pas. */
+    setNav((n) => resolveScreen(n, prog.SESSIONS.map((s) => s.id)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journal.activeProgramId]);
 
@@ -344,7 +367,7 @@ export default function Programme() {
   const phase = phaseOf(week);
   const session = prog.SESSIONS.find((s) => s.id === sessionId);
   const si = prog.SESSIONS.findIndex((s) => s.id === sessionId);
-  const log = session ? findLog(state.logs, dateOf(session.id), session.id) || {} : {};
+  const log = findLog(state.logs, dateOf(session.id), session.id) || {};
 
   const onSet = (vid, i, f, val) => {
     updateActive((st) => {
@@ -571,13 +594,15 @@ export default function Programme() {
     loadProgram(res.definition);
   };
 
-  const todayLine = (() => {
-    if (dayIdx < 0) return `Le programme commence lundi ${dateLabel(START)}. Aujourd'hui : ${DAYNAMES[weekday]} ${dateLabel(today)}.`;
-    if (dayIdx >= definition.weeks * 7) return `Les ${definition.weeks} semaines sont terminées : bilan et programme suivant.`;
-    const s = prog.SESSIONS.find((x) => x.day === weekday);
-    const extra = (prog.CARDIO_DAY_NOTES && prog.CARDIO_DAY_NOTES[weekday]) || "";
-    return `Aujourd'hui, ${DAYNAMES[weekday]} ${dateLabel(today)} : ${s ? `${s.name} (${s.sub})${extra}` : extra}.`;
-  })();
+  /* #41 : « Aujourd'hui, jeudi : Upper B » est devenu la pastille sur la liste
+     des séances — dire le jour à côté de la ligne concernée vaut mieux qu'une
+     phrase au-dessus. Restent les deux cas que la pastille ne sait pas porter,
+     parce qu'ils parlent du cycle et non du jour : avant le départ, et après
+     les douze semaines. */
+  const cycleNote =
+    dayIdx < 0 ? `Le programme commence lundi ${dateLabel(START)}.`
+    : dayIdx >= definition.weeks * 7 ? `Les ${definition.weeks} semaines sont terminées : bilan et programme suivant.`
+    : null;
 
   const cardio = prog.cardioPlan ? prog.cardioPlan(week) : null;
   const ca = state.cardio[weekKey(week)] || {};
@@ -589,24 +614,38 @@ export default function Programme() {
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100" style={{ fontVariantNumeric: "tabular-nums" }}>
       <div className="max-w-md mx-auto pb-24">
-        {/* En-tête */}
-        <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-700 px-4 pt-3 pb-2">
-          <div className="flex items-center justify-between">
-            <button onClick={() => setWeek(Math.max(1, week - 1))} aria-label="Semaine précédente" className="h-9 w-9 rounded-md bg-slate-800 border border-slate-700 inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-amber-400"><ChevronLeft size={18} /></button>
-            <div className="text-center">
-              <div className="text-lg font-semibold">Semaine {week} <span className="text-slate-400 font-normal">sur {definition.weeks}</span></div>
-              <div className="text-xs text-slate-400">{weekRange(START, week)} — {phase.label}, RIR {phase.rir}</div>
+        {/* #41 : un en-tête par écran, plus un en-tête pour tout le monde.
+            C'est la bascule dont tout le reste découle — les flèches de semaine
+            n'avaient de sens au-dessus de Séance que parce qu'on pouvait y
+            arriver sans avoir choisi. */}
+        {screen !== "seance" && (
+          <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-700 px-4 pt-3 pb-2">
+            <div className="flex items-center justify-between">
+              <button onClick={() => setWeek(Math.max(1, week - 1))} aria-label="Semaine précédente" className="h-11 w-11 rounded-md bg-slate-800 border border-slate-700 inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-amber-400"><ChevronLeft size={18} /></button>
+              <div className="text-center">
+                <div className="text-lg font-semibold">Semaine {week} <span className="text-slate-400 font-normal">sur {definition.weeks}</span></div>
+                <div className="text-xs text-slate-400">{weekRange(START, week)} — {phase.label}, RIR {phase.rir}</div>
+              </div>
+              <button onClick={() => setWeek(Math.min(definition.weeks, week + 1))} aria-label="Semaine suivante" className="h-11 w-11 rounded-md bg-slate-800 border border-slate-700 inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-amber-400"><ChevronRight size={18} /></button>
             </div>
-            <button onClick={() => setWeek(Math.min(definition.weeks, week + 1))} aria-label="Semaine suivante" className="h-9 w-9 rounded-md bg-slate-800 border border-slate-700 inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-amber-400"><ChevronRight size={18} /></button>
           </div>
-          {timer && (
-            <div className={`mt-2 flex items-center justify-between rounded-md px-3 h-11 ${remaining === 0 ? "bg-amber-400 text-slate-900" : "bg-slate-800 border border-slate-700"}`}>
-              <span className="text-sm truncate">{remaining === 0 ? "Repos terminé, à toi" : `Repos — ${timer.label}`}</span>
-              <span className="text-xl font-semibold">{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}</span>
-              <button onClick={() => setTimer(null)} aria-label="Arrêter le repos" className="ml-2 focus:outline-none"><X size={18} /></button>
-            </div>
-          )}
-        </div>
+        )}
+
+        {screen === "seance" && (
+          <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-700 px-4 pt-3 pb-2">
+            {/* Ce que l'en-tête partagé et le rail disaient à eux deux, en deux
+                lignes : quelle séance, quelle semaine, quel jour. */}
+            <div className="text-xl font-semibold leading-tight">{session.name}</div>
+            <div className="text-sm text-slate-400 mt-0.5">Semaine {week} · {DAYNAMES[session.day]} {dateLabel(parseLocalDate(dateOf(session.id)))} · {session.sub}</div>
+            {timer && (
+              <div className={`mt-2 flex items-center justify-between rounded-md px-3 h-11 ${remaining === 0 ? "bg-amber-400 text-slate-900" : "bg-slate-800 border border-slate-700"}`}>
+                <span className="text-sm truncate">{remaining === 0 ? "Repos terminé, à toi" : `Repos — ${timer.label}`}</span>
+                <span className="text-xl font-semibold">{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}</span>
+                <button onClick={() => setTimer(null)} aria-label="Arrêter le repos" className="ml-2 focus:outline-none"><X size={18} /></button>
+              </div>
+            )}
+          </div>
+        )}
 
         {loadError && <p role="alert" className="mx-4 mt-3 text-sm text-amber-400">{loadError}</p>}
 
@@ -628,28 +667,19 @@ export default function Programme() {
           </div>
         )}
 
-        {tab === "seance" && (
+        {screen === "seance" && (
           <div className="px-4">
-            <p className="text-sm text-slate-300 mt-3">{todayLine}</p>
-            {!storageOk && !loadError && <p className="text-sm text-amber-400 mt-2">Stockage indisponible ici : les saisies ne survivront pas à la fermeture. Exporte le JSON (onglet Plan) en fin de séance.</p>}
+            {!storageOk && !loadError && <p className="text-sm text-amber-400 mt-3">Stockage indisponible ici : les saisies ne survivront pas à la fermeture. Télécharge le journal (onglet Plan) en fin de séance.</p>}
 
-            <div className="flex gap-2 overflow-x-auto py-3 -mx-4 px-4">
-              {prog.SESSIONS.map((s) => (
-                <button key={s.id} onClick={() => setSessionId(s.id)}
-                  className={`shrink-0 h-10 px-3 rounded-full text-sm inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-amber-400 border ${sessionId === s.id ? "bg-amber-400 text-slate-900 border-amber-400" : "bg-slate-800 border-slate-700 text-slate-200"}`}>
-                  {doneMap[s.id] && <Check size={14} />}{s.name}
-                </button>
-              ))}
-              {hasCardioContent(prog) && (
-                <button onClick={() => setSessionId("cardio")} className={`shrink-0 h-10 px-3 rounded-full text-sm border focus:outline-none focus:ring-2 focus:ring-amber-400 ${sessionId === "cardio" ? "bg-amber-400 text-slate-900 border-amber-400" : "bg-slate-800 border-slate-700 text-slate-200"}`}>Cardio et mobilité</button>
-              )}
-            </div>
-
-            {session ? (
+            {/* #41 : le rail de chips est parti. Il faisait doublon avec la
+                liste de Semaine — qui dit la même chose avec plus
+                d'information — et n'existait que parce qu'on pouvait atterrir
+                ici sans avoir choisi. La ligne « Aujourd'hui, … » et le titre
+                dupliqué partent avec lui : l'en-tête les dit déjà. */}
+            <div>
               <div>
-                <div className="pb-2">
-                  <div className="text-xl font-semibold">{session.name} <span className="text-slate-400 font-normal text-base">— {session.sub}</span></div>
-                  <div className="text-sm text-slate-400">Jour conseillé : {DAYNAMES[session.day]}. {setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week)} séries dures + abdos. {PHASE_NOTES[phase.id]}</div>
+                <div className="pt-3 pb-2">
+                  <div className="text-sm text-slate-400">{setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week)} séries dures + abdos. {PHASE_NOTES[phase.id]}</div>
                   {log.done && <div className="mt-2 text-sm text-emerald-400 inline-flex items-center gap-1"><Check size={15} />Validée le {log.updatedAt && log.updatedAt.slice(0, 10)}. <button onClick={reopen} className="underline text-slate-300 ml-1 focus:outline-none">Rouvrir</button></div>}
                 </div>
                 <Section title="Échauffement">{prog.WARM[session.warm]}</Section>
@@ -669,21 +699,20 @@ export default function Programme() {
                 )}
                 <label className="block mt-4">
                   <span className="text-xs text-slate-400">Notes de séance (douleur 0–10, forme, remarques)</span>
-                  <textarea value={log.notes || ""} onChange={(e) => setNotes(e.target.value)} rows={2} className="mt-1 w-full p-3 rounded-md bg-slate-800 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                  <textarea value={log.notes || ""} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Remontées dans le bilan de la semaine." className="mt-1 w-full p-3 rounded-md bg-slate-800 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400" />
                 </label>
                 <div className="mt-4 flex items-center gap-3">
                   <Btn primary onClick={validate}><Check size={18} />{log.done ? "Mettre à jour la séance" : "Valider la séance"}</Btn>
                   <span className="text-xs text-slate-500">{saveStatus}</span>
                 </div>
               </div>
-            ) : hasCardioContent(prog) ? (
-              <CardioView prog={prog} week={week} cardio={cardio} ca={ca} setCardio={setCardio} toggleMob={toggleMob} />
-            ) : null}
+            </div>
           </div>
         )}
 
-        {tab === "semaine" && (
+        {screen === "semaine" && (
           <div className="px-4">
+            {cycleNote && <p className="text-sm text-amber-400 mt-3">{cycleNote}</p>}
             <p className="text-sm text-slate-300 mt-3">{PHASE_NOTES[phase.id]}</p>
             {/* #41 : le compte remplace le badge que portait la barre du bas.
                 Il monte ici parce que Semaine devient l'écran d'accueil : ce
@@ -705,7 +734,7 @@ export default function Programme() {
                    feuillette une semaine passée. */
                 const isToday = week === curWeek && s.day === weekday;
                 return (
-                  <button key={s.id} onClick={() => { setSessionId(s.id); setTab("seance"); }} className="w-full py-3 flex items-center justify-between text-left focus:outline-none focus:ring-2 focus:ring-amber-400 rounded">
+                  <button key={s.id} onClick={() => openSession(s.id)} className="w-full py-3 flex items-center justify-between text-left focus:outline-none focus:ring-2 focus:ring-amber-400 rounded">
                     <div>
                       <div className="font-medium inline-flex items-center gap-2 flex-wrap">
                         {l && l.done ? <Check size={16} className="text-emerald-400" /> : <span className="w-4 h-4 rounded-full border border-slate-600 inline-block" />}{s.name} <span className="text-slate-400 font-normal text-sm">{DAYNAMES[s.day]}</span>
@@ -755,7 +784,7 @@ export default function Programme() {
           </div>
         )}
 
-        {tab === "plan" && (
+        {screen === "plan" && (
           <div className="px-4">
             <p className="text-sm text-slate-300 mt-3">{PLAN_INTRO}</p>
             <PlanContent plan={plan} />
@@ -840,12 +869,14 @@ export default function Programme() {
           {/* #41 : le badge de progression est parti avec cet onglet — il vit
               maintenant en tête de la liste des séances, sur l'écran où l'on
               atterrit et où l'on venait le lire. */}
-          <div className="max-w-md mx-auto grid grid-cols-3">
-            {[["seance", "Séance"], ["semaine", "Semaine"], ["plan", "Plan"]].map(([id, label]) => (
-              <button key={id} onClick={() => setTab(id)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${tab === id ? "text-amber-400 font-medium" : "text-slate-400"}`}>
-                {label}
-              </button>
-            ))}
+          {/* #41 : deux entrées. Séance n'en est plus une — on l'ouvre depuis
+              Semaine, et « Semaine » reste en ambre pendant qu'elle est
+              ouverte : c'est à la fois où l'on est dans la hiérarchie et où
+              l'on retourne. C'est ce qui permet à Séance de n'avoir aucune
+              flèche de retour. */}
+          <div className="max-w-md mx-auto grid grid-cols-2">
+            <button onClick={goSemaine} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${screen !== "plan" ? "text-amber-400 font-medium" : "text-slate-400"}`}>Semaine</button>
+            <button onClick={goPlan} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${screen === "plan" ? "text-amber-400 font-medium" : "text-slate-400"}`}>Plan</button>
           </div>
         </nav>
       </div>
