@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { IMPORT_MESSAGES, parseJournalImport, parseProgramImport } from "../src/import.js";
-import { SCHEMA_VERSION } from "../src/schema.js";
+import { SCHEMA_VERSION, emptyJournal, withVersion } from "../src/schema.js";
 import { DEFAULT_DEFINITION } from "../src/definition.js";
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 import { testCtx } from "./helpers/migration-ctx.js";
@@ -363,4 +363,28 @@ test("parseJournalImport : les lignes illisibles d'un journal collé sont écart
   assert.equal(res.ok, true);
   assert.equal(res.dropped, 1);
   assert.deepEqual(Object.keys(res.data.programs.x.logs), ["r1"]);
+});
+
+/* Aller-retour export -> import (#15). Le critère d'acceptation de l'issue est
+   « importing a file exported this way restores the journal exactly » : c'est
+   ce qui rend le fichier téléchargé une vraie sauvegarde et pas un résumé. */
+test("aller-retour : un journal exporté se réimporte à l'identique (#15)", () => {
+  const j = emptyJournal(DEFAULT_DEFINITION);
+  const id = j.activeProgramId;
+  j.programs[id].logs = {
+    lg_1: {
+      id: "lg_1", date: "2026-10-01", slot: "upperB", kind: "normal",
+      ex: { incl_db: [{ w: "24", r: "12", rir: "1" }] },
+      notes: "epaule droite 2/10", done: true, deletedAt: null,
+      updatedAt: "2026-10-01T19:47:12.331Z", schemaVersion: SCHEMA_VERSION,
+    },
+  };
+  j.programs[id].checkin = { w3: { poids: "78,5" } };
+
+  const res = parseJournalImport(JSON.stringify(withVersion(j)), testCtx());
+
+  assert.equal(res.ok, true);
+  assert.equal(res.migrated, false);
+  assert.deepEqual(res.data.activeProgramId, j.activeProgramId);
+  assert.deepEqual(res.data.programs, j.programs);
 });

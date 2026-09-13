@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { backupDroppedOnce, backupKey, backupOnce, droppedBackupKey, listBackups, readDroppedBackup } from "../src/backup.js";
+import { backupDroppedOnce, backupKey, backupOnce, backupPreImportOnce, droppedBackupKey, listBackups, preImportBackupKey, readDroppedBackup, readPreImportBackup } from "../src/backup.js";
 import { fakeStore } from "./helpers/fake-store.js";
 
 test("backupKey : formate la clé avec la version d'origine", () => {
@@ -67,4 +67,38 @@ test("readDroppedBackup : rend la copie, ou null quand il n'y en a pas", async (
   await backupDroppedOnce(store, "K", '{"origine":1}');
   assert.equal(await readDroppedBackup(store, "K"), '{"origine":1}');
   assert.equal(await readDroppedBackup(null, "K"), null);
+});
+
+/* ---------- copie d'avant import (#11, écrite dans #15) ---------- */
+
+test("preImportBackupKey : une clé sans version, l'import n'étant pas un changement de format", () => {
+  assert.equal(preImportBackupKey("prog12_simon_v1"), "prog12_simon_v1_backup_preimport");
+});
+
+test("backupPreImportOnce : un second import n'écrase pas l'état d'avant le premier", async () => {
+  const store = fakeStore();
+  assert.equal(await backupPreImportOnce(store, "K", '{"avant tout":1}'), true);
+  /* Le deuxième appel rend true — l'original est protégé, ce qui est la
+     question posée — mais n'écrit rien : sans ça, importer deux mauvais
+     fichiers de suite effacerait le seul état qu'on voulait retrouver. */
+  assert.equal(await backupPreImportOnce(store, "K", '{"deja importe":2}'), true);
+  assert.equal(store.data.get("K_backup_preimport"), '{"avant tout":1}');
+});
+
+test("backupPreImportOnce : écriture impossible => false, rien n'est perdu en silence", async () => {
+  assert.equal(await backupPreImportOnce(fakeStore({ failSet: true }), "K", "x"), false);
+});
+
+test("readPreImportBackup : rend la copie, ou null quand il n'y en a pas", async () => {
+  const store = fakeStore();
+  assert.equal(await readPreImportBackup(store, "K"), null);
+  await backupPreImportOnce(store, "K", '{"avant tout":1}');
+  assert.equal(await readPreImportBackup(store, "K"), '{"avant tout":1}');
+  assert.equal(await readPreImportBackup(null, "K"), null);
+});
+
+test("les trois copies vivent sous des clés distinctes", () => {
+  const k = "prog12_simon_v1";
+  const keys = new Set([backupKey(k, 1), droppedBackupKey(k), preImportBackupKey(k)]);
+  assert.equal(keys.size, 3);
 });

@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Download, Zap, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Copy, Download, Upload, Zap, X } from "lucide-react";
 import { SCHEMA_VERSION, emptyJournal, weekKey, dateForSlot, findLog, writeLog, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport } from "./import.js";
-import { listBackups, readDroppedBackup } from "./backup.js";
+import { listBackups, readDroppedBackup, backupPreImportOnce, readPreImportBackup } from "./backup.js";
 import { createStore, loadJournal, saveJournal } from "./storage.js";
-import { saveFile } from "./file-io.js";
+import { saveFile, readFile } from "./file-io.js";
 import { readLastExport, writeLastExport, toIsoDate } from "./export-state.js";
 import { unusableProgramIds } from "./journal-shape.js";
 import { buildProgram, getKeySlots, getCardioDayNotes, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
@@ -203,15 +203,17 @@ export default function Programme() {
   const [timer, setTimer] = useState(null);
   const [, setTick] = useState(0);
   const [toast, setToast] = useState("");
-  const [ioText, setIoText] = useState("");
   const [importError, setImportError] = useState("");
+  const [pendingImport, setPendingImport] = useState(null); // fichier lu et validé, pas encore appliqué (#11)
   const [loadError, setLoadError] = useState("");
   const [programError, setProgramError] = useState(""); // #6 : rejet d'un fichier de programme
   const [backups, setBackups] = useState([]); // [{ from, value }] — sauvegardes d'avant-migration (#8)
   const [droppedBackup, setDroppedBackup] = useState(null); // copie d'avant filtrage des lignes illisibles (#32)
+  const [preImportBackup, setPreImportBackup] = useState(null); // copie d'avant le premier import (#11)
   const [lastExport, setLastExport] = useState(null); // AAAA-MM-JJ du dernier export réussi (#15)
   const [exportStatus, setExportStatus] = useState("");
   const fileInputRef = useRef(null);
+  const journalInputRef = useRef(null);
   const skipSave = useRef(true);
 
   useEffect(() => {
@@ -249,6 +251,7 @@ export default function Programme() {
       // res.reason === "absent" : rien à faire, l'état initial useState(emptyJournal(DEFAULT_DEFINITION)) tient lieu de journal.
       setBackups(await listBackups(STORE, KEY, SCHEMA_VERSION));
       setDroppedBackup(await readDroppedBackup(STORE, KEY));
+      setPreImportBackup(await readPreImportBackup(STORE, KEY));
       setLastExport(await readLastExport(STORE, KEY));
       setLoaded(true);
     })();
@@ -347,9 +350,15 @@ export default function Programme() {
   const toggleMob = (i) => updateActive((st) => { const k = weekKey(week); const c = st.cardio[k] || {}; const m = [...(c.mob || Array(prog.MOB_DAYS.length).fill(false))]; m[i] = !m[i]; return { ...st, cardio: { ...st.cardio, [k]: { ...c, mob: m } } }; });
   const setCheck = (f, val) => updateActive((st) => { const k = weekKey(week); return { ...st, checkin: { ...st.checkin, [k]: { ...(st.checkin[k] || {}), [f]: val } } }; });
 
+  /* Le repli écrivait le texte dans setIoText, c'est-à-dire dans la zone
+     d'import JSON de l'onglet Plan : depuis le Bilan, « ci-dessous » ne
+     désignait pas cette zone mais le <pre> juste en dessous, qui affiche
+     déjà bilanText(). Le message tombait juste par accident, pendant que le
+     bilan atterrissait dans le champ d'import d'un autre onglet et y armait
+     « Importer ». Le <pre> suffit : le repli n'a plus rien à écrire. */
   const copy = async (text) => {
     try { await navigator.clipboard.writeText(text); showToast("Copié"); }
-    catch (e) { setIoText(text); showToast("Sélectionne le texte ci-dessous pour le copier"); }
+    catch (e) { showToast("Sélectionne le texte ci-dessous pour le copier"); }
   };
 
   /* #15 : saveFile() doit être atteint de façon synchrone depuis le clic —
@@ -370,6 +379,16 @@ export default function Programme() {
       await writeLastExport(STORE, KEY, iso);
       setLastExport(iso);
       setExportStatus(name);
+    });
+  };
+
+  /* #15 : une sauvegarde se télécharge comme le journal, mais ne met jamais
+     à jour lastExport — le fichier produit est un état ancien, pas une copie
+     du journal courant. L'annoncer comme un export mentirait au rappel. */
+  const downloadBackup = (name, value) => {
+    saveFile(FILE_ENV, { name, content: value, type: "application/json" }).then((res) => {
+      if (!res.ok) setExportStatus(res.reason === "cancelled" ? "" : "Impossible d'écrire un fichier sur cet appareil.");
+      else setExportStatus(name);
     });
   };
 
@@ -413,10 +432,22 @@ export default function Programme() {
 
   /* Un rejet reste affiché dans le panneau ; le toast garde son rôle de
      confirmation, donc il ne double pas le message d'erreur. */
-  const importData = () => {
-    const res = parseJournalImport(ioText, MIGRATION_CTX);
-    if (!res.ok) { setImportError(res.message); return; }
+  const importData = async (parsed) => {
+    const res = parsed;
     setImportError("");
+    /* #11 : le journal actuel part en copie avant d'être remplacé, à partir
+       des octets du stockage et non d'une re-sérialisation. Écrite une seule
+       fois : un second import ne doit pas écraser l'état d'avant le premier
+       par un journal qu'on est en train de regretter. Un stockage muet n'est
+       pas un motif d'arrêt — l'import reste la porte de sortie d'un stockage
+       bloqué (#12 ci-dessous). */
+    if (STORE) {
+      try {
+        const raw = (await STORE.get(KEY, false)).value;
+        if (raw) await backupPreImportOnce(STORE, KEY, raw);
+      } catch (e) { /* pas de journal stocké : rien à sauvegarder */ }
+      setPreImportBackup(await readPreImportBackup(STORE, KEY));
+    }
     /* #12 : un import réussi est la seule porte de sortie d'un stockage
        bloqué (journal trop récent, schemaVersion invalide, backup #8
        impossible). Sans lever storageOk ici, l'autosave reste coupé et
@@ -428,7 +459,38 @@ export default function Programme() {
     if (STORE) setStorageOk(true);
     setLoadError("");
     setJournal({ activeProgramId: res.data.activeProgramId, programs: res.data.programs });
+    /* decisions-spec.md Q4 : à cet instant le journal est identique à un
+       fichier posé sur le disque — exactement l'état que le rappel cherche à
+       garantir. L'import remet donc le compteur à zéro comme un export. */
+    const iso = toIsoDate(new Date());
+    if (await writeLastExport(STORE, KEY, iso)) setLastExport(iso);
     showToast(res.migrated ? "Journal mis à jour vers le nouveau format." : "Données importées");
+  };
+
+  /* #15 : l'import passe par un fichier, en deux temps assumés. On lit et on
+     valide au choix du fichier ; on n'écrit qu'à la confirmation. Le
+     sélecteur rend le geste bien plus facile à déclencher que l'ancienne
+     zone de collage, et remplacer le journal en place est irréversible. */
+  const handleJournalFile = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = ""; // permet de rechoisir le même fichier
+    if (!file) return;
+    setImportError("");
+    setPendingImport(null);
+    const read = await readFile(file);
+    if (!read.ok) { setImportError("Ce fichier n'a pas pu être lu."); return; }
+    /* Même précaution que handleProgramFile (#33) : une exception levée ici
+       partirait dans un gestionnaire d'événement et laisserait le panneau
+       muet — l'utilisateur a choisi un fichier et il ne se passe rien. */
+    let res;
+    try {
+      res = parseJournalImport(read.text, MIGRATION_CTX);
+    } catch (err) {
+      setImportError("Ce fichier n'a pas pu être lu.");
+      return;
+    }
+    if (!res.ok) { setImportError(res.message); return; }
+    setPendingImport({ name: file.name, res });
   };
 
   /* #6 : un id déjà présent reprend son cycle (logs/cardio/checkin intacts,
@@ -607,7 +669,6 @@ export default function Programme() {
             </div>
             <div className="mt-4 flex gap-3">
               <Btn primary onClick={() => copy(bilanText())}><Copy size={16} />Copier le bilan</Btn>
-              <Btn onClick={() => setIoText(bilanText())}>Afficher</Btn>
             </div>
             <pre className="mt-3 whitespace-pre-wrap text-sm text-slate-300 bg-slate-800 border border-slate-700 rounded-md p-3">{bilanText()}</pre>
           </div>
@@ -644,26 +705,37 @@ export default function Programme() {
               <p>{storageOk ? "Le journal est enregistré automatiquement sur cet appareil." : "Stockage automatique indisponible ici."} Avant une mise à jour du fichier, télécharge le journal et garde le fichier : il se réimporte ci-dessous.</p>
               <div className="flex gap-2 flex-wrap">
                 <Btn small onClick={exportJournal}><Download size={14} />Télécharger le journal</Btn>
-                <Btn small onClick={() => { setIoText(JSON.stringify(withVersion(journal))); setImportError(""); }}>Afficher le JSON</Btn>
-                <Btn small onClick={importData} disabled={!ioText}>Importer le JSON collé</Btn>
+                <Btn small onClick={() => journalInputRef.current.click()}><Upload size={14} />Importer un fichier</Btn>
               </div>
+              <input ref={journalInputRef} type="file" accept="application/json" onChange={handleJournalFile} className="hidden" />
               {/* #15 : la date est affichée, pas seulement enregistrée. Sur le
                   chemin « ancre », l'app ne peut pas savoir si le fichier a
                   atterri (decisions-spec.md Q2) — la montrer est ce qui rend
                   une valeur optimiste vérifiable. */}
               <p className="text-xs text-slate-400">{lastExport ? `Dernier export : ${dateLabel(parseLocalDate(lastExport))}.` : "Aucun export enregistré sur cet appareil."}</p>
               {exportStatus && <p className="text-xs text-slate-300">{exportStatus}</p>}
-              <textarea value={ioText} onChange={(e) => { setIoText(e.target.value); setImportError(""); }} rows={4} placeholder="Colle ici un JSON exporté pour le réimporter" className="w-full p-2 rounded-md bg-slate-800 border border-slate-700 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400" />
               {importError && <p role="alert" className="text-sm text-amber-400">{importError}</p>}
-              {(backups.length > 0 || droppedBackup) && (
+              {pendingImport && (
+                <div className="rounded-md border border-slate-700 bg-slate-800 p-3 space-y-2">
+                  <p className="text-sm text-slate-100">{pendingImport.name}</p>
+                  <p className="text-sm text-slate-400">Remplacera le journal de cet appareil. Une copie de l'actuel est enregistrée avant, et reste téléchargeable ci-dessous.</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <Btn small primary onClick={() => { const p = pendingImport; setPendingImport(null); importData(p.res); }}>Remplacer le journal</Btn>
+                    <Btn small onClick={() => setPendingImport(null)}>Annuler</Btn>
+                  </div>
+                </div>
+              )}
+              {(backups.length > 0 || droppedBackup || preImportBackup) && (
                 <div className="flex gap-2 flex-wrap">
                   {backups.map((b) => (
-                    <Btn key={b.from} small onClick={() => setIoText(b.value)}>Afficher la sauvegarde d'avant-migration (v{b.from})</Btn>
+                    <Btn key={b.from} small onClick={() => downloadBackup(`prog12-journal-v${b.from}-avant-migration.json`, b.value)}><Download size={14} />Sauvegarde d'avant-migration (v{b.from})</Btn>
                   ))}
                   {/* #32 : le journal tel qu'il était avant que des séances
                       illisibles n'en soient écartées. Comme les autres
-                      sauvegardes, elle n'est jamais restaurée toute seule. */}
-                  {droppedBackup && <Btn small onClick={() => setIoText(droppedBackup)}>Afficher le journal d'avant les séances écartées</Btn>}
+                      sauvegardes, elle n'est jamais restaurée toute seule :
+                      on la sort du téléphone, on la relit, on décide. */}
+                  {droppedBackup && <Btn small onClick={() => downloadBackup("prog12-journal-avant-lignes-ecartees.json", droppedBackup)}><Download size={14} />Journal d'avant les séances écartées</Btn>}
+                  {preImportBackup && <Btn small onClick={() => downloadBackup("prog12-journal-avant-import.json", preImportBackup)}><Download size={14} />Journal d'avant le premier import</Btn>}
                 </div>
               )}
             </Section>

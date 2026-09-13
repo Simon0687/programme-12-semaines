@@ -22,6 +22,14 @@ export const backupKey = (key, from) => `${key}_backup_pre${from}`;
    suppression : l'autosave réécrit le journal filtré au premier geste. */
 export const droppedBackupKey = (key) => `${key}_backup_dropped`;
 
+/* Copie d'avant import (#11, écrite dans #15). Un import remplace le journal
+   entier : sans cette copie, choisir le mauvais fichier est définitif, et le
+   sélecteur de fichier rend le geste plus facile à déclencher que l'ancienne
+   zone de collage. Écrite une seule fois, comme les autres — et c'est le
+   point : un second import ne doit pas écraser l'état d'avant le premier par
+   un journal qu'on est justement en train de regretter. */
+export const preImportBackupKey = (key) => `${key}_backup_preimport`;
+
 /* true si l'original est protégé (copie qui vient d'être écrite, ou copie
    déjà existante pour cette version) ; false seulement si l'écriture a
    échoué. rawValue doit être la chaîne brute lue du stockage, jamais un
@@ -34,13 +42,25 @@ export async function backupDroppedOnce(store, key, rawValue) {
   return writeOnce(store, droppedBackupKey(key), rawValue);
 }
 
+export async function backupPreImportOnce(store, key, rawValue) {
+  return writeOnce(store, preImportBackupKey(key), rawValue);
+}
+
 /* Lecture explicite : aucune sauvegarde n'est restaurée automatiquement,
    ici pas plus qu'ailleurs. L'appelant (le panneau « Données ») la met sous
    les yeux, la décision reste à l'utilisateur. */
 export async function readDroppedBackup(store, key) {
+  return readOne(store, droppedBackupKey(key));
+}
+
+export async function readPreImportBackup(store, key) {
+  return readOne(store, preImportBackupKey(key));
+}
+
+async function readOne(store, k) {
   if (!store) return null;
   try {
-    const r = await store.get(droppedBackupKey(key), false);
+    const r = await store.get(k, false);
     return r && r.value ? r.value : null;
   } catch (e) {
     return null;

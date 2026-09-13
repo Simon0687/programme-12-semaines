@@ -24,7 +24,9 @@ import { DEFAULT_DEFINITION } from "./definition.js";
 import { sanitizeJournal, validateDefinition, validateEnvelope, validatePreMigration } from "./journal-shape.js";
 
 export const IMPORT_MESSAGES = {
-  "invalid-json": "Le texte collé n'est pas du JSON valide.",
+  /* #15 : « le texte collé » a cessé d'être vrai — le journal arrive par un
+     fichier, et parseProgramImport n'a jamais connu que cette route. */
+  "invalid-json": "Ce fichier n'est pas du JSON valide.",
   "not-a-journal": "Ce JSON ne contient pas de journal (clé « logs » ou « programs » absente).",
   "too-new": "Ce fichier a été créé par une version plus récente de l'appli. Mets l'appli à jour, puis réimporte.",
   "migration-failed": "Ce journal n'a pas pu être mis à jour vers le format actuel.",
