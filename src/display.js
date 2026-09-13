@@ -72,6 +72,14 @@ function isoOfDay(n) {
   return new Date(n * 86400000).toISOString().slice(0, 10);
 }
 
+/* Graduation de l’axe des ordonnées, selon l’unité. Au poids du corps,
+   zéro n’est pas « 0 kg » mais l’origine réelle de l’exercice. */
+export function axisLabel(value, unit) {
+  if (unit === "time") return `${fmt(value)} s`;
+  if (unit === "bw" && value === 0) return "PDC";
+  return fmt(value);
+}
+
 /* ---------- Libellés du registre ---------- */
 
 export const MUSCLE_LABELS = {
