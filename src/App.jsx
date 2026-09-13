@@ -747,9 +747,16 @@ export default function Programme() {
                 );
               })}
             </div>
+            {/* #41 : le cardio était déjà modifiable ici — `compact` ne cachait
+                qu'un titre. Il gagne le sien, aligné sur celui des séances,
+                maintenant qu'il est une section du hub et non plus une chip
+                perdue dans le rail de Séance. */}
             {hasCardioContent(prog) && (
-              <div className="mt-4">
-                <CardioView prog={prog} week={week} cardio={cardio} ca={ca} setCardio={setCardio} toggleMob={toggleMob} compact />
+              <div className="mt-5">
+                <div className="text-sm text-slate-400">Cardio et mobilité</div>
+                <div className="mt-2">
+                  <CardioView prog={prog} week={week} cardio={cardio} ca={ca} setCardio={setCardio} toggleMob={toggleMob} compact />
+                </div>
               </div>
             )}
 
