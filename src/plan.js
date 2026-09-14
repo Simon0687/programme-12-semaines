@@ -132,6 +132,12 @@ export function buildPlan(definition) {
            vit dans progression.js, écrit à côté de l'autre, pour qui touche au
            moteur. « À ta charge de travail », ci-dessus, se lit en français
            courant et n'a pas besoin d'être défini. */
+        /* Dit ce que rien d'autre ne montre : que ce marquage existe, et ce
+           qu'il change. La conséquence, pas le concept — pas un mot de
+           « décharge » ni de « référence de progression ». La seconde moitié
+           existe pour que personne ne cherche un réglage qu'il n'a jamais vu :
+           la question ne se pose que quand on descend (#43). */
+        { t: "p", text: "Une séance que tu marques allégée ne change pas tes charges de référence : la suivante repart de là où tu en étais. L'appli te le propose seulement quand tu descends nettement sous ta référence, au moment de valider." },
         { t: "p", text: "Calibration (S1 et S7) : toutes les séries au haut de la fourchette → +5 % ; une série sous le bas de la fourchette → −5 %." },
         { t: "p", text: "Sur les isolations, une rep, une demi-rep ou une exécution plus stricte à charge égale comptent comme un progrès. Sur les mouvements au poids du corps, le lest prend le relais dès que le haut de la fourchette est tenu à 1 RIR." },
         { t: "p", text: "Repos : 2–3 min sur les gros mouvements, 1–2 min sur les isolations, 1 min sur les abdos. Descente 2–4 s, montée forte. Concentrique dynamique, pas de ralentissement pour « sentir »." },
