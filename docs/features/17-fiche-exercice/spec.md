@@ -43,21 +43,32 @@ the set grid are untouched.
 ("← Séance Haut A"), then the exercise name. No figure of merit in the header.
 Then, in order:
 
-- **Chart.** The best set's load per session, plotted against real dates, all
-  cycles. One polyline per cycle — never joined across the gap between them.
-  Calibration and deload sessions are drawn as hollow points. The axis follows
-  the registry's `unit`: kilos, added load for `bw` (origin labelled "PDC"),
-  seconds for `time`, reps for `reps`. Below it, one quiet line: `N séances
-  validées depuis le <date>`.
+- **Chart.** One point per session, plotted against real dates, all cycles. One
+  polyline per cycle — never joined across the gap between them. Calibration and
+  deload sessions are drawn as hollow points. What the point *measures* depends
+  on the registry `unit`, in three regimes (Decision 4):
+  - `kg` — an **estimated 10RM**, taken from the session's best-estimating set.
+    Points computed from fewer than 3 or more than 12 reps are drawn grey, and a
+    line under the chart says why.
+  - `time`, `reps` — the best set as recorded; there is nothing to estimate.
+  - `bw`, `carry` — **two plots on one time axis**: a polyline for reps (or
+    hold), bars for the load, taken from the heaviest set of the day. A single
+    right-hand label declares the top of the bar scale. Bodyweight-only history
+    draws no bars at all.
+
+  Below it, one quiet line: `N séances validées depuis le <date>`.
 - **Records.** One row per rep count actually reached: the heaviest load ever
   carried for *that many reps or more*, with its date. The table is therefore
   monotone by construction. For `time` and `reps` units it degenerates to a
   single row ("Meilleure tenue"), with the rule line reworded.
 - **Historique.** One row per session, most recent first: `<date> · <session
   name>` on the left, the set summary on the right. Calibration and deload rows
-  carry a pill saying so. A separator between cycles names the program and its
-  period. **The session name is the one stored in that cycle's pinned
-  definition**, not the name today's program gives the slot.
+  carry a pill saying so. **Every cycle carries a header** naming the program and
+  its period — the most recent one included (Decision 6). **The session name is
+  the one stored in that cycle's pinned definition**, not the name today's
+  program gives the slot. The set summary stays compact while the load holds
+  (`72,5 kg 8/8/10`) and becomes explicit as soon as it moves
+  (`8@90/8@85/10@70 kg`, Decision 5).
 - **Technique.** The registry `cue`, always expanded.
 - **Détails.** Muscle split as labelled bars (dominant muscle in amber, the rest
   in grey), then équipement, articulations, type. Rendered from
@@ -120,6 +131,13 @@ for anything it cannot parse — so an old or new value is handled, not migrated
   already filters on `rec.done`, so this needs no new rule: a record announced
   after set 1 could be contradicted by set 3, and the sets in progress are
   visible on the screen you came from.
+- **The same date in two cycles** — two cycles can both hold a session for the
+  same day; nothing forbids it and nothing should. Both rows are shown, each
+  under its own cycle header. See Decision 6.
+- **Dates in the future** — a log dated after today is plotted and listed like
+  any other. The sheet does not judge dates: a journal is allowed to hold
+  deliberately out-of-range entries, and silently dropping them would hide data
+  the user entered on purpose.
 - **Sets with no reps recorded** — already dropped by `history()`
   (`progression.js:46` filters `r != null`); a session whose sets are all empty
   produces no row.
@@ -208,6 +226,74 @@ implementation choices follow `/design-tech 17`.
 
 3. **No tapped point on the chart.** No hit-testing, no value bubble. The
    historique immediately below carries every number the chart plots.
+
+---
+
+Settled 2026-09-14, **after** the screen shipped to `dev` and was used against a
+real journal. Decisions 4 and 5 reverse choices 1–3 were written under; both
+reversals come from the same source — the screen was read, and it said something
+untrue.
+
+4. **The chart plots an estimated 10RM, not raw load.** This **reverses** the
+   original refusal of any estimated max. That refusal was argued on two
+   grounds, and only one survived contact with the data.
+
+   The refusal held that a model invents what the journal did not record. What
+   the shipped chart did instead was *worse*: it plotted the heaviest set's load
+   and ignored its reps, so 8 reps at 90 kg and 2 reps at 90 kg landed on the
+   same point. The chart did not decline to model — it modelled reps as
+   irrelevant, silently, and read a collapse as a plateau.
+
+   **10RM and not 1RM**, which is the part that makes this worth doing: a one-rep
+   max answers a question this program never asks. No session in it prescribes a
+   single. A ten-rep max is the order of magnitude actually trained, so the curve
+   lands inside the working range instead of extrapolating past its own data.
+
+   **Epley, normalised to ten reps** — `w × (30 + r) / 40`. It is the identity at
+   `r = 10`, so a genuine set of ten is plotted at the weight actually lifted,
+   with no drift; Brzycki has no such property and degrades past ten reps.
+
+   **The window is 3–12 reps.** Outside it the estimate measures something else —
+   the nervous system below, local endurance above — so those points are drawn
+   grey with the reason stated on screen. Grey and not dropped: a session that
+   happened belongs on the chart, and hiding it would be the same class of lie in
+   the other direction.
+
+   **The surviving half of the original refusal is the unit problem, and it is
+   answered rather than overruled.** `bw` and `carry` carry two progressions at
+   once, and a 10RM extrapolated from six weighted pull-ups yields a *negative*
+   added load — a number with no meaning. Those units therefore get no estimate
+   at all: reps (or hold) as a polyline, load as bars, on one time axis. `time`
+   and `reps` have nothing to estimate. So the model applies exactly where it is
+   defined, and nowhere else.
+
+   *Follow-up, not filed:* an estimate that runs high at high reps suggests an
+   endurance profile, one that runs high at low reps a force/CNS profile. Simon
+   wants this written up as an article, and sees a broader place for training
+   articles in the app. Nothing in the code depends on it.
+
+5. **The set summary is compact while the load holds, explicit once it moves.**
+   The compact form took the *maximum* load and concatenated *all* the reps, so
+   8 at 90, 8 at 85 and 10 at 70 rendered as `90 kg 8/8/10` — a set that was
+   never performed. It is kept only where it is exact, which is the common case:
+   `planned()` prescribes one working load, so the three sets usually share it.
+   When they do not, each set carries its own: `8@90/8@85/10@70 kg`. A row that
+   changes shape is itself the signal that the load had to come down.
+
+   Consequences: `@` now means "at this load", so RIR moves to `·`; and a RIR
+   that was never entered prints nothing instead of `@ ? RIR`. The change reaches
+   the three other callers in `App.jsx` — "Dernière fois", the session recap and
+   the downloaded weekly review — which is intended: the summary lied in all four
+   places.
+
+6. **Every cycle in the historique carries a header, the most recent included.**
+   A session dated 7 sept. appeared twice, above and below a cycle separator,
+   and read as a duplication bug. It is not one: no code path copies a log
+   (`loadProgram` reuses the entry, `migrateLogsV2ToV3` rebuilds `logs` from
+   scratch), so those are two genuine records in two different cycles. A date is
+   unique within a cycle and nowhere else. The defect was that the header only
+   appeared *between* groups, leaving the most recent cycle anonymous — so two
+   dates looked identical while belonging to different programs.
 
 ## Open questions
 

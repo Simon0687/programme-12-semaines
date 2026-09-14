@@ -71,16 +71,39 @@ recordsFor(entries, unit)
 //                 rows[i].load = max w among sets with r >= reps; date = earliest reaching it
 // time | reps  -> { mode: "best", best, date }
 
+chartMode(unit)
+// kg           -> { kind: "estimate", line: "kg" }
+// bw | carry   -> { kind: "dual", line: "reps" | "time", bar: "kg" }
+// time | reps  -> { kind: "raw", line: "time" | "reps" }
+
+estimate10RM(w, r)  // Epley normalised to ten reps: w × (30 + r) / 40, to 0.1 kg
+                    // identity at r = 10, which is why it beats Brzycki here
+ESTIMATE_REPS = { min: 3, max: 12 }  // outside it the point is dimmed, never dropped
+
+chartPoint(entry, unit)
+// estimate -> { value, reps, load, dim }  best set = the best-ESTIMATING one,
+//                                         not the heaviest (that was the bug)
+// dual     -> { value, bar }              best set = the heaviest, reps as tiebreak
+// raw      -> { value }
+
 seriesByCycle(entries, unit)
-// -> [{ programId, programName, points: [{ date, value, kind }] }]
-// value = max(w) when the unit has a load, max(r) otherwise. One entry per cycle
-// is one polyline, which is what keeps the line from crossing the gap between cycles.
+// -> [{ programId, programName, points: [{ date, kind, ...chartPoint }] }]
+// One entry per cycle is one polyline, which is what keeps the line from
+// crossing the gap between cycles.
 ```
+
+Amended 2026-09-14 (spec Decision 4). The first version plotted `max(w)` and
+never looked at reps, so a session that collapsed from 8 reps to 2 at the same
+load read as a plateau. `bestValue()` is gone, replaced by `chartPoint()`.
 
 ### `src/display.js`
 
-`setSummary(sets, v)` moves verbatim from `App.jsx:66-74` — no behaviour change,
-pinned by tests first (CONTRIBUTING). Beside it, the label tables the registry
+`setSummary(sets, v)` moved verbatim from `App.jsx:66-74` — no behaviour change,
+pinned by tests first (CONTRIBUTING). **Amended 2026-09-14** (spec Decision 5):
+the compact form is kept only while the load is constant across the sets, where
+it is exact; otherwise each set carries its own load. That is the point at which
+the pinned tests earned their keep — they are what made the format change
+visible in all four call sites at once. Beside it, the label tables the registry
 deliberately does not carry (`registry.js` stays a leaf of keys, spec Decision 1):
 
 ```js
@@ -91,8 +114,17 @@ muscleRows(ex)  -> [{ label, pct, dominant }], sorted desc; dominant = the max
 detailRows(ex)  -> { muscles, equipement, articulations, type } | null
                    null for UNSELECTABLE_IDS — a missing section, not an empty one
 chartGeometry(series, { w, h, padL, padB })
-                -> { polylines, dots, grid, xLabels, yLabels }
+                -> { plot, polylines, dots, bars, grid, xLabels, barTop }
+                   dots[i].dim  = estimate outside ESTIMATE_REPS, drawn grey
+                   bars         = load, only in "dual" and only where load > 0
+                   barTop       = { y, value } | null, the single right-hand label
 ```
+
+Bars occupy the bottom `BAR_ZONE` (55 %) of the frame rather than its full
+height: at full height they would run behind the polyline, and reading the two
+progressions *together* is the entire point of the dual regime. `barTop` keeps
+the scale honest. A history with no added load produces no bars, no right-hand
+padding and no legend entry — the chart degrades cleanly to a single plot.
 
 `chartGeometry` is pure arithmetic over `{ date, value }`, so the chart is
 unit-tested without a DOM and `ExerciseSheet.jsx` only emits `<svg>` from its
