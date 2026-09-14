@@ -162,7 +162,11 @@ export function planned(prog, state, slotId, week, si, date) {
   } else if (allTop) {
     next = load + v.incr; why = `+${fmt(v.incr)} kg : haut de fourchette atteint`;
   } else if (lowCount >= 2) {
-    const prevLow = prev && prev.sets.filter((s) => s.r < mn).length >= 2;
+    /* La séance d'avant se lit par la même règle (#31, design décision 1) : elle
+       comptait ses séries basses sur toute la séance, donc elle portait le défaut
+       à l'identique. Laisser une des deux lectures sur l'ancienne règle aurait
+       replanté le bug là où personne ne serait allé le rechercher. */
+    const prevLow = prev && workingSets(prev.sets, mn, mx).sets.filter((s) => s.r < mn).length >= 2;
     if (prevLow) { next = roundTo(load * 0.95, v.incr); why = "−5 % : deux séances sous la fourchette"; }
     else why = "même charge : une séance sous la fourchette, on retente";
   } else why = "même charge : viser plus de reps";

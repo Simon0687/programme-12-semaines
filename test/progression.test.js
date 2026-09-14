@@ -522,3 +522,37 @@ describe("mixed loads in one session", () => {
     assert.equal(p.load, 90, "roundTo(85 * 1,05 ; 2,5) — jugé sur 85, pas sur 95");
   });
 });
+test("deux séances basses d'affilée réduisent, même quand la première portait un retour au calme", () => {
+  /* La séance d'avant a tenu 6 reps à 100 puis en a manqué deux, et s'est
+     terminée par 8 reps à 80. Sa charge de travail reste 100 — la plus lourde
+     ayant atteint le haut de la fourchette — et elle y a bien deux séries
+     basses. La série légère de fin ne met pas la séance à l'abri de la
+     réduction. */
+  const p = planned(
+    prog,
+    S(
+      { week: 2, sid: "hautA", vid: "dc", sets: [set(100, 6, 1), set(100, 3, 0), set(100, 3, 0), set(80, 8, 1)] },
+      { week: 3, sid: "hautA", vid: "dc", sets: [set(100, 3, 0), set(100, 3, 0), set(100, 6, 1)] }
+    ),
+    "dc", 4, si("hautA"), dateOf(4, "hautA")
+  );
+  assert.equal(p.load, 95, "roundTo(100 * 0,95 ; 2,5)");
+  assert.match(p.why, /^−5 % : deux séances sous la fourchette/);
+});
+
+test("une séance d'avant dont seules les séries légères étaient basses ne compte pas comme basse", () => {
+  /* La charge de travail de la séance d'avant est 100 (6 reps, au haut de la
+     fourchette) ; ses deux séries basses ont été faites à 70, après coup. Elle
+     n'est donc pas une séance sous la fourchette, et la réduction n'a pas lieu
+     d'être — ce que l'ancien décompte, aveugle à la charge, aurait déclenché. */
+  const p = planned(
+    prog,
+    S(
+      { week: 2, sid: "hautA", vid: "dc", sets: [set(100, 6, 1), set(70, 3, 0), set(70, 3, 0)] },
+      { week: 3, sid: "hautA", vid: "dc", sets: [set(100, 3, 0), set(100, 3, 0), set(100, 6, 1)] }
+    ),
+    "dc", 4, si("hautA"), dateOf(4, "hautA")
+  );
+  assert.equal(p.load, 100, "charge tenue");
+  assert.match(p.why, /^même charge : une séance sous la fourchette, on retente/);
+});
