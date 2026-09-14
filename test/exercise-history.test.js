@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { exerciseHistory, recordsFor, seriesByCycle, bestValue } from "../src/exercise-history.js";
+import { exerciseHistory, recordsFor, seriesByCycle, chartPoint, chartMode, estimate10RM } from "../src/exercise-history.js";
 
 /* Deux cycles, comme un journal réel après un an : l'ancien porte ses propres
    noms de séance (« Pousser »), le nouveau les siens (« Haut A »). C'est la
@@ -156,16 +156,67 @@ test("recordsFor : au poids du corps, le record porte le lest, PDC valant zéro"
 
 /* ---------- Courbe ---------- */
 
+test("estimate10RM : Epley ramené à dix reps, exact à dix reps", () => {
+  /* L'identité à r = 10 est la raison du choix : la courbe passe par la charge
+     réellement portée quand la série fait dix reps, sans dérive. */
+  assert.equal(estimate10RM(80, 10), 80);
+  assert.equal(estimate10RM(90, 8), 85.5);
+  assert.equal(estimate10RM(90, 2), 72);
+  assert.equal(estimate10RM(null, 8), 0, "sans charge saisie, zéro et non une exception");
+  assert.equal(estimate10RM(80, null), null, "sans reps, rien à estimer");
+});
+
+test("chartPoint : la meilleure série est la mieux estimée, pas la plus lourde", () => {
+  /* Le défaut de la première version, en une assertion : 2 reps à 90 kg pèsent
+     moins qu'un 8 reps à 85 kg, et la courbe doit le dire. */
+  const e = { sets: [{ w: 90, r: 2 }, { w: 85, r: 8 }] };
+  assert.equal(chartPoint(e, "kg").value, 80.8);
+  assert.equal(chartPoint(e, "kg").reps, 8);
+});
+
+test("chartPoint : hors de 3–12 reps, le point est grisé et non écarté", () => {
+  assert.equal(chartPoint({ sets: [{ w: 100, r: 2 }] }, "kg").dim, true);
+  assert.equal(chartPoint({ sets: [{ w: 40, r: 20 }] }, "kg").dim, true);
+  assert.equal(chartPoint({ sets: [{ w: 80, r: 3 }] }, "kg").dim, false);
+  assert.equal(chartPoint({ sets: [{ w: 80, r: 12 }] }, "kg").dim, false);
+});
+
+test("chartPoint : en double progression, la série la plus lourde porte les deux", () => {
+  /* Retenir la plus longue ferait monter la courbe chaque fois qu'on allège —
+     l'inverse de ce que la double progression doit montrer. */
+  const p = chartPoint({ sets: [{ w: 10, r: 6 }, { w: 0, r: 15 }] }, "bw");
+  assert.deepEqual(p, { value: 6, bar: 10 });
+  assert.deepEqual(chartPoint({ sets: [{ w: 24, r: 40 }] }, "carry"), { value: 40, bar: 24 });
+  assert.equal(chartPoint({ sets: [{ w: 10, r: 6 }] }, "bw").dim, undefined, "aucune estimation, donc aucune réserve à afficher");
+});
+
+test("chartMode : chaque unité sait ce qu'elle fait progresser", () => {
+  assert.deepEqual(chartMode("kg"), { kind: "estimate", line: "kg" });
+  assert.deepEqual(chartMode(undefined), { kind: "estimate", line: "kg" }, "kg est l'unité implicite du registre");
+  assert.deepEqual(chartMode("bw"), { kind: "dual", line: "reps", bar: "kg" });
+  assert.deepEqual(chartMode("carry"), { kind: "dual", line: "time", bar: "kg" });
+  assert.deepEqual(chartMode("time"), { kind: "raw", line: "time" });
+  assert.deepEqual(chartMode("reps"), { kind: "raw", line: "reps" });
+});
+
 test("seriesByCycle : un segment par cycle, dans l'ordre", () => {
   const s = seriesByCycle(exerciseHistory(journal(), "dc"), "kg");
   assert.deepEqual(s.map((x) => x.programId), ["old", "cur"]);
-  assert.deepEqual(s[0].points.map((p) => p.value), [75, 77.5]);
-  assert.deepEqual(s[1].points.map((p) => p.value), [75, 85, 87.5]);
+  /* Les charges brutes montaient de 85 à 87,5 entre le 24 et le 31 août ; le
+     10RM estimé descend de 80,8 à 76,6, parce que les reps sont passées de 8 à
+     5. C'est très exactement ce que la courbe devait cesser de cacher. */
+  assert.deepEqual(s[0].points.map((p) => p.value), [71.3, 71.7]);
+  assert.deepEqual(s[1].points.map((p) => p.value), [71.3, 80.8, 76.6]);
   assert.equal(s[1].points[0].kind, "calibration");
 });
 
 test("seriesByCycle : sans charge, la courbe suit ce qui progresse", () => {
   const entries = [{ programId: "p", programName: "P", date: "2026-09-07", kind: "normal", sets: [{ w: null, r: 60, rir: 2 }, { w: null, r: 55, rir: 2 }] }];
   assert.equal(seriesByCycle(entries, "time")[0].points[0].value, 60);
-  assert.equal(bestValue(entries[0], "kg"), 0, "en kg, des séries sans charge valent zéro");
+  assert.equal(seriesByCycle(entries, "time")[0].points[0].bar, undefined, "aucune barre : il n'y a pas de charge");
+});
+
+test("seriesByCycle : une séance sans reps exploitables ne fait pas un point à zéro", () => {
+  const entries = [{ programId: "p", date: "2026-09-07", kind: "normal", sets: [] }];
+  assert.deepEqual(seriesByCycle(entries, "kg"), []);
 });

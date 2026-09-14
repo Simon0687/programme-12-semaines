@@ -27,14 +27,48 @@ import { fmt } from "./progression.js";
 
 /* ---------- Résumé des séries (déplacé depuis App.jsx, #23) ---------- */
 
+/* La forme compacte — « 72,5 kg 8/8/10 » — prenait la charge **maximale** et
+   concaténait **toutes** les reps. Elle fabriquait donc des séries qui
+   n'existent pas : 8 à 90, 8 à 85 puis 10 à 70 se lisait « 90 kg 8/8/10 », et
+   on croyait avoir fait 10 reps à 90 (constaté à l'usage le 2026-09-14).
+
+   La règle est maintenant : **compact tant que la charge ne bouge pas, explicite
+   dès qu'elle bouge.** Quand les trois séries partagent la même charge, la forme
+   compacte est exacte au caractère près et reste la plus lisible — c'est le cas
+   courant, `planned()` ne prescrivant qu'une seule charge de travail. Dès que
+   deux séries diffèrent, chaque série porte la sienne : « 8@90/8@85/10@70 kg ».
+   Une ligne qui change de forme est d'ailleurs elle-même l'information : elle
+   signale une séance où la charge a dû descendre.
+
+   Le RIR passe de « @ » à « · » parce que « @ » désigne désormais la charge
+   d'une série, et « 8@90 @ 1 RIR » ne se lit pas. Un RIR non saisi ne s'écrit
+   plus « @ ? RIR » : on n'affiche rien. */
 export function setSummary(sets, v) {
   if (!sets || !sets.length) return "—";
   const unit = v.unit || "kg";
-  const kg = Math.max(...sets.map((s) => (s.w == null ? 0 : s.w)));
-  const reps = sets.map((s) => (s.r == null ? "?" : s.r)).join("/");
-  const rir = [...new Set(sets.map((s) => (s.rir == null ? "?" : s.rir)))].join("-");
-  const kgTxt = unit === "time" || unit === "reps" ? "" : unit === "bw" ? (kg > 0 ? `+${fmt(kg)} kg ` : "PDC ") : `${fmt(kg)} kg `;
-  return `${kgTxt}${reps}${unit === "time" || unit === "carry" ? " s" : ""} @ ${rir} RIR`;
+  const secs = unit === "time" || unit === "carry";
+  const loaded = unit !== "time" && unit !== "reps";
+
+  const reps = (s) => (s.r == null ? "?" : fmt(s.r));
+  /* Au poids du corps, « PDC+10 » plutôt que « +10 kg » : la mention porte son
+     unité, donc la liste n'a pas à traîner un « kg » final qui suivrait un
+     « PDC » nu. */
+  const load = (w) => (unit === "bw" ? (w > 0 ? `PDC+${fmt(w)}` : "PDC") : fmt(w));
+
+  const loads = sets.map((s) => (s.w == null ? 0 : s.w));
+  const varies = loaded && new Set(loads).size > 1;
+
+  let body;
+  if (varies) {
+    body = sets.map((s, i) => `${reps(s)}${secs ? " s" : ""}@${load(loads[i])}`).join("/");
+    if (unit !== "bw") body += " kg";
+  } else {
+    const head = !loaded ? "" : unit === "bw" ? (loads[0] > 0 ? `+${fmt(loads[0])} kg ` : "PDC ") : `${fmt(loads[0])} kg `;
+    body = `${head}${sets.map(reps).join("/")}${secs ? " s" : ""}`;
+  }
+
+  const rir = [...new Set(sets.map((s) => s.rir).filter((x) => x != null))];
+  return rir.length ? `${body} · ${rir.join("-")} RIR` : body;
 }
 
 /* ---------- Dates ---------- */
@@ -72,11 +106,14 @@ function isoOfDay(n) {
   return new Date(n * 86400000).toISOString().slice(0, 10);
 }
 
-/* Graduation de l’axe des ordonnées, selon l’unité. Au poids du corps,
-   zéro n’est pas « 0 kg » mais l’origine réelle de l’exercice. */
+/* Graduation de l’axe des ordonnées. L’unité reçue est celle de l’**axe**
+   (`chartMode().line`), pas celle de l’exercice : au poids du corps la courbe
+   trace des répétitions, et l’ancien cas « zéro se dit PDC » n’a plus de sens
+   — il portait une charge, la courbe n’en porte plus. Les kilos restent nus,
+   le libellé au-dessus du cadre les nomme et la gouttière de gauche ne fait
+   que 34 px. */
 export function axisLabel(value, unit) {
   if (unit === "time") return `${fmt(value)} s`;
-  if (unit === "bw" && value === 0) return "PDC";
   return fmt(value);
 }
 
@@ -167,12 +204,28 @@ function niceScale(lo, hi) {
   return { min, max, ticks };
 }
 
+/* Part de la hauteur du cadre laissée aux barres de charge. Les barres vivent
+   en bas, sous la courbe, comme les volumes sous un cours : à pleine hauteur
+   elles passeraient derrière la polyligne et les deux progressions
+   deviendraient illisibles ensemble — or les lire ensemble est tout l'objet du
+   régime `dual`. L'échelle reste honnête : `barTop` annonce à quoi correspond
+   le haut de la zone. */
+const BAR_ZONE = 0.55;
+
 export function chartGeometry(series, box) {
   const all = (series || []).flatMap((s) => s.points || []);
   if (!all.length) return null;
 
+  /* Les barres n'existent qu'en régime `dual`, et seulement si une charge a
+     réellement été portée : des tractions toujours au poids du corps donnent
+     une rangée de zéros, qui ne mérite ni axe ni légende. La courbe dégénère
+     alors proprement en tracé simple. */
+  const barVals = all.map((p) => (typeof p.bar === "number" ? p.bar : 0));
+  const hasBars = barVals.some((b) => b > 0);
+
   const { w = 358, h = 162, padL = 34, padT = 8, padB = 30 } = box || {};
-  const x0 = padL, x1 = w, y0 = padT, y1 = h - padB;
+  const padR = box && box.padR != null ? box.padR : hasBars ? 30 : 0;
+  const x0 = padL, x1 = w - padR, y0 = padT, y1 = h - padB;
 
   const days = all.map((p) => dayNumber(p.date));
   const d0 = Math.min(...days), d1 = Math.max(...days);
@@ -183,13 +236,28 @@ export function chartGeometry(series, box) {
   const Y = (v) => (scale.max === scale.min ? (y0 + y1) / 2 : y1 - ((v - scale.min) / (scale.max - scale.min)) * (y1 - y0));
   const r2 = (n) => Math.round(n * 10) / 10;
 
-  const polylines = [], dots = [];
+  const barScale = hasBars ? niceScale(0, Math.max(...barVals)) : null;
+  const YB = (v) => y1 - (v / barScale.max) * (y1 - y0) * BAR_ZONE;
+  /* Assez fine pour que deux séances rapprochées ne se recouvrent pas, assez
+     large pour rester visible quand l'historique est court. */
+  const barW = hasBars ? r2(Math.max(2, Math.min(12, (x1 - x0) / all.length / 1.6))) : 0;
+
+  const polylines = [], dots = [], bars = [];
   for (const s of series) {
     const pts = (s.points || []).map((p) => ({ ...p, x: r2(X(p.date)), y: r2(Y(p.value)) }));
     if (!pts.length) continue;
     polylines.push({ programId: s.programId, points: pts.map((p) => `${p.x},${p.y}`).join(" ") });
     for (const p of pts) {
-      dots.push({ x: p.x, y: p.y, date: p.date, value: p.value, hollow: p.kind === "calibration" || p.kind === "deload" });
+      dots.push({
+        x: p.x, y: p.y, date: p.date, value: p.value,
+        hollow: p.kind === "calibration" || p.kind === "deload",
+        /* Estimation hors fenêtre de crédibilité : tracée, mais grisée. */
+        dim: p.dim === true,
+      });
+      if (hasBars && p.bar > 0) {
+        const top = r2(YB(p.bar));
+        bars.push({ x: r2(p.x - barW / 2), y: top, w: barW, h: r2(y1 - top), value: p.bar, date: p.date });
+      }
     }
   }
 
@@ -209,5 +277,11 @@ export function chartGeometry(series, box) {
     xLabels,
     polylines,
     dots,
+    bars,
+    /* Un seul repère à droite, le haut de l'échelle des barres. Une graduation
+       complète ferait flotter des nombres sans ligne en face d'eux, puisque les
+       lignes du cadre appartiennent à l'échelle de gauche — et l'historique
+       juste en dessous porte de toute façon chaque valeur exacte. */
+    barTop: hasBars ? { y: r2(YB(barScale.max)), value: barScale.max } : null,
   };
 }

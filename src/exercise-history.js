@@ -93,14 +93,87 @@ export function exerciseHistory(journal, exerciseId) {
   return out;
 }
 
-/* Valeur qui progresse, selon l'unité : la charge quand il y en a une, la
-   tenue ou le nombre de reps sinon. C'est ce que la courbe trace. */
-export function bestValue(entry, unit) {
-  if (!entry || !entry.sets.length) return null;
-  const vals = hasLoad(unit)
-    ? entry.sets.map((s) => (s.w == null ? 0 : s.w))
-    : entry.sets.map((s) => s.r);
-  return Math.max(...vals);
+/* ---------- Ce que la courbe trace, selon l'unité ----------
+
+   La première version traçait la charge brute de la meilleure série et ne
+   regardait pas les reps : 8 reps à 90 kg et 2 reps à 90 kg donnaient le même
+   point. La courbe annonçait donc une progression là où il y avait un
+   effondrement — constaté à l'usage le 2026-09-14, et c'est ce qui a renversé
+   la décision « ni 1RM estimé ni tonnage » de la spec (#17, Décision 4).
+
+   Trois régimes, parce que les cinq unités ne progressent pas de la même
+   façon :
+
+   - `estimate` (kg) — un **10RM estimé**. Pas un 1RM : savoir ce qu'on lèverait
+     une fois n'informe pas un programme où l'on ne fait jamais de single,
+     alors qu'un dix reps est l'ordre de grandeur réellement travaillé.
+   - `raw` (time, reps) — rien à estimer : sans charge, la meilleure série *est*
+     la mesure.
+   - `dual` (bw, carry) — deux grandeurs qui progressent ensemble (reps et lest,
+     tenue et charge). Aucune extrapolation possible : un 10RM calculé sur des
+     tractions à 6 reps donnerait un lest **négatif**, qui ne veut rien dire.
+     D'où deux tracés sur une même abscisse — courbe pour les reps ou la tenue,
+     barres pour la charge. */
+export function chartMode(unit) {
+  if (unit === "bw") return { kind: "dual", line: "reps", bar: "kg" };
+  if (unit === "carry") return { kind: "dual", line: "time", bar: "kg" };
+  if (unit === "time") return { kind: "raw", line: "time" };
+  if (unit === "reps") return { kind: "raw", line: "reps" };
+  return { kind: "estimate", line: "kg" };
+}
+
+/* Epley (1RM = w × (1 + r/30)) ramené à dix répétitions, ce qui se simplifie
+   en w × (30 + r) / 40. La formule vaut l'identité à r = 10 — dix reps à 80 kg
+   donnent un 10RM de 80 kg, sans arrondi ni dérive — et c'est ce qui la rend
+   préférable ici à Brzycki, qui s'effondre au-delà de 10 reps.
+
+   Arrondi au dixième : c'est une estimation, pas une mesure, et trois
+   décimales sur un axe lui donneraient une précision qu'elle n'a pas. */
+export function estimate10RM(w, r) {
+  if (r == null) return null;
+  return Math.round(((w == null ? 0 : w) * (30 + r)) / 4) / 10;
+}
+
+/* Hors de cette fenêtre, l'estimation cesse d'être crédible : trop bas elle
+   mesure surtout le système nerveux, trop haut l'endurance locale. Les points
+   concernés sont tracés, jamais écartés — ils sont grisés, et la légende dit
+   pourquoi (#17, Décision 4). */
+export const ESTIMATE_REPS = { min: 3, max: 12 };
+
+/* La série du jour que la courbe retient, et ce qu'elle en tire. Rend `null`
+   quand aucune série n'est exploitable — la vue saute le point plutôt que de
+   tracer un zéro qui n'a pas eu lieu. */
+export function chartPoint(entry, unit) {
+  const sets = (entry && entry.sets ? entry.sets : []).filter((s) => s.r != null);
+  if (!sets.length) return null;
+  const mode = chartMode(unit);
+
+  if (mode.kind === "estimate") {
+    /* La meilleure série est celle dont l'estimation est la plus haute, pas la
+       plus lourde : c'est exactement le changement. Une série hors fenêtre qui
+       gagne reste celle qu'on affiche — la griser dit la réserve, la masquer
+       mentirait dans l'autre sens. */
+    let best = null;
+    for (const s of sets) {
+      const value = estimate10RM(s.w, s.r);
+      if (best == null || value > best.value) best = { value, reps: s.r, load: s.w == null ? 0 : s.w };
+    }
+    return { ...best, dim: best.reps < ESTIMATE_REPS.min || best.reps > ESTIMATE_REPS.max };
+  }
+
+  if (mode.kind === "dual") {
+    /* La plus lourde, départagée par les reps. Retenir la plus longue série
+       ferait remonter la courbe chaque fois qu'on allège, ce qui est
+       précisément la lecture que la double progression doit empêcher. */
+    let best = sets[0];
+    for (const s of sets) {
+      const w = s.w == null ? 0 : s.w, bw = best.w == null ? 0 : best.w;
+      if (w > bw || (w === bw && s.r > best.r)) best = s;
+    }
+    return { value: best.r, bar: best.w == null ? 0 : best.w };
+  }
+
+  return { value: Math.max(...sets.map((s) => s.r)) };
 }
 
 /* Un segment par cycle, jamais un trait unique : relier deux cycles par-dessus
@@ -111,14 +184,14 @@ export function bestValue(entry, unit) {
 export function seriesByCycle(entries, unit) {
   const out = [];
   for (const e of entries || []) {
-    const value = bestValue(e, unit);
-    if (value == null) continue;
+    const p = chartPoint(e, unit);
+    if (!p || p.value == null) continue;
     let cur = out[out.length - 1];
     if (!cur || cur.programId !== e.programId) {
       cur = { programId: e.programId, programName: e.programName, points: [] };
       out.push(cur);
     }
-    cur.points.push({ date: e.date, value, kind: e.kind });
+    cur.points.push({ date: e.date, kind: e.kind, ...p });
   }
   return out;
 }
