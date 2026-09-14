@@ -27,6 +27,67 @@ export const num = (s) => {
 export const fmt = (n) => (n == null ? "—" : String(Math.round(n * 100) / 100).replace(".", ","));
 export const roundTo = (x, inc) => (inc ? Math.round(x / inc) * inc : x);
 
+/* ---------- La charge de travail d'une séance (#31) ----------
+
+   `planned()` réduisait une séance à un seul nombre — le maximum de ses charges
+   — puis jugeait la fourchette de reps sur *toutes* ses séries, quelle que soit
+   la charge de chacune. Dès que les charges diffèrent, les deux moitiés du
+   verdict ne parlent pas de la même chose : 8 reps à 90 kg pouvaient valider
+   105 kg, et 3 reps à 120 devenaient la prescription suivante avec pour consigne
+   « viser plus de reps ». Relevé sur le journal réel le 2026-09-12.
+
+   La règle, en deux clauses : la charge de travail est **la plus lourde portant
+   au moins une série au haut de la fourchette** — `mn + (mx - mn) / 2` — et, si
+   aucune n'y arrive, **la plus légère tentée**.
+
+   Le seuil *est* le correctif, pas un raffinement. Une règle qui se contenterait
+   d'écarter les séries sous `mn` adopterait encore un 4 reps à 120 kg en 4–8
+   comme charge de travail : une charge touchée une fois, au ras du contrat. Le
+   rôle de l'appli à cet endroit n'est pas de suivre celui qui se motive et saute
+   de 100 à 120, c'est de le ramener à la progression par incréments — et
+   d'adopter la charge plus lourde le jour où elle est tenue au haut de la
+   fourchette. Méritée, pas supposée.
+
+   « Au moins une série », jamais « toutes ses séries » : lu comme *toutes*, le
+   test épinglé 72,5 × 3/6/6 disqualifierait 72,5 pour sa série à 3, et une
+   séance uniforme se retrouverait sans charge de travail.
+
+   Une séance uniforme n'a qu'un groupe, que les deux clauses sélectionnent — le
+   repli prenant la plus légère d'une seule charge, c'est-à-dire elle-même. Son
+   comportement est donc identique par construction, pas par cas particulier.
+   C'est ce qui permet aux 32 tests de progression de passer sans être touchés.
+
+   Détail de la décision : docs/features/31-working-load-not-heaviest-set/. */
+
+const loadOf = (s) => (s.w == null ? 0 : s.w);
+
+/* Haut de la fourchette. Non arrondi : les reps sont entières, donc les 37,5 du
+   carry 30–45 valent « 38 ou plus » sans qu'on ait à le dire. */
+export const topHalf = (mn, mx) => mn + (mx - mn) / 2;
+
+/* Rend { load, sets, mixed } : la charge retenue, ses séries à elle, et si la
+   séance en portait plusieurs (ce que `why` affiche, #31 spec Q4).
+
+   Invariant d'appel : `sets` n'est jamais vide — history() n'émet une séance
+   qu'avec au moins une série portant des reps (voir plus bas, filter r != null).
+   Le repli `Math.min` sur un groupement vide rendrait Infinity ; aucun appelant
+   ne peut l'atteindre. */
+export function workingSets(sets, mn, mx) {
+  const byLoad = new Map();
+  for (const s of sets) {
+    const l = loadOf(s);
+    if (!byLoad.has(l)) byLoad.set(l, []);
+    byLoad.get(l).push(s);
+  }
+  /* Groupement par le nombre déjà produit par num() à la lecture du journal :
+     deux séries saisies pareil se parsent pareil, et les incréments du registre
+     (1,25 / 2 / 2,5 / 5 / 10) sont tous exactement représentables. */
+  const t = topHalf(mn, mx);
+  const reached = [...byLoad].filter(([, ss]) => ss.some((s) => s.r >= t)).map(([l]) => l);
+  const load = reached.length ? Math.max(...reached) : Math.min(...byLoad.keys());
+  return { load, sets: byLoad.get(load), mixed: byLoad.size > 1 };
+}
+
 export const phaseOf = (w) =>
   w === 1 ? { id: "calib", label: "Calibration", rir: "2–3" }
   : w <= 6 ? { id: "b1", label: "Bloc 1", rir: "1" }
@@ -74,15 +135,26 @@ export function planned(prog, state, slotId, week, si, date) {
     const l = kind === "deload" ? roundTo(v.start * 0.85, v.incr) : v.start;
     return { load: l, text: loadText(v, l), why: kind === "deload" ? "charge de départ −15 % (décharge)" : "charge de départ" };
   }
-  const load = Math.max(...base.sets.map((s) => (s.w == null ? 0 : s.w)));
-  const allTop = base.sets.every((s) => s.r >= mx);
-  const lowCount = base.sets.filter((s) => s.r < mn).length;
-  let next = load, why = "même charge";
-
+  /* Sans charge, il n'y a rien à regrouper : ce retour passe avant workingSets()
+     plutôt qu'après, ce qui confine la règle de #31 aux unités chargées par
+     construction au lieu d'une garde. Le verdict y reste calculé sur toutes les
+     séries, comme il l'a toujours été. */
   if (unit === "time" || unit === "reps") {
-    const t = allTop ? `progresser : ${unit === "time" ? "+5 s" : "+1 rep ou amplitude"}` : `viser le haut de la fourchette (${label})`;
+    const top = base.sets.every((s) => s.r >= mx);
+    const t = top ? `progresser : ${unit === "time" ? "+5 s" : "+1 rep ou amplitude"}` : `viser le haut de la fourchette (${label})`;
     return { load: null, text: `Cible ${label}`, why: `dernière fois ${base.sets.map((s) => s.r).join("/")} — ${t}` };
   }
+
+  /* La charge sur laquelle le verdict se prononce, et ses séries à elle (#31).
+     Avant, c'était Math.max des charges de la séance et la fourchette jugée sur
+     toutes ses séries, d'où un verdict qui parlait d'autre chose que la charge
+     qu'il annonçait. */
+  const work = workingSets(base.sets, mn, mx);
+  const load = work.load;
+  const allTop = work.sets.every((s) => s.r >= mx);
+  const lowCount = work.sets.filter((s) => s.r < mn).length;
+  let next = load, why = "même charge";
+
   if (base.kind === "calibration" || base.kind === "deload") {
     if (allTop) { next = roundTo(load * 1.05, v.incr); why = "calibration : +5 %"; }
     else if (lowCount >= 1) { next = roundTo(load * 0.95, v.incr); why = "calibration : −5 %"; }
@@ -90,11 +162,23 @@ export function planned(prog, state, slotId, week, si, date) {
   } else if (allTop) {
     next = load + v.incr; why = `+${fmt(v.incr)} kg : haut de fourchette atteint`;
   } else if (lowCount >= 2) {
-    const prevLow = prev && prev.sets.filter((s) => s.r < mn).length >= 2;
+    /* La séance d'avant se lit par la même règle (#31, design décision 1) : elle
+       comptait ses séries basses sur toute la séance, donc elle portait le défaut
+       à l'identique. Laisser une des deux lectures sur l'ancienne règle aurait
+       replanté le bug là où personne ne serait allé le rechercher. */
+    const prevLow = prev && workingSets(prev.sets, mn, mx).sets.filter((s) => s.r < mn).length >= 2;
     if (prevLow) { next = roundTo(load * 0.95, v.incr); why = "−5 % : deux séances sous la fourchette"; }
     else why = "même charge : une séance sous la fourchette, on retente";
   } else why = "même charge : viser plus de reps";
   if (kind === "deload" && base.kind !== "deload") { next = roundTo(next * 0.85, v.incr); why = "décharge −15 %"; }
+  /* Quand la séance portait plusieurs charges, le moteur tire sa réponse d'un
+     *sous-ensemble* de ce que l'utilisateur voit écrit dans son historique. Sans
+     cette mention, la carte annonce « Prévu : 110 kg » après une séance où il a
+     touché 120 et rien à l'écran n'explique pourquoi 120 a été écarté — c'est
+     exactement ce qui rend un moteur suspect. Après la coupe de décharge, pour
+     qu'elle survive à la réécriture de `why`. Sur une séance uniforme, rien n'est
+     ajouté : la chaîne reste identique au caractère près (#31 spec, Q4). */
+  if (work.mixed) why = `${why} (jugé sur ${loadText(v, load)})`;
   return { load: next, text: loadText(v, next), why };
 }
 /* Libellé de la dernière séance où l'exercice a été fait (#30).
