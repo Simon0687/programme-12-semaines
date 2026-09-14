@@ -94,16 +94,18 @@ Pour éviter les merges accidentels sur `main` :
 
 Maintenant, impossible de merger sur `main` si le build Cloudflare échoue.
 
-## Étape 6 : Autoriser GitHub à pousser les tags
+## Étape 6 : Les tags
 
-Pour que le workflow puisse créer des tags et les pousser automatiquement :
+Il n'y a rien à configurer. Les versions se taguent à la main, depuis ta machine :
 
-1. GitHub → Settings → *Developer settings → Personal access tokens*
-2. *Tokens (classic)* → *Generate new token*
-3. Permissions : `repo`, `write:packages`
-4. Copier le token
-5. Sur GitHub → Secrets → Ajouter `GH_TOKEN` avec cette valeur
-6. Modifier `.github/workflows/ci-cd.yml` pour utiliser ce token lors du tag push
+```bash
+npm run release          # patch
+npm run release:minor    # nouvelle fonctionnalité
+git push --follow-tags
+```
+
+Aucun jeton personnel n'est nécessaire — surtout pas un jeton de portée `repo`,
+que ce document réclamait autrefois pour un workflow qui n'a jamais existé.
 
 ## Vérification finale
 

@@ -21,7 +21,8 @@ git commit -m "feat: ajout des abdos dans la séance du jour"
 git push origin dev
 ```
 
-GitHub Actions valide automatiquement : build, test. Si ✅, c'est prêt pour staging.
+Rien ne se déclenche côté GitHub : c'est Cloudflare qui construit la branche, et
+`npm test` tourne devant le build. Si ✅, c'est prêt pour staging.
 
 ### 3. Préparation pre-prod : branche `staging`
 
@@ -49,10 +50,11 @@ git push origin main
 ```
 
 **Automatiquement :**
-- ✅ Build et tests
-- 🚀 Déploiement Cloudflare en production (URL fixe)
-- 🔖 Tag Git créé (v1.0.0 → v1.0.1, etc.)
-- 📈 Version bumped dans `package.json`, commit poussé
+- ✅ Build et tests, chez Cloudflare
+- 🚀 Déploiement en production (URL fixe)
+
+**À la main**, quand tu veux marquer une version : `npm run release` (standard-version
+s'occupe du tag, du CHANGELOG et du bump de `package.json`).
 
 ## Scenario : Modification du programme avec versioning
 
@@ -74,12 +76,10 @@ git commit -m "feat: ajout ab wheel, volume −20%, bloc 2 ajusté (S8–S12)"
 git push origin dev
 ```
 
-GitHub Actions :
+Cloudflare construit la branche :
+- ✅ Tests OK (sinon le build s'arrête là)
 - ✅ Build OK (JS + CSS compilés)
-- ✅ Tests OK
-- Artifact créé et stocké
-
-Lien de preview fourni (facultatif).
+- 🔗 URL de preview pour cette version
 
 **Jour 4 — Staging**
 
@@ -98,9 +98,9 @@ git push origin main
 
 Automatiquement :
 - 🚀 Déploiement sur `programme-12-semaines.simongillet.workers.dev` (URL fixe)
-- 🔖 Git tag : `v1.1.0` (version mineure : nouvelles fonctionnalités)
-- 📝 package.json : `1.1.0` → `1.1.1` (prep pour la prochaine)
-- 📋 GitHub Releases affiche les changements
+
+Puis, à la main : `npm run release:minor` — tag `v1.1.0`, CHANGELOG et bump de
+`package.json` en un geste.
 
 Simon accède à l'app prod sur son téléphone, aucun changement de lien, tout est à jour.
 
@@ -108,7 +108,7 @@ Simon accède à l'app prod sur son téléphone, aucun changement de lien, tout 
 
 | Branche | Rôle | Déploiement | Accès |
 |---------|------|------------|-------|
-| **dev** | Développement courant | Artifact GitHub (optionnel) | Local seulement |
+| **dev** | Développement courant | Preview Cloudflare à chaque push | URL preview |
 | **staging** | Pré-production, tests | Preview Cloudflare (par version) | URL preview (partage facile) |
 | **main** | Production | Cloudflare prod (URL fixe) | Endpoint public |
 
@@ -121,7 +121,8 @@ Format SemVer : `MAJOR.MINOR.PATCH`
 - `v1.0.1` — Bug fix (correction d'une formule de progression)
 - `v2.0.0` — Changement majeur (restructuration UI, nouvel algorithme)
 
-Tags automatiquement créés lors du merge sur `main`.
+Tags créés à la main avec `npm run release` (ou `release:minor`, `release:major`),
+puis poussés avec `git push --follow-tags`.
 
 Historique visible : GitHub *Tags* ou *Releases*.
 
@@ -153,11 +154,11 @@ git reset --hard v1.0.0     # Retour à v1.0.0
 git push --force-with-lease origin main
 ```
 
-GitHub Actions redéploie automatiquement, une nouvelle version est taggée.
+Cloudflare redéploie automatiquement au push sur `main`.
 
 ## Monitoring et historique
 
-- **GitHub** : Pull Requests, commits, tags, Actions runs
+- **GitHub** : Pull Requests, commits, tags
 - **Cloudflare** : Logs de build, historique des versions, rollback en un clic
 - **JSON du programme** : Export depuis l'app pour audit
 
