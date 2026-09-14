@@ -5,37 +5,60 @@ import {
 } from "../src/display.js";
 import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS } from "../src/registry.js";
 
-/* ---------- setSummary : sortie épinglée avant le déplacement ----------
+/* ---------- setSummary ----------
 
-   Les chaînes attendues sont celles que produisait App.jsx:66-74 avant #17,
-   relevées à la lecture du code et non de la nouvelle implémentation : c'est
-   ce qui fait de ces tests un filet et pas une tautologie. Toute évolution du
-   format (un « / main » pour perHand, par exemple) doit donc casser ici
-   d'abord — et c'est voulu, cf. #23. */
+   Les chaînes à charge constante sont celles que produisait App.jsx:66-74
+   avant #17 : elles restent le filet du déplacement de #23, au séparateur de
+   RIR près.
 
-test("setSummary : charge en kg, RIR unique", () => {
+   Ce qui a changé le 2026-09-14 : la forme compacte prenait la charge maximale
+   et concaténait toutes les reps, donc elle inventait des séries dès que la
+   charge variait. Elle ne sert plus que lorsqu'elle est exacte. */
+
+test("setSummary : charge constante, la forme compacte est exacte et reste", () => {
   const sets = [{ w: 87.5, r: 6, rir: 1 }, { w: 87.5, r: 5, rir: 1 }, { w: 87.5, r: 5, rir: 1 }];
-  assert.equal(setSummary(sets, { name: "Développé couché barre" }), "87,5 kg 6/5/5 @ 1 RIR");
+  assert.equal(setSummary(sets, { name: "Développé couché barre" }), "87,5 kg 6/5/5 · 1 RIR");
+});
+
+test("setSummary : charge variable, chaque série porte la sienne", () => {
+  /* Le cas relevé sur capture : « 90 kg 8/8/10 » laissait croire à dix reps à
+     90 kg, alors que le 10 avait été fait à 70. */
+  const sets = [{ w: 90, r: 8, rir: 1 }, { w: 85, r: 8, rir: 1 }, { w: 70, r: 10, rir: 2 }];
+  assert.equal(setSummary(sets, {}), "8@90/8@85/10@70 kg · 1-2 RIR");
 });
 
 test("setSummary : poids du corps lesté et poids du corps nu", () => {
-  assert.equal(setSummary([{ w: 10, r: 6, rir: 1 }, { w: 10, r: 5, rir: 1 }], { unit: "bw" }), "+10 kg 6/5 @ 1 RIR");
-  assert.equal(setSummary([{ w: 0, r: 8, rir: 3 }, { w: 0, r: 8, rir: 3 }], { unit: "bw" }), "PDC 8/8 @ 3 RIR");
+  assert.equal(setSummary([{ w: 10, r: 6, rir: 1 }, { w: 10, r: 5, rir: 1 }], { unit: "bw" }), "+10 kg 6/5 · 1 RIR");
+  assert.equal(setSummary([{ w: 0, r: 8, rir: 3 }, { w: 0, r: 8, rir: 3 }], { unit: "bw" }), "PDC 8/8 · 3 RIR");
+  /* Lest variable : « PDC+10 » porte son unité, donc aucun « kg » final qui
+     suivrait un « PDC » nu. */
+  assert.equal(setSummary([{ w: 10, r: 6, rir: 1 }, { w: 0, r: 8, rir: 1 }], { unit: "bw" }), "6@PDC+10/8@PDC · 1 RIR");
 });
 
 test("setSummary : secondes, répétitions et porté", () => {
-  assert.equal(setSummary([{ w: null, r: 60, rir: 2 }, { w: null, r: 55, rir: 2 }], { unit: "time" }), "60/55 s @ 2 RIR");
-  assert.equal(setSummary([{ w: null, r: 10, rir: 1 }], { unit: "reps" }), "10 @ 1 RIR");
-  assert.equal(setSummary([{ w: 24, r: 40, rir: 2 }], { unit: "carry" }), "24 kg 40 s @ 2 RIR");
+  assert.equal(setSummary([{ w: null, r: 60, rir: 2 }, { w: null, r: 55, rir: 2 }], { unit: "time" }), "60/55 s · 2 RIR");
+  assert.equal(setSummary([{ w: null, r: 10, rir: 1 }], { unit: "reps" }), "10 · 1 RIR");
+  assert.equal(setSummary([{ w: 24, r: 40, rir: 2 }], { unit: "carry" }), "24 kg 40 s · 2 RIR");
+  assert.equal(setSummary([{ w: 24, r: 40, rir: 2 }, { w: 20, r: 45, rir: 2 }], { unit: "carry" }), "40 s@24/45 s@20 kg · 2 RIR");
+});
+
+test("setSummary : sans charge, aucune série explicite — il n'y a rien à confondre", () => {
+  assert.equal(setSummary([{ w: null, r: 60, rir: 2 }, { w: null, r: 45, rir: 2 }], { unit: "time" }), "60/45 s · 2 RIR");
 });
 
 test("setSummary : plusieurs RIR sont joints par un tiret", () => {
-  assert.equal(setSummary([{ w: 80, r: 8, rir: 1 }, { w: 80, r: 8, rir: 2 }], {}), "80 kg 8/8 @ 1-2 RIR");
+  assert.equal(setSummary([{ w: 80, r: 8, rir: 1 }, { w: 80, r: 8, rir: 2 }], {}), "80 kg 8/8 · 1-2 RIR");
+});
+
+test("setSummary : un RIR non saisi ne s'affiche pas", () => {
+  /* « @ ? RIR » occupait une ligne pour dire qu'on ne savait rien. */
+  assert.equal(setSummary([{ w: null, r: 8, rir: null }], {}), "0 kg 8");
+  assert.equal(setSummary([{ w: 80, r: 8, rir: null }, { w: 80, r: 8, rir: 2 }], {}), "80 kg 8/8 · 2 RIR");
 });
 
 test("setSummary : valeurs manquantes rendues « ? », jamais une exception", () => {
-  assert.equal(setSummary([{ w: 80, r: null, rir: 1 }], {}), "80 kg ? @ 1 RIR");
-  assert.equal(setSummary([{ w: null, r: 8, rir: null }], {}), "0 kg 8 @ ? RIR");
+  assert.equal(setSummary([{ w: 80, r: null, rir: 1 }], {}), "80 kg ? · 1 RIR");
+  assert.equal(setSummary([{ w: 90, r: null, rir: 1 }, { w: 70, r: 8, rir: 1 }], {}), "?@90/8@70 kg · 1 RIR");
 });
 
 test("setSummary : aucune série => tiret cadratin", () => {

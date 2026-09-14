@@ -27,14 +27,48 @@ import { fmt } from "./progression.js";
 
 /* ---------- Résumé des séries (déplacé depuis App.jsx, #23) ---------- */
 
+/* La forme compacte — « 72,5 kg 8/8/10 » — prenait la charge **maximale** et
+   concaténait **toutes** les reps. Elle fabriquait donc des séries qui
+   n'existent pas : 8 à 90, 8 à 85 puis 10 à 70 se lisait « 90 kg 8/8/10 », et
+   on croyait avoir fait 10 reps à 90 (constaté à l'usage le 2026-09-14).
+
+   La règle est maintenant : **compact tant que la charge ne bouge pas, explicite
+   dès qu'elle bouge.** Quand les trois séries partagent la même charge, la forme
+   compacte est exacte au caractère près et reste la plus lisible — c'est le cas
+   courant, `planned()` ne prescrivant qu'une seule charge de travail. Dès que
+   deux séries diffèrent, chaque série porte la sienne : « 8@90/8@85/10@70 kg ».
+   Une ligne qui change de forme est d'ailleurs elle-même l'information : elle
+   signale une séance où la charge a dû descendre.
+
+   Le RIR passe de « @ » à « · » parce que « @ » désigne désormais la charge
+   d'une série, et « 8@90 @ 1 RIR » ne se lit pas. Un RIR non saisi ne s'écrit
+   plus « @ ? RIR » : on n'affiche rien. */
 export function setSummary(sets, v) {
   if (!sets || !sets.length) return "—";
   const unit = v.unit || "kg";
-  const kg = Math.max(...sets.map((s) => (s.w == null ? 0 : s.w)));
-  const reps = sets.map((s) => (s.r == null ? "?" : s.r)).join("/");
-  const rir = [...new Set(sets.map((s) => (s.rir == null ? "?" : s.rir)))].join("-");
-  const kgTxt = unit === "time" || unit === "reps" ? "" : unit === "bw" ? (kg > 0 ? `+${fmt(kg)} kg ` : "PDC ") : `${fmt(kg)} kg `;
-  return `${kgTxt}${reps}${unit === "time" || unit === "carry" ? " s" : ""} @ ${rir} RIR`;
+  const secs = unit === "time" || unit === "carry";
+  const loaded = unit !== "time" && unit !== "reps";
+
+  const reps = (s) => (s.r == null ? "?" : fmt(s.r));
+  /* Au poids du corps, « PDC+10 » plutôt que « +10 kg » : la mention porte son
+     unité, donc la liste n'a pas à traîner un « kg » final qui suivrait un
+     « PDC » nu. */
+  const load = (w) => (unit === "bw" ? (w > 0 ? `PDC+${fmt(w)}` : "PDC") : fmt(w));
+
+  const loads = sets.map((s) => (s.w == null ? 0 : s.w));
+  const varies = loaded && new Set(loads).size > 1;
+
+  let body;
+  if (varies) {
+    body = sets.map((s, i) => `${reps(s)}${secs ? " s" : ""}@${load(loads[i])}`).join("/");
+    if (unit !== "bw") body += " kg";
+  } else {
+    const head = !loaded ? "" : unit === "bw" ? (loads[0] > 0 ? `+${fmt(loads[0])} kg ` : "PDC ") : `${fmt(loads[0])} kg `;
+    body = `${head}${sets.map(reps).join("/")}${secs ? " s" : ""}`;
+  }
+
+  const rir = [...new Set(sets.map((s) => s.rir).filter((x) => x != null))];
+  return rir.length ? `${body} · ${rir.join("-")} RIR` : body;
 }
 
 /* ---------- Dates ---------- */
