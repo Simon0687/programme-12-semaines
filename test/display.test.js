@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  setSummary, muscleRows, detailRows, chartGeometry, dateShort, dayNumber, MUSCLE_LABELS,
+  setSummary, muscleRows, detailRows, chartGeometry, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS,
 } from "../src/display.js";
 import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS } from "../src/registry.js";
 
@@ -221,4 +221,22 @@ test("chartGeometry : un point hors fenêtre d'estimation est marqué, pas dépl
   }], { w: 358, h: 162 });
   assert.deepEqual(g.dots.map((d) => d.dim), [false, true]);
   assert.ok(g.dots[1].y < g.dots[0].y, "une estimation peu fiable reste tracée à sa valeur");
+});
+
+test("KIND_LABELS : une séance allégée se dit à l'écran, comme la décharge (#43)", () => {
+  assert.equal(KIND_LABELS.allege, "allégée");
+  assert.equal(KIND_LABELS.normal, undefined, "une séance normale n'a rien à annoncer");
+});
+
+test("chartGeometry : un point allégé est creux, comme une décharge (#43)", () => {
+  /* Sans ça, un −20 kg volontaire se lirait comme une régression. */
+  const g = chartGeometry([{
+    programId: "p",
+    points: [
+      { date: "2026-06-01", value: 100, kind: "normal" },
+      { date: "2026-07-01", value: 80, kind: "allege" },
+      { date: "2026-08-01", value: 102, kind: "normal" },
+    ],
+  }], { w: 358, h: 162 });
+  assert.deepEqual(g.dots.map((d) => d.hollow), [false, true, false]);
 });
