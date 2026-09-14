@@ -122,12 +122,15 @@ export function buildPlan(definition) {
       id: "progression",
       title: "Règles de progression",
       blocks: [
-        { t: "p", text: "Double progression. Quand toutes les séries faites à ta charge de travail atteignent le haut de la fourchette, la charge monte à la séance suivante : barre +2,5 kg haut du corps, +5 kg bas du corps ; haltères +2 kg ; machines et poulies +5 kg ou le plus petit incrément disponible. Si 2 séries ou plus tombent sous le bas de la fourchette, on garde la charge ; si ça se répète, −5 %. L'appli calcule la charge prévue à partir de tes séances validées." },
-        /* La mention « à ta charge de travail » n'est pas un détail de style :
-           depuis #31 le moteur ne juge plus la séance entière mais les séries
-           d'une seule charge, et cette page est le seul endroit où l'utilisateur
-           lit la règle. */
-        { t: "p", text: "Si une séance porte plusieurs charges, ta charge de travail est la plus lourde sur laquelle tu as atteint le haut de la fourchette — un essai plus lourd tenu une seule fois, au bas de la fourchette, ne devient pas la charge suivante. Il le devient le jour où tu le tiens en haut de la fourchette. La ligne « Prévu » indique alors sur quelle charge elle s'est prononcée." },
+        { t: "p", text: "Double progression. Quand toutes les séries faites à ta charge de travail atteignent le haut de la fourchette — 8 reps sur du 4–8 —, la charge monte à la séance suivante : barre +2,5 kg haut du corps, +5 kg bas du corps ; haltères +2 kg ; machines et poulies +5 kg ou le plus petit incrément disponible. Si 2 séries ou plus tombent sous le bas de la fourchette, on garde la charge ; si ça se répète, −5 %. L'appli calcule la charge prévue à partir de tes séances validées." },
+        /* Deux seuils voisins, à ne jamais appeler pareil : on choisit la charge
+           de travail sur « au moins une série dans la moitié haute » (6 sur du
+           4–8) et on l'augmente sur « toutes les séries au haut » (8). Une
+           première version de ce texte disait « le haut de la fourchette » dans
+           les deux phrases — illisible, et cette page est le seul endroit où
+           l'utilisateur lit la règle. Les nombres sont donnés en clair parce
+           qu'aucune formule ne se lit dans un vestiaire. */
+        { t: "p", text: "Si une séance porte plusieurs charges, ta charge de travail est la plus lourde sur laquelle au moins une série a atteint la moitié haute de la fourchette — 6 reps sur du 4–8. Un essai plus lourd tenu une seule fois au ras du bas ne devient donc pas ta référence, et la ligne « Prévu » indique sur quelle charge elle s'est prononcée." },
         { t: "p", text: "Calibration (S1 et S7) : toutes les séries au haut de la fourchette → +5 % ; une série sous le bas de la fourchette → −5 %." },
         { t: "p", text: "Sur les isolations, une rep, une demi-rep ou une exécution plus stricte à charge égale comptent comme un progrès. Sur les mouvements au poids du corps, le lest prend le relais dès que le haut de la fourchette est tenu à 1 RIR." },
         { t: "p", text: "Repos : 2–3 min sur les gros mouvements, 1–2 min sur les isolations, 1 min sur les abdos. Descente 2–4 s, montée forte. Concentrique dynamique, pas de ralentissement pour « sentir »." },
