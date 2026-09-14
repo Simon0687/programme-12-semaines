@@ -5,7 +5,7 @@ This document describes how a change travels from idea to production. It is deli
 ## Overview
 
 ```
-idea → issue → branch → local dev → commit → push → Netlify preview → merge main → release
+idea → issue → branch → local dev → commit → push → Cloudflare preview → merge main → release
 ```
 
 ## 1. Open an issue
@@ -42,7 +42,7 @@ Develop locally with the preview running:
 npm run dev
 ```
 
-Do all visual iteration here. Never deploy just to see a result: it's slow and it burns Netlify credits.
+Do all visual iteration here. Never deploy just to see a result: a build-and-publish round trip is a minute of waiting where the watch mode is instant, and you lose the browser state you were looking at.
 
 ## 3. Commit
 
@@ -87,7 +87,7 @@ If tests fail, don't push. That's the one non-negotiable rule in this document.
 git push -u origin feat/12-dynamic-plan
 ```
 
-Netlify builds a branch preview and gives you a URL. That's where you test on the phone, under real conditions.
+Cloudflare builds the branch and gives you a preview URL for that version, listed next to the build in the dashboard. That's where you test on the phone, under real conditions.
 
 ## 6. Merge
 
@@ -100,7 +100,7 @@ git merge feat/12-dynamic-plan
 git push origin main
 ```
 
-Netlify deploys to production. The issue closes automatically if a commit contains `closes #12`.
+Cloudflare deploys to production. The issue closes automatically if a commit contains `closes #12`.
 
 Delete the branch afterwards, locally and on GitHub.
 

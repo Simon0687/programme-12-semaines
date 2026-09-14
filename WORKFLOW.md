@@ -33,7 +33,9 @@ git merge dev
 git push origin staging
 ```
 
-GitHub Actions déploie une preview sur Netlify : URL `staging-XXX--netlify-site-id.netlify.app` (accessible en 2–3 min).
+Cloudflare construit la branche et publie une preview de cette version, sous la forme
+`<prefixe>-programme-12-semaines.simongillet.workers.dev` (accessible en 2–3 min).
+L'URL exacte est affichée à côté du build dans le tableau de bord.
 Tester sur le téléphone via cette URL.
 
 ### 4. Merge en prod : branche `main`
@@ -48,7 +50,7 @@ git push origin main
 
 **Automatiquement :**
 - ✅ Build et tests
-- 🚀 Déploiement Netlify production (URL fixe)
+- 🚀 Déploiement Cloudflare en production (URL fixe)
 - 🔖 Tag Git créé (v1.0.0 → v1.0.1, etc.)
 - 📈 Version bumped dans `package.json`, commit poussé
 
@@ -85,7 +87,7 @@ Lien de preview fourni (facultatif).
 git push origin staging:main  # ou merge via interface
 ```
 
-Netlify déploie sur `staging-run-XXX--prog12.netlify.app`.
+Cloudflare publie une preview de cette version, dont l'URL est affichée à côté du build.
 Simon teste sur son téléphone depuis l'app staging (1 min).
 
 **Jour 5 — Prod**
@@ -95,7 +97,7 @@ git push origin main
 ```
 
 Automatiquement :
-- 🚀 Déploiement sur `prog12.netlify.app` (URL fixe)
+- 🚀 Déploiement sur `programme-12-semaines.simongillet.workers.dev` (URL fixe)
 - 🔖 Git tag : `v1.1.0` (version mineure : nouvelles fonctionnalités)
 - 📝 package.json : `1.1.0` → `1.1.1` (prep pour la prochaine)
 - 📋 GitHub Releases affiche les changements
@@ -107,8 +109,8 @@ Simon accède à l'app prod sur son téléphone, aucun changement de lien, tout 
 | Branche | Rôle | Déploiement | Accès |
 |---------|------|------------|-------|
 | **dev** | Développement courant | Artifact GitHub (optionnel) | Local seulement |
-| **staging** | Pré-production, tests | Netlify staging (alias) | URL preview (partage facile) |
-| **main** | Production | Netlify prod (fixe) | Endpoint public |
+| **staging** | Pré-production, tests | Preview Cloudflare (par version) | URL preview (partage facile) |
+| **main** | Production | Cloudflare prod (URL fixe) | Endpoint public |
 
 ## Tagging et versioning
 
@@ -123,17 +125,17 @@ Tags automatiquement créés lors du merge sur `main`.
 
 Historique visible : GitHub *Tags* ou *Releases*.
 
-## Secrets GitHub à configurer
+## Secrets à configurer
 
-Sur GitHub, onglet *Settings → Secrets and variables → Actions*:
+Aucun. Cloudflare est branché sur le dépôt GitHub en OAuth : c'est Cloudflare
+qui vient lire le dépôt, et non un workflow du dépôt qui pousse vers Cloudflare. Il
+n'y a donc ni token à générer, ni Site ID à recopier, ni secret à faire tourner le
+jour où il fuite.
 
-```
-NETLIFY_AUTH_TOKEN           → Token personnel Netlify (créé sur app.netlify.com/user/settings/applications)
-NETLIFY_SITE_ID_STAGING      → Site ID du site staging Netlify
-NETLIFY_SITE_ID_PROD         → Site ID du site production Netlify
-```
-
-(Optionnel) Pour les notifications Slack, Discord, ajouter des tokens là aussi.
+La configuration de build (commande, dossier de sortie) vit dans le tableau de bord
+Cloudflare, dans les réglages de build du Worker. Seule la version de Node est dans le
+dépôt, en [`.node-version`](.node-version) : `npm test` lance `node --test`, stable
+depuis Node 20 seulement, et ce plancher doit voyager avec le code.
 
 ## Rollback
 
@@ -156,7 +158,7 @@ GitHub Actions redéploie automatiquement, une nouvelle version est taggée.
 ## Monitoring et historique
 
 - **GitHub** : Pull Requests, commits, tags, Actions runs
-- **Netlify** : Logs de déploiement, analytics, rollback manuel possible
+- **Cloudflare** : Logs de build, historique des versions, rollback en un clic
 - **JSON du programme** : Export depuis l'app pour audit
 
 ## Exemple complet : 1 semaine
@@ -167,8 +169,8 @@ GitHub Actions redéploie automatiquement, une nouvelle version est taggée.
 | Mar | Claude modifie `src/App.jsx` | Commit local |
 | Mer | Push sur `dev` pour validation | `git push origin dev` |
 | Jeu | Merge sur `staging` | `git push origin staging` |
-| Jeu 17h | Simon teste sur `staging-run-XXX--` | URL Netlify preview |
+| Jeu 17h | Simon teste sur la preview `staging` | URL de preview Cloudflare |
 | Ven | ✅ Validation, merge sur `main` | `git push origin main` |
-| Ven 17h30 | 🚀 Live en prod, taggé `v1.1.0` | Netlify confirmation |
+| Ven 17h30 | 🚀 Live en prod, taggé `v1.1.0` | Confirmation Cloudflare |
 | Sam | Simon utilise la v1.1.0 en S5 | App mise à jour, même URL |
 

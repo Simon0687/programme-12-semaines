@@ -1,4 +1,4 @@
-# Configuration GitHub et Netlify
+# Configuration GitHub et Cloudflare
 
 ## Étape 1 : Créer le repo sur GitHub
 
@@ -23,38 +23,40 @@ git push -u origin dev
 
 Vérifier sur GitHub : tu devrais voir les trois branches et 3 commits.
 
-## Étape 3 : Générer les tokens Netlify
+## Étape 3 : Brancher Cloudflare sur le dépôt
 
-1. Aller sur https://app.netlify.com/user/settings/applications
-2. *New access token* → Nommer "GitHub Actions CI/CD" → Copier le token
+Un seul projet à créer, pas deux : chaque build d'une branche autre que `main`
+produit sa propre URL de preview, donc `staging` n'a pas besoin de son propre site.
 
-## Étape 4 : Créer les sites Netlify
+L'app est servie par un **Worker** qui distribue les assets statiques de `public/`
+— URL de production : <https://programme-12-semaines.simongillet.workers.dev>.
 
-### Site de staging
+1. `dash.cloudflare.com` → **Workers & Pages** → créer une application en important
+   un dépôt Git
+2. Autoriser Cloudflare côté GitHub, en lui donnant accès à `programme-12-semaines`
+3. Sélectionner le dépôt : Cloudflare ouvre alors l'écran de configuration du build,
+   où seuls quatre réglages comptent.
 
-1. https://app.netlify.com → *Add new site → Deploy manually*
-2. Pousser le dossier `public` du repo → Netlify te donne un site ID (ex: `abc123def456`)
-3. Settings → *Site details → Site name* → Renommer en `prog12-staging` ou similaire
-4. Noter le **Site ID** et l'URL (`prog12-staging.netlify.app`)
+   | Réglage | Valeur |
+   |---------|--------|
+   | Branche de production | `main` |
+   | Framework preset | None |
+   | Build command | `npm test && npm run build` |
+   | Dossier de sortie | `public` |
 
-### Site de production
+4. Déployer
 
-Même chose : créer un deuxième site, le nommer `prog12` ou `programme-12-semaines`.
-Noter le **Site ID** et l'URL (fixe).
+Les libellés exacts de ces écrans changent à chaque refonte du tableau de bord ;
+c'est le contenu du tableau ci-dessus qui doit être exact, pas le chemin de clics.
 
-## Étape 5 : Ajouter les secrets GitHub
+`public/dist/` est dans le `.gitignore` : c'est la *build command* qui produit le
+bundle, ne la laisse pas vide. Et la suite de tests est devant le build dans cette
+commande, volontairement — un déploiement ne part que si `npm test` passe.
 
-Sur GitHub, onglet *Settings → Secrets and variables → Actions*, cliquer *New repository secret* pour chacun :
+Aucun secret GitHub n'est nécessaire : c'est Cloudflare qui lit le dépôt, pas un
+workflow du dépôt qui pousse vers Cloudflare.
 
-| Nom | Valeur |
-|-----|--------|
-| `NETLIFY_AUTH_TOKEN` | Token généré à l'étape 3 |
-| `NETLIFY_SITE_ID_STAGING` | Site ID de staging (ex: `abc123def456`) |
-| `NETLIFY_SITE_ID_PROD` | Site ID de production |
-
-**Important :** Les valeurs des secrets sont masquées, même pour toi après l'ajout (c'est normal).
-
-## Étape 6 : Tester le workflow
+## Étape 4 : Tester le workflow
 
 1. Faire un petit changement local sur `dev` :
    ```bash
@@ -63,36 +65,36 @@ Sur GitHub, onglet *Settings → Secrets and variables → Actions*, cliquer *Ne
    git add CHANGELOG.md && git commit -m "docs: init changelog" && git push origin dev
    ```
 
-2. Aller sur GitHub → onglet *Actions* : tu devrais voir un workflow run en cours.
+2. Aller sur le projet dans Cloudflare → onglet *Deployments* : un build doit être en cours.
 
-3. Attendre que le build finisse (✅ = succès, ❌ = erreur). Les logs sont visibles en cliquant sur le run.
+3. Attendre que le build finisse (✅ = succès, ❌ = erreur). Les logs complets sont visibles en cliquant sur le déploiement.
 
 4. Une fois `dev` validé, merger sur `staging` :
    ```bash
    git checkout staging && git merge dev && git push origin staging
    ```
 
-5. Actions lance un "Deploy preview" sur Netlify. En 2–3 min, tu auras une URL preview.
+5. Cloudflare construit une preview de `staging`. En 2–3 min, tu auras son URL.
 
 6. Quand `staging` est OK, merger sur `main` :
    ```bash
    git push origin main
    ```
 
-7. Netlify déploie automatiquement sur la prod, GitHub crée un tag `v1.0.0`.
+7. Cloudflare déploie automatiquement sur l'URL de production.
 
-## Étape 7 : Configurer les branches protégées (optionnel)
+## Étape 5 : Configurer les branches protégées (optionnel)
 
 Pour éviter les merges accidentels sur `main` :
 
 1. GitHub → Settings → *Branches*
 2. *Add rule* pour la branche `main`
-3. Cocher *Require status checks to pass before merging* → Sélectionner "build"
+3. Cocher *Require status checks to pass before merging* → Sélectionner le check publié par Cloudflare
 4. Sauvegarder
 
-Maintenant, impossible de merger sur `main` si le build GitHub Actions échoue.
+Maintenant, impossible de merger sur `main` si le build Cloudflare échoue.
 
-## Étape 8 : Autoriser GitHub à pousser les tags
+## Étape 6 : Autoriser GitHub à pousser les tags
 
 Pour que le workflow puisse créer des tags et les pousser automatiquement :
 
