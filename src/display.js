@@ -98,9 +98,12 @@ export function periodLabel(fromIso, toIso) {
   return a === b ? `${a} ${y2}` : `${a} – ${b} ${y2}`;
 }
 
-/* Les deux seuls kind qui se disent à l’écran : un « normal » n’a rien à
-   annoncer, et une pastille sur chaque ligne ne dirait plus rien. */
-export const KIND_LABELS = { calibration: "calibration", deload: "décharge" };
+/* Les trois kind qui se disent à l’écran : un « normal » n’a rien à annoncer, et
+   une pastille sur chaque ligne ne dirait plus rien. « allégée » (#43) rejoint
+   les deux autres pour la même raison qu’elles y sont — sans la pastille et le
+   point creux, la courbe montrerait un creux inexpliqué et l’historique une
+   régression qui n’en est pas une. */
+export const KIND_LABELS = { calibration: "calibration", deload: "décharge", allege: "allégée" };
 
 function isoOfDay(n) {
   return new Date(n * 86400000).toISOString().slice(0, 10);
@@ -250,7 +253,7 @@ export function chartGeometry(series, box) {
     for (const p of pts) {
       dots.push({
         x: p.x, y: p.y, date: p.date, value: p.value,
-        hollow: p.kind === "calibration" || p.kind === "deload",
+        hollow: p.kind === "calibration" || p.kind === "deload" || p.kind === "allege",
         /* Estimation hors fenêtre de crédibilité : tracée, mais grisée. */
         dim: p.dim === true,
       });
