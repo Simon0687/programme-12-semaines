@@ -10,7 +10,7 @@ import { readLastExport, writeLastExport, toIsoDate, isExportStale, journalHasCo
 import { unusableProgramIds } from "./journal-shape.js";
 import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
-import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind } from "./progression.js";
+import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind, workingSets, loadDrops, loadText } from "./progression.js";
 import { setSummary } from "./display.js";
 import { EXERCISE_IDS } from "./registry.js";
 import ExerciseSheet from "./ExerciseSheet.jsx";
@@ -245,9 +245,11 @@ export default function Programme() {
      mémorisée peut appartenir à un cycle qu'on a quitté depuis. */
   const [nav, setNav] = useState(() => resolveScreen(readScreen(SCREEN_STORAGE), prog.SESSIONS.map((s) => s.id), EXERCISE_IDS));
   const screen = nav.screen;
-  const goSemaine = () => setNav({ screen: "semaine", sessionId: null });
+  const goSemaine = () => { setPendingLight(null); setNav({ screen: "semaine", sessionId: null }); };
   const goPlan = () => setNav({ screen: "plan", sessionId: null });
-  const openSession = (id) => setNav({ screen: "seance", sessionId: id });
+  /* La question de #43 ne survit pas à un changement d'écran : revenir sur une
+     séance ne doit pas rouvrir un panneau qu'on avait quitté sans répondre. */
+  const openSession = (id) => { setPendingLight(null); setNav({ screen: "seance", sessionId: id }); };
   /* #17 : la fiche garde le sessionId en poche — il n’y est que l’adresse du
      retour, jamais un contexte. Ouverte sans séance (ce que fera un futur
      onglet « Exercices »), le retour ramène sur Semaine et rien d’autre ne
@@ -271,6 +273,7 @@ export default function Programme() {
   const [toast, setToast] = useState("");
   const [importError, setImportError] = useState("");
   const [pendingImport, setPendingImport] = useState(null); // fichier lu et validé, pas encore appliqué (#11)
+  const [pendingLight, setPendingLight] = useState(null); // exercices descendus sous la référence, question posée (#43)
   const [loadError, setLoadError] = useState("");
   const [programError, setProgramError] = useState(""); // #6 : rejet d'un fichier de programme
   const [backups, setBackups] = useState([]); // [{ from, value }] — sauvegardes d'avant-migration (#8)
@@ -426,21 +429,61 @@ export default function Programme() {
   };
   const setNotes = (val) => updateActive((st) => ({ ...st, logs: writeLog(st.logs, dateOf(session.id), session.id, { notes: val }) }));
 
-  const validate = () => {
-    updateActive((st) => {
-      const d = dateOf(session.id);
-      const cur = findLog(st.logs, d, session.id) || {};
-      const ex = { ...(cur.ex || {}) };
-      const all = [...session.ex, ...prog.CORE[session.core].ex];
-      all.forEach(([slotId]) => {
-        const vid = prog.SLOTS[slotId][blockOf(week)];
-        const p = planned(prog, st, slotId, week, si, d);
-        const rows = (ex[vid] || []).map((r) => (r.r && !r.w && p.load != null ? { ...r, w: String(p.load).replace(".", ",") } : r));
-        if (rows.length) ex[vid] = rows;
-      });
-      return { ...st, logs: writeLog(st.logs, d, session.id, { ex, done: true, kind: computeKind(week) }) };
+  /* Les séries de la séance telles qu'elles seront enregistrées : les poids
+     vides remplis depuis « Prévu », exactement comme validate() le fait. La
+     comparaison de #43 doit porter sur ça et non sur ce qui est tapé à l'écran,
+     sans quoi une séance validée avec des poids vides passerait pour une baisse
+     alors qu'elle porte la charge prévue. */
+  const sessionSets = (st) => {
+    const d = dateOf(session.id);
+    const cur = findLog(st.logs, d, session.id) || {};
+    const ex = { ...(cur.ex || {}) };
+    const plans = [];
+    [...session.ex, ...prog.CORE[session.core].ex].forEach(([slotId]) => {
+      const vid = prog.SLOTS[slotId][blockOf(week)];
+      const p = planned(prog, st, slotId, week, si, d);
+      const rows = (ex[vid] || []).map((r) => (r.r && !r.w && p.load != null ? { ...r, w: String(p.load).replace(".", ",") } : r));
+      if (rows.length) ex[vid] = rows;
+      plans.push({ slotId, vid, plan: p });
     });
-    showToast(`${session.name} validée`);
+    return { d, cur, ex, plans };
+  };
+
+  /* Un descripteur par exercice, pour loadDrops() : la charge de travail des
+     séries saisies face à celle de la base que le moteur a lue. */
+  const dropsOf = (st) => {
+    const { ex, plans } = sessionSets(st);
+    return loadDrops(plans.map(({ slotId, vid, plan }) => {
+      const v = prog.V[vid];
+      const sets = (ex[vid] || []).map((r) => ({ w: num(r.w), r: num(r.r), rir: num(r.rir) })).filter((x) => x.r != null);
+      if (!sets.length) return null;
+      const [mn, mx] = prog.SLOTS[slotId].reps;
+      return { vid, name: v.name, v, load: workingSets(sets, mn, mx).load, baseLoad: plan.baseLoad, incr: v.incr };
+    }));
+  };
+
+  const validate = (allege = false) => {
+    updateActive((st) => {
+      const { d, cur, ex } = sessionSets(st);
+      /* Sur une mise à jour, le kind stocké est conservé : corriger une note ne
+         doit pas effacer un « allégée » répondu la veille (#43, Q1). La question
+         se repose en rouvrant la séance, ce que la ligne « Validée le … ·
+         Rouvrir » offre juste au-dessus. */
+      const kind = cur.done ? (cur.kind ?? computeKind(week)) : (allege ? "allege" : computeKind(week));
+      return { ...st, logs: writeLog(st.logs, d, session.id, { ex, done: true, kind }) };
+    });
+    setPendingLight(null);
+    showToast(`${session.name} validée${allege ? " (allégée)" : ""}`);
+  };
+
+  /* Aucun contrôle permanent : la question n'existe que quand le cas se
+     présente. Trois gardes, une par décision (#43) — jamais sur une séance déjà
+     validée, jamais en semaine 1 ni 7 dont le kind pilote déjà le moteur, et
+     seulement si un exercice est descendu de plus d'un incrément. */
+  const askThenValidate = () => {
+    if (log.done || computeKind(week) !== "normal") return validate(false);
+    const drops = dropsOf(state);
+    return drops.length ? setPendingLight(drops) : validate(false);
   };
   const reopen = () => updateActive((st) => ({ ...st, logs: writeLog(st.logs, dateOf(session.id), session.id, { done: false }) }));
 
@@ -750,10 +793,37 @@ export default function Programme() {
                   <span className="text-xs text-slate-400">Notes de séance (douleur 0–10, forme, remarques)</span>
                   <textarea value={log.notes || ""} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Remontées dans le bilan de la semaine." className="mt-1 w-full p-3 rounded-md bg-slate-800 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400" />
                 </label>
-                <div className="mt-4 flex items-center gap-3">
-                  <Btn primary onClick={validate}><Check size={18} />{log.done ? "Mettre à jour la séance" : "Valider la séance"}</Btn>
-                  <span className="text-xs text-slate-500">{saveStatus}</span>
-                </div>
+                {/* #43 : le panneau remplace le bouton — une seule décision, un
+                    seul moment. Les deux boutons valident, ils ne diffèrent que
+                    par ce qu'ils font à la référence, donc chacun dit son effet
+                    au lieu d'un OK/Annuler à décoder. Aucun des deux n'est en
+                    ambre : un choix sans bonne réponse ne doit pas porter de
+                    défaut qui attire le pouce. Même motif que la confirmation
+                    d'import, plus bas. */}
+                {pendingLight ? (
+                  <div className="mt-4 rounded-md border border-slate-700 bg-slate-800 p-3 space-y-2">
+                    <p className="text-sm text-slate-100 font-medium">Séance plus légère que la précédente</p>
+                    {pendingLight.map((d) => (
+                      <p key={d.vid} className="text-sm text-slate-400">
+                        {d.name} : <span className="text-slate-100">{loadText(d.v, d.load)}</span> au lieu de <span className="text-slate-100">{loadText(d.v, d.baseLoad)}</span>.
+                      </p>
+                    ))}
+                    <p className="text-sm text-slate-400">
+                      {pendingLight.length === 1
+                        ? <>Si c'était volontaire, ta charge de référence ne bouge pas : la prochaine séance repartira de <span className="text-slate-100">{loadText(pendingLight[0].v, pendingLight[0].baseLoad)}</span>.</>
+                        : "Si c'était volontaire, tes charges de référence ne bougent pas : la prochaine séance repartira d'où tu en étais."}
+                    </p>
+                    <div className="flex flex-col gap-2 pt-0.5">
+                      <Btn onClick={() => validate(true)}><Check size={18} />Valider, séance allégée</Btn>
+                      <Btn onClick={() => validate(false)}><Check size={18} />Valider, c'est ma nouvelle référence</Btn>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 flex items-center gap-3">
+                    <Btn primary onClick={askThenValidate}><Check size={18} />{log.done ? "Mettre à jour la séance" : "Valider la séance"}</Btn>
+                    <span className="text-xs text-slate-500">{saveStatus}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
