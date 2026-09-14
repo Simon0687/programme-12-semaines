@@ -87,7 +87,7 @@ If tests fail, don't push. That's the one non-negotiable rule in this document.
 git push -u origin feat/12-dynamic-plan
 ```
 
-Cloudflare Pages builds a preview for the branch and gives you a URL. That's where you test on the phone, under real conditions.
+Cloudflare builds the branch and gives you a preview URL for that version, listed next to the build in the dashboard. That's where you test on the phone, under real conditions.
 
 ## 6. Merge
 
@@ -100,7 +100,7 @@ git merge feat/12-dynamic-plan
 git push origin main
 ```
 
-Cloudflare Pages deploys to production. The issue closes automatically if a commit contains `closes #12`.
+Cloudflare deploys to production. The issue closes automatically if a commit contains `closes #12`.
 
 Delete the branch afterwards, locally and on GitHub.
 

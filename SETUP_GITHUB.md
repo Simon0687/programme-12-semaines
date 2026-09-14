@@ -1,4 +1,4 @@
-# Configuration GitHub et Cloudflare Pages
+# Configuration GitHub et Cloudflare
 
 ## Étape 1 : Créer le repo sur GitHub
 
@@ -23,25 +23,31 @@ git push -u origin dev
 
 Vérifier sur GitHub : tu devrais voir les trois branches et 3 commits.
 
-## Étape 3 : Brancher Cloudflare Pages sur le dépôt
+## Étape 3 : Brancher Cloudflare sur le dépôt
 
-Un seul site à créer, pas deux : Cloudflare donne automatiquement une URL de preview
-à chaque branche poussée, donc `staging` n'a pas besoin de son propre projet.
+Un seul projet à créer, pas deux : chaque build d'une branche autre que `main`
+produit sa propre URL de preview, donc `staging` n'a pas besoin de son propre site.
 
-1. `dash.cloudflare.com` → menu de gauche **Workers & Pages**
-2. **Create application** → onglet **Pages** → **Connect to Git**
-3. **Install & Authorize** côté GitHub, en donnant accès à `programme-12-semaines`
-4. Sélectionner le dépôt, puis **Begin setup** — c'est ce bouton qui ouvre l'écran
-   « Set up builds and deployments », où vivent les seuls réglages qui comptent :
+L'app est servie par un **Worker** qui distribue les assets statiques de `public/`
+— URL de production : <https://programme-12-semaines.simongillet.workers.dev>.
 
-   | Champ | Valeur |
-   |-------|--------|
-   | Production branch | `main` |
+1. `dash.cloudflare.com` → **Workers & Pages** → créer une application en important
+   un dépôt Git
+2. Autoriser Cloudflare côté GitHub, en lui donnant accès à `programme-12-semaines`
+3. Sélectionner le dépôt : Cloudflare ouvre alors l'écran de configuration du build,
+   où seuls quatre réglages comptent.
+
+   | Réglage | Valeur |
+   |---------|--------|
+   | Branche de production | `main` |
    | Framework preset | None |
    | Build command | `npm test && npm run build` |
-   | Build output directory | `public` |
+   | Dossier de sortie | `public` |
 
-5. **Save and Deploy**
+4. Déployer
+
+Les libellés exacts de ces écrans changent à chaque refonte du tableau de bord ;
+c'est le contenu du tableau ci-dessus qui doit être exact, pas le chemin de clics.
 
 `public/dist/` est dans le `.gitignore` : c'est la *build command* qui produit le
 bundle, ne la laisse pas vide. Et la suite de tests est devant le build dans cette
@@ -83,7 +89,7 @@ Pour éviter les merges accidentels sur `main` :
 
 1. GitHub → Settings → *Branches*
 2. *Add rule* pour la branche `main`
-3. Cocher *Require status checks to pass before merging* → Sélectionner le check publié par Cloudflare Pages
+3. Cocher *Require status checks to pass before merging* → Sélectionner le check publié par Cloudflare
 4. Sauvegarder
 
 Maintenant, impossible de merger sur `main` si le build Cloudflare échoue.
