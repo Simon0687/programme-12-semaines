@@ -1,0 +1,39 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "1 — La question, au moment de valider", "x": 0, "y": 0, "w": 390, "h": 844 },
+    { "file": "SeanceNormale.dc.html", "title": "2 — Séance normale : rien n'apparaît", "x": 470, "y": 0, "w": 390, "h": 844 },
+    { "file": "Plan.dc.html", "title": "3 — Plan : la règle expliquée", "x": 940, "y": 0, "w": 390, "h": 844 },
+    { "file": "FicheAllegee.dc.html", "title": "4 — Fiche exercice : la trace", "x": 1410, "y": 0, "w": 390, "h": 844 }
+  ],
+  "annotations": [
+    {
+      "id": "note-question",
+      "x": 0,
+      "y": -280,
+      "w": 390,
+      "text": "Ni bouton permanent, ni case à cocher : l'app détecte le cas et pose la question au moment où l'utilisateur est le seul à pouvoir y répondre — le tap sur « Valider la séance ».\n\nLe déclencheur est un fait, pas un seuil à inventer : la charge de travail est descendue par rapport à la dernière séance. `workingSets` (#31) la calcule déjà.\n\nLe panneau REMPLACE le bouton Valider : une seule décision, un seul moment. Les deux boutons valident tous les deux, ils ne diffèrent que par ce qu'ils font à la référence — donc chacun dit son effet au lieu d'un OK/Annuler qu'il faut décoder.\n\nÀ trancher : aucun des deux n'est en ambre. Un choix ni-oui-ni-non ne devrait pas avoir de bouton par défaut qui attire le pouce — mais l'écran se retrouve alors sans action primaire, ce qui est inhabituel dans l'app.\n\nLe panneau réutilise le motif qui existe déjà : la confirmation d'import (App.jsx:905-914). Rien de nouveau à apprendre."
+    },
+    {
+      "id": "note-normale",
+      "x": 470,
+      "y": -280,
+      "w": 390,
+      "text": "Le même écran quand rien n'a baissé : aucune trace du mécanisme. C'est l'argument central.\n\nUne case à cocher près des notes serait du bruit sur 95 % des séances, elle obligerait à comprendre le concept AVANT que la situation arrive, et une case presque jamais cochée finit par l'être plus souvent par erreur que volontairement.\n\nUn second bouton « Valider comme allégée » dédoublerait l'action principale de l'écran — celle que #42 a ramenée à un seul geste."
+    },
+    {
+      "id": "note-plan",
+      "x": 940,
+      "y": -280,
+      "w": 390,
+      "text": "En ambre, ce qui est nouveau. Les deux premiers paragraphes sont déjà sur dev (#31).\n\nDeux seuils voisins, à ne JAMAIS appeler pareil — une première version de ce texte le faisait, et la règle devenait indevinable :\n\n  choisir la charge : au moins UNE série dans la moitié haute (6 sur du 4–8)\n  augmenter : TOUTES les séries au haut (8 sur du 4–8)\n\nChaque phrase nomme donc son quantificateur et donne le nombre en chiffres. Aucune formule ne se lit dans un vestiaire.\n\nLa phrase sur la séance allégée dit la conséquence, pas le concept : « la suivante repart de là où tu en étais ». Pas un mot de « décharge », de « référence de progression » ou de « baseline » — ces mots-là ne sont dans aucune tête sauf la nôtre.\n\nSa deuxième moitié — « seulement quand tu descends sous ta dernière séance » — existe pour que l'utilisateur ne cherche pas un réglage qu'il n'a jamais vu."
+    },
+    {
+      "id": "note-fiche",
+      "x": 1410,
+      "y": -280,
+      "w": 390,
+      "text": "La séance allégée laisse une trace lisible, sinon l'historique donne l'impression d'un trou de progression inexpliqué.\n\nPastille « allégée » dans l'historique, au même format que « calibration » et « décharge » (KIND_LABELS, display.js), et point creux sur la courbe — la même règle que la décharge : un −15 % volontaire ne doit pas se lire comme une régression.\n\nStocké comme kind: \"allege\", et surtout PAS en réutilisant \"deload\" : la fiche afficherait « décharge » sur une séance que tu as juste allégée, et les deux ne veulent pas dire la même chose. Coût nul — `kind` n'est pas validé contre une liste fermée (journal-shape.js:229).\n\nLimite acceptée : `kind` est un drapeau de séance, pas d'exercice. Alléger seulement le squat marquerait la séance entière."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

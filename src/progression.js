@@ -37,16 +37,27 @@ export const roundTo = (x, inc) => (inc ? Math.round(x / inc) * inc : x);
    « viser plus de reps ». Relevé sur le journal réel le 2026-09-12.
 
    La règle, en deux clauses : la charge de travail est **la plus lourde portant
-   au moins une série au haut de la fourchette** — `mn + (mx - mn) / 2` — et, si
-   aucune n'y arrive, **la plus légère tentée**.
+   au moins une série dans la moitié haute de la fourchette** —
+   `mn + (mx - mn) / 2`, soit 6 reps sur du 4–8 — et, si aucune n'y arrive, **la
+   plus légère tentée**.
+
+   « Moitié haute » et non « haut de la fourchette » : le moteur manie deux
+   seuils voisins qu'il ne faut jamais confondre, et ce module est le seul
+   endroit où les deux sont écrits côte à côte.
+
+     choisir la charge  ->  some(r >= topHalf)   au moins une série, 6 sur du 4–8
+     augmenter          ->  every(r >= mx)       toutes les séries, 8 sur du 4–8
+
+   Les appeler pareil rendrait la règle illisible, à commencer par le texte de
+   l'onglet Plan qui est le seul endroit où l'utilisateur la lit.
 
    Le seuil *est* le correctif, pas un raffinement. Une règle qui se contenterait
    d'écarter les séries sous `mn` adopterait encore un 4 reps à 120 kg en 4–8
    comme charge de travail : une charge touchée une fois, au ras du contrat. Le
    rôle de l'appli à cet endroit n'est pas de suivre celui qui se motive et saute
    de 100 à 120, c'est de le ramener à la progression par incréments — et
-   d'adopter la charge plus lourde le jour où elle est tenue au haut de la
-   fourchette. Méritée, pas supposée.
+   d'adopter la charge plus lourde le jour où elle est tenue dans la moitié
+   haute de la fourchette. Méritée, pas supposée.
 
    « Au moins une série », jamais « toutes ses séries » : lu comme *toutes*, le
    test épinglé 72,5 × 3/6/6 disqualifierait 72,5 pour sa série à 3, et une
