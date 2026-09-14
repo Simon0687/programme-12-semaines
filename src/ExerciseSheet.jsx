@@ -251,22 +251,27 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
             {hasRecords && <Records records={records} v={v} copy={copy} />}
 
             <div className="mt-6 text-sm text-slate-400">Historique</div>
+            {/* Un en-tête par cycle, le premier compris. Il ne manquait qu'au
+                groupe le plus récent, et c'est ce qui a fait passer pour un bug
+                une séance du 7 sept. enregistrée dans deux cycles différents
+                (constaté le 2026-09-14) : deux lignes à la même date, dont une
+                seule sous un nom de programme. Une date n'est unique que dans
+                un cycle — rien n'empêche de valider le même jour dans deux
+                cycles ouverts, et l'écran doit le dire au lieu de le laisser
+                deviner. Le nom de séance affiché reste celui de la définition
+                épinglée de ce cycle-là (#26), pas celui qu'aurait le créneau
+                aujourd'hui. */}
             {groups.map((g, i) => (
               <div key={g.programId}>
-                {/* Un séparateur entre cycles, jamais de fusion : le nom de
-                    séance affiché est celui de la définition épinglée de ce
-                    cycle-là (#26), pas celui qu'aurait le créneau aujourd'hui. */}
-                {i > 0 && (
-                  <div className="flex items-center gap-2 pt-4 pb-3">
-                    <div className="flex-1 h-px bg-slate-700" />
-                    <div className="text-xs text-slate-500 whitespace-nowrap">
-                      {g.programName ? `${g.programName} · ` : ""}
-                      {periodLabel(g.rows[g.rows.length - 1].date, g.rows[0].date)}
-                    </div>
-                    <div className="flex-1 h-px bg-slate-700" />
+                <div className={`flex items-center gap-2 pb-3 ${i === 0 ? "pt-2" : "pt-4"}`}>
+                  <div className="flex-1 h-px bg-slate-700" />
+                  <div className="text-xs text-slate-500 whitespace-nowrap">
+                    {g.programName ? `${g.programName} · ` : ""}
+                    {periodLabel(g.rows[g.rows.length - 1].date, g.rows[0].date)}
                   </div>
-                )}
-                <div className={`divide-y divide-slate-700 border-b border-slate-700 ${i === 0 ? "mt-2 border-t" : "border-t"}`}>
+                  <div className="flex-1 h-px bg-slate-700" />
+                </div>
+                <div className="divide-y divide-slate-700 border-y border-slate-700">
                   {g.rows.map((e) => <HistoryRow key={`${e.programId}${e.date}${e.slot}`} entry={e} v={v} />)}
                 </div>
               </div>
