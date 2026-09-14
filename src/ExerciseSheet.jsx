@@ -23,8 +23,8 @@
 import { useMemo } from "react";
 import { ChevronLeft } from "lucide-react";
 import { EXERCISES } from "./registry.js";
-import { exerciseHistory, recordsFor, seriesByCycle } from "./exercise-history.js";
-import { loadText } from "./progression.js";
+import { exerciseHistory, recordsFor, seriesByCycle, chartMode, ESTIMATE_REPS } from "./exercise-history.js";
+import { loadText, fmt } from "./progression.js";
 import { setSummary, dateShort, periodLabel, chartGeometry, axisLabel, detailRows, KIND_LABELS } from "./display.js";
 
 const CHART = { w: 358, h: 162 };
@@ -34,9 +34,21 @@ const CHART = { w: 358, h: 162 };
    parce qu'une table de records qu'on ne sait pas lire est un piège — et
    parce que « ou plus » est exactement ce qui la rend décroissante. */
 const COPY = {
-  kg: { chart: "Charge de la meilleure série", rule: "Charge la plus lourde jamais portée sur ce nombre de reps ou plus." },
-  carry: { chart: "Charge de la meilleure série", rule: "Charge la plus lourde jamais portée sur ce nombre de reps ou plus." },
-  bw: { chart: "Lest de la meilleure série", rule: "Lest le plus lourd jamais porté sur ce nombre de reps ou plus." },
+  kg: {
+    chart: "10RM estimé",
+    note: `Charge estimée pour dix répétitions, calculée sur la meilleure série du jour. Grisée en dessous de ${ESTIMATE_REPS.min} reps ou au-dessus de ${ESTIMATE_REPS.max}, où l'estimation cesse d'être crédible.`,
+    rule: "Charge la plus lourde jamais portée sur ce nombre de reps ou plus.",
+  },
+  carry: {
+    chart: "Tenue et charge de la meilleure série",
+    note: "Deux progressions sur une même abscisse : la tenue en courbe, la charge en barres. Aucune estimation ici — extrapoler une charge portée sur un temps donnerait un résultat qui ne veut rien dire.",
+    rule: "Charge la plus lourde jamais portée sur ce nombre de reps ou plus.",
+  },
+  bw: {
+    chart: "Reps et lest de la meilleure série",
+    note: "Deux progressions sur une même abscisse : les reps en courbe, le lest en barres. Aucune estimation ici — un 10RM calculé sur six tractions donnerait un lest négatif.",
+    rule: "Lest le plus lourd jamais porté sur ce nombre de reps ou plus.",
+  },
   time: { chart: "Tenue de la meilleure série", rule: "Aucune charge sur cet exercice : le record est la tenue la plus longue.", best: "Meilleure tenue" },
   reps: { chart: "Répétitions de la meilleure série", rule: "Aucune charge sur cet exercice : le record est la meilleure série.", best: "Meilleure série" },
 };
@@ -56,7 +68,7 @@ function byCycle(entries) {
   return out;
 }
 
-function Chart({ geo, unit, label }) {
+function Chart({ geo, mode, label, note }) {
   return (
     <>
       <div className="mt-5 text-sm text-slate-400">{label}</div>
@@ -64,22 +76,32 @@ function Chart({ geo, unit, label }) {
         {geo.grid.map((g) => (
           <g key={g.value}>
             <line x1={geo.plot.x0} y1={g.y} x2={geo.plot.x1} y2={g.y} className="stroke-slate-800" strokeWidth="1" />
-            <text x={geo.plot.x0 - 5} y={g.y + 4} textAnchor="end" className="fill-slate-500" fontSize="11">{axisLabel(g.value, unit)}</text>
+            <text x={geo.plot.x0 - 5} y={g.y + 4} textAnchor="end" className="fill-slate-500" fontSize="11">{axisLabel(g.value, mode.line)}</text>
           </g>
         ))}
+        {/* Les barres d'abord : la charge est le fond sur lequel se lit la
+            courbe, pas l'inverse. */}
+        {geo.bars.map((b) => (
+          <rect key={`${b.date}-${b.x}`} x={b.x} y={b.y} width={b.w} height={b.h} rx="1" className="fill-slate-700" />
+        ))}
+        {geo.barTop && (
+          <text x={geo.plot.x1 + 5} y={geo.barTop.y + 4} textAnchor="start" className="fill-slate-500" fontSize="11">
+            {fmt(geo.barTop.value)} kg
+          </text>
+        )}
         {/* Une polyligne par cycle : relier deux cycles par-dessus la coupure
             inventerait une continuité qui n'a pas eu lieu. */}
         {geo.polylines.map((pl) => (
           <polyline key={pl.programId} points={pl.points} fill="none" className="stroke-amber-400" strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" />
         ))}
         {geo.dots.map((d) => (d.hollow
-          ? <circle key={`${d.x}-${d.y}-h`} cx={d.x} cy={d.y} r="3" className="fill-slate-900 stroke-amber-400" strokeWidth="1.5" />
-          : <circle key={`${d.x}-${d.y}`} cx={d.x} cy={d.y} r="2.5" className="fill-amber-400" />))}
+          ? <circle key={`${d.x}-${d.y}-h`} cx={d.x} cy={d.y} r="3" className={`fill-slate-900 ${d.dim ? "stroke-slate-500" : "stroke-amber-400"}`} strokeWidth="1.5" />
+          : <circle key={`${d.x}-${d.y}`} cx={d.x} cy={d.y} r="2.5" className={d.dim ? "fill-slate-500" : "fill-amber-400"} />))}
         {geo.xLabels.map((l) => (
           <text key={`${l.x}${l.label}`} x={l.x} y={CHART.h - 12} textAnchor={l.anchor} className="fill-slate-500" fontSize="11">{l.label}</text>
         ))}
       </svg>
-      <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
+      <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500 mt-0.5">
         <span className="inline-flex items-center gap-1.5">
           <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" className="fill-amber-400" /></svg>séance
         </span>
@@ -87,7 +109,19 @@ function Chart({ geo, unit, label }) {
           <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="2.6" className="fill-slate-900 stroke-amber-400" strokeWidth="1.3" /></svg>
           calibration ou décharge
         </span>
+        {geo.dots.some((d) => d.dim) && (
+          <span className="inline-flex items-center gap-1.5">
+            <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" className="fill-slate-500" /></svg>estimation peu fiable
+          </span>
+        )}
+        {geo.barTop && (
+          <span className="inline-flex items-center gap-1.5">
+            <svg width="8" height="8" viewBox="0 0 8 8"><rect x="2" y="0" width="4" height="8" rx="1" className="fill-slate-700" /></svg>
+            {mode.line === "time" ? "charge" : "lest"}
+          </span>
+        )}
       </div>
+      {note && <p className="mt-1.5 text-xs text-slate-500 leading-4">{note}</p>}
     </>
   );
 }
@@ -168,6 +202,7 @@ function HistoryRow({ entry, v }) {
 export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }) {
   const v = EXERCISES[exerciseId];
   const unit = (v && v.unit) || "kg";
+  const mode = chartMode(unit);
   /* Un objet neuf à chaque render défait tout useMemo qui en dépend
      (App.jsx:217-221, la même leçon qu'en #22). */
   const entries = useMemo(() => exerciseHistory(journal, exerciseId), [journal, exerciseId]);
@@ -208,7 +243,7 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
           <>
             {/* Pas de courbe sur une seule séance : un point isolé n'est pas une
                 progression, et la liste en dessous le dit déjà. */}
-            {geo && n > 1 && <Chart geo={geo} unit={unit} label={`${copy.chart}${v.side ? ", par côté" : ""}`} />}
+            {geo && n > 1 && <Chart geo={geo} mode={mode} note={copy.note} label={`${copy.chart}${v.side ? ", par côté" : ""}`} />}
             <div className="mt-1.5 text-xs text-slate-500">
               {n} séance{n > 1 ? "s" : ""} validée{n > 1 ? "s" : ""} depuis le {dateShort(entries[0].date)}.
             </div>

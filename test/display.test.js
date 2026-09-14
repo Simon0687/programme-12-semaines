@@ -175,3 +175,50 @@ test("chartGeometry : une seule séance ne fait pas diviser par zéro", () => {
   assert.ok(Number.isFinite(g.dots[0].x) && Number.isFinite(g.dots[0].y));
   assert.ok(g.grid.every((t) => Number.isFinite(t.y)));
 });
+
+/* ---------- Courbe : double progression et réserve d'estimation ---------- */
+
+const DUAL = [
+  {
+    programId: "cur", programName: "Haut/Bas 5 jours",
+    points: [
+      { date: "2026-06-01", value: 8, kind: "normal", bar: 0 },
+      { date: "2026-07-06", value: 6, kind: "normal", bar: 5 },
+      { date: "2026-08-31", value: 8, kind: "normal", bar: 10 },
+    ],
+  },
+];
+
+test("chartGeometry : une barre par séance lestée, aucune pour le poids du corps nu", () => {
+  const g = chartGeometry(DUAL, { w: 358, h: 162 });
+  assert.equal(g.bars.length, 2, "la séance à lest nul n'a pas de barre");
+  assert.deepEqual(g.bars.map((b) => b.value), [5, 10]);
+  assert.ok(g.bars[1].h > g.bars[0].h, "un lest plus lourd fait une barre plus haute");
+  assert.ok(g.bars.every((b) => Math.abs(b.y + b.h - g.plot.y1) < 0.2), "les barres partent du bas du cadre");
+});
+
+test("chartGeometry : barTop annonce le haut de l'échelle des barres", () => {
+  const g = chartGeometry(DUAL, { w: 358, h: 162 });
+  assert.ok(g.barTop.value >= 10, `l'échelle doit contenir le lest le plus lourd (${g.barTop.value})`);
+  assert.ok(g.barTop.y > g.plot.y0, "les barres n'occupent que le bas du cadre, pas toute la hauteur");
+});
+
+test("chartGeometry : sans lest, ni barres ni axe de droite", () => {
+  const flat = [{ programId: "p", points: DUAL[0].points.map((p) => ({ ...p, bar: 0 })) }];
+  const g = chartGeometry(flat, { w: 358, h: 162 });
+  assert.deepEqual(g.bars, []);
+  assert.equal(g.barTop, null);
+  assert.equal(g.plot.x1, 358, "et le tracé reprend toute la largeur");
+});
+
+test("chartGeometry : un point hors fenêtre d'estimation est marqué, pas déplacé", () => {
+  const g = chartGeometry([{
+    programId: "p",
+    points: [
+      { date: "2026-06-01", value: 80, kind: "normal", dim: false },
+      { date: "2026-07-01", value: 90, kind: "normal", dim: true },
+    ],
+  }], { w: 358, h: 162 });
+  assert.deepEqual(g.dots.map((d) => d.dim), [false, true]);
+  assert.ok(g.dots[1].y < g.dots[0].y, "une estimation peu fiable reste tracée à sa valeur");
+});
