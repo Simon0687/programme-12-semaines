@@ -556,3 +556,50 @@ test("une séance d'avant dont seules les séries légères étaient basses ne c
   assert.equal(p.load, 100, "charge tenue");
   assert.match(p.why, /^même charge : une séance sous la fourchette, on retente/);
 });
+
+test("why nomme la charge jugée quand la séance en portait plusieurs", () => {
+  const mixed = planned(
+    prog,
+    S({ week: 2, sid: "hautA", vid: "dc", sets: [set(110, 5, 1), set(110, 5, 1), set(120, 3, 0)] }),
+    "dc", 3, si("hautA"), dateOf(3, "hautA")
+  );
+  assert.equal(mixed.why, "même charge : viser plus de reps (jugé sur 110 kg)");
+
+  /* Sur une séance uniforme, la chaîne reste celle d'avant #31 au caractère
+     près : c'est ce que les 32 tests épinglés exigent. */
+  const uniform = planned(
+    prog,
+    S({ week: 2, sid: "hautA", vid: "dc", sets: [set(110, 5, 1), set(110, 5, 1)] }),
+    "dc", 3, si("hautA"), dateOf(3, "hautA")
+  );
+  assert.equal(uniform.why, "même charge : viser plus de reps");
+});
+
+test("la mention survit à la coupe de décharge", () => {
+  const p = planned(
+    prog,
+    S({ week: 6, sid: "hautA", vid: "dc", sets: [set(100, 8, 1), set(120, 4, 0)] }),
+    "dc", 7, si("hautA"), dateOf(7, "hautA")
+  );
+  assert.match(p.why, /^décharge −15 % \(jugé sur 100 kg\)$/);
+});
+
+test("au poids du corps, la mention parle en lest", () => {
+  /* Fourchette 4–8, donc le haut commence à 6. Le lest tenu 6 reps est la charge
+     de travail, et la mention le dit dans le vocabulaire de loadText. */
+  const leste = planned(
+    prog,
+    S({ week: 2, sid: "hautB", vid: "pullup", sets: [set(0, 10, 1), set(5, 6, 0)] }),
+    "pull", 3, si("hautB"), dateOf(3, "hautB")
+  );
+  assert.match(leste.why, /\(jugé sur PDC \+ 5 kg\)$/);
+
+  /* Le même lest manqué à 3 reps ne vaut pas charge de travail : c'est le poids
+     du corps nu qui est jugé, et zéro se dit « Poids du corps », pas « 0 kg ». */
+  const nu = planned(
+    prog,
+    S({ week: 2, sid: "hautB", vid: "pullup", sets: [set(0, 10, 1), set(5, 3, 0)] }),
+    "pull", 3, si("hautB"), dateOf(3, "hautB")
+  );
+  assert.match(nu.why, /\(jugé sur Poids du corps\)$/);
+});

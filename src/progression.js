@@ -171,6 +171,14 @@ export function planned(prog, state, slotId, week, si, date) {
     else why = "même charge : une séance sous la fourchette, on retente";
   } else why = "même charge : viser plus de reps";
   if (kind === "deload" && base.kind !== "deload") { next = roundTo(next * 0.85, v.incr); why = "décharge −15 %"; }
+  /* Quand la séance portait plusieurs charges, le moteur tire sa réponse d'un
+     *sous-ensemble* de ce que l'utilisateur voit écrit dans son historique. Sans
+     cette mention, la carte annonce « Prévu : 110 kg » après une séance où il a
+     touché 120 et rien à l'écran n'explique pourquoi 120 a été écarté — c'est
+     exactement ce qui rend un moteur suspect. Après la coupe de décharge, pour
+     qu'elle survive à la réécriture de `why`. Sur une séance uniforme, rien n'est
+     ajouté : la chaîne reste identique au caractère près (#31 spec, Q4). */
+  if (work.mixed) why = `${why} (jugé sur ${loadText(v, load)})`;
   return { load: next, text: loadText(v, next), why };
 }
 /* Libellé de la dernière séance où l'exercice a été fait (#30).
