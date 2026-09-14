@@ -27,6 +27,67 @@ export const num = (s) => {
 export const fmt = (n) => (n == null ? "—" : String(Math.round(n * 100) / 100).replace(".", ","));
 export const roundTo = (x, inc) => (inc ? Math.round(x / inc) * inc : x);
 
+/* ---------- La charge de travail d'une séance (#31) ----------
+
+   `planned()` réduisait une séance à un seul nombre — le maximum de ses charges
+   — puis jugeait la fourchette de reps sur *toutes* ses séries, quelle que soit
+   la charge de chacune. Dès que les charges diffèrent, les deux moitiés du
+   verdict ne parlent pas de la même chose : 8 reps à 90 kg pouvaient valider
+   105 kg, et 3 reps à 120 devenaient la prescription suivante avec pour consigne
+   « viser plus de reps ». Relevé sur le journal réel le 2026-09-12.
+
+   La règle, en deux clauses : la charge de travail est **la plus lourde portant
+   au moins une série au haut de la fourchette** — `mn + (mx - mn) / 2` — et, si
+   aucune n'y arrive, **la plus légère tentée**.
+
+   Le seuil *est* le correctif, pas un raffinement. Une règle qui se contenterait
+   d'écarter les séries sous `mn` adopterait encore un 4 reps à 120 kg en 4–8
+   comme charge de travail : une charge touchée une fois, au ras du contrat. Le
+   rôle de l'appli à cet endroit n'est pas de suivre celui qui se motive et saute
+   de 100 à 120, c'est de le ramener à la progression par incréments — et
+   d'adopter la charge plus lourde le jour où elle est tenue au haut de la
+   fourchette. Méritée, pas supposée.
+
+   « Au moins une série », jamais « toutes ses séries » : lu comme *toutes*, le
+   test épinglé 72,5 × 3/6/6 disqualifierait 72,5 pour sa série à 3, et une
+   séance uniforme se retrouverait sans charge de travail.
+
+   Une séance uniforme n'a qu'un groupe, que les deux clauses sélectionnent — le
+   repli prenant la plus légère d'une seule charge, c'est-à-dire elle-même. Son
+   comportement est donc identique par construction, pas par cas particulier.
+   C'est ce qui permet aux 32 tests de progression de passer sans être touchés.
+
+   Détail de la décision : docs/features/31-working-load-not-heaviest-set/. */
+
+const loadOf = (s) => (s.w == null ? 0 : s.w);
+
+/* Haut de la fourchette. Non arrondi : les reps sont entières, donc les 37,5 du
+   carry 30–45 valent « 38 ou plus » sans qu'on ait à le dire. */
+export const topHalf = (mn, mx) => mn + (mx - mn) / 2;
+
+/* Rend { load, sets, mixed } : la charge retenue, ses séries à elle, et si la
+   séance en portait plusieurs (ce que `why` affiche, #31 spec Q4).
+
+   Invariant d'appel : `sets` n'est jamais vide — history() n'émet une séance
+   qu'avec au moins une série portant des reps (voir plus bas, filter r != null).
+   Le repli `Math.min` sur un groupement vide rendrait Infinity ; aucun appelant
+   ne peut l'atteindre. */
+export function workingSets(sets, mn, mx) {
+  const byLoad = new Map();
+  for (const s of sets) {
+    const l = loadOf(s);
+    if (!byLoad.has(l)) byLoad.set(l, []);
+    byLoad.get(l).push(s);
+  }
+  /* Groupement par le nombre déjà produit par num() à la lecture du journal :
+     deux séries saisies pareil se parsent pareil, et les incréments du registre
+     (1,25 / 2 / 2,5 / 5 / 10) sont tous exactement représentables. */
+  const t = topHalf(mn, mx);
+  const reached = [...byLoad].filter(([, ss]) => ss.some((s) => s.r >= t)).map(([l]) => l);
+  const load = reached.length ? Math.max(...reached) : Math.min(...byLoad.keys());
+  return { load, sets: byLoad.get(load), mixed: byLoad.size > 1 };
+}
+
 export const phaseOf = (w) =>
   w === 1 ? { id: "calib", label: "Calibration", rir: "2–3" }
   : w <= 6 ? { id: "b1", label: "Bloc 1", rir: "1" }

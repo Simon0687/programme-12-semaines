@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { buildProgram } from "../src/program.js";
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
-import { planned, history, lastEntry, lastEntryLabel, computeKind } from "../src/progression.js";
+import { planned, history, lastEntry, lastEntryLabel, computeKind, workingSets } from "../src/progression.js";
 import { dateForSlot } from "../src/schema.js";
 
 /* Pins the behaviour of planned() as it shipped in 1.0.0, before #3-#6
@@ -375,5 +375,71 @@ describe("lastEntryLabel (#30)", () => {
     for (const entry of history(prog, st, "lat_db")) {
       assert.doesNotMatch(lastEntryLabel(entry), /undefined|NaN/);
     }
+  });
+});
+
+/* ---- la charge de travail d'une séance (#31) ------------------------ */
+
+describe("workingSets", () => {
+  const s = (w, r) => ({ w, r, rir: null });
+  const load = (sets, mn, mx) => workingSets(sets, mn, mx).load;
+
+  test("la charge la plus lourde ayant atteint le haut de la fourchette", () => {
+    /* Le cas qui a tranché la règle : 4 reps à 120 sont dans la fourchette 4–8,
+       mais au ras du contrat. C'est le 8 à 100 qui est une série de travail, donc
+       la suggestion partira de 100 et non de 120. */
+    assert.equal(load([s(100, 8), s(120, 4)], 4, 8), 100);
+    /* Et le jour où 120 est tenu au haut de la fourchette, il est adopté. */
+    assert.equal(load([s(120, 8), s(120, 8), s(120, 8)], 4, 8), 120);
+  });
+
+  test("la plus lourde, pas celle qui a le plus de reps", () => {
+    assert.equal(load([s(100, 7), s(105, 7), s(90, 8)], 4, 8), 105);
+  });
+
+  test("une charge qui a raté le bas de la fourchette n'est jamais retenue", () => {
+    assert.equal(load([s(110, 5), s(110, 5), s(120, 3)], 4, 8), 110);
+  });
+
+  test("si aucune n'atteint le haut, la plus légère tentée", () => {
+    assert.equal(load([s(120, 3), s(130, 2)], 4, 8), 120, "tout sous la fourchette");
+    assert.equal(load([s(100, 4), s(110, 5)], 4, 8), 100, "dans la fourchette mais sous le haut");
+  });
+
+  test("le seuil suit la fourchette du créneau, il n'est pas codé en dur", () => {
+    /* En 8–12 le haut commence à 10, donc 9 reps ne valident pas la charge. */
+    assert.equal(load([s(20, 12), s(25, 9)], 8, 12), 20);
+    assert.equal(load([s(20, 12), s(25, 10)], 8, 12), 25);
+    /* Le seuil n'est pas arrondi : en 30–45 il vaut 37,5, donc 37 ne passe pas. */
+    assert.equal(load([s(24, 40), s(28, 37)], 30, 45), 24);
+    assert.equal(load([s(24, 40), s(28, 38)], 30, 45), 28);
+  });
+
+  test("une séance uniforme rend sa charge quelles que soient les reps", () => {
+    /* La garantie qui fait passer les 32 tests existants sans les toucher : un
+       seul groupe, que les deux clauses sélectionnent. */
+    for (const reps of [[8, 8, 8], [6, 6, 6], [3, 6, 6], [2, 2, 2]]) {
+      const sets = reps.map((r) => s(72.5, r));
+      assert.equal(load(sets, 4, 8), 72.5, `reps ${reps.join("/")}`);
+      assert.equal(workingSets(sets, 4, 8).sets.length, 3, "et toutes ses séries");
+    }
+  });
+
+  test("rend les séries de la charge retenue, pas celles de la séance", () => {
+    const w = workingSets([s(100, 8), s(100, 6), s(120, 4)], 4, 8);
+    assert.deepEqual(w.sets.map((x) => x.r), [8, 6]);
+  });
+
+  test("mixed dit si la séance portait plusieurs charges", () => {
+    assert.equal(workingSets([s(100, 8), s(120, 4)], 4, 8).mixed, true);
+    assert.equal(workingSets([s(100, 8), s(100, 4)], 4, 8).mixed, false);
+  });
+
+  test("au poids du corps, zéro est une charge et non une absence", () => {
+    /* PDC et PDC+10 sont deux charges distinctes ; une série sans charge saisie
+       rejoint le groupe zéro, comme planned() l'a toujours lue. */
+    assert.equal(load([s(0, 8), s(10, 6)], 4, 8), 10);
+    assert.equal(load([s(null, 8), s(0, 6)], 4, 8), 0);
+    assert.equal(workingSets([s(null, 8), s(0, 6)], 4, 8).mixed, false, "null et 0 sont le même groupe");
   });
 });
