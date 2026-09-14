@@ -110,10 +110,15 @@ test("compatibilité v1 : la date de validation d'origine survit dans updatedAt 
   const early = rowAt(res, "2026-09-07", "hautA"); // faite la veille, le dimanche 6
   assert.equal(early.updatedAt.slice(0, 10), "2026-09-06");
 
-  for (const row of rows(res)) {
-    assert.notEqual(row.updatedAt.slice(0, 10), new Date().toISOString().slice(0, 10),
-      `${row.slot} porte la date d'exécution de la migration au lieu de la sienne`);
-  }
+  /* Chaque séance reprend **sa** date, comparée à celle que porte la fixture.
+     La version précédente vérifiait qu'aucune ligne ne portait la date du jour,
+     ce qui ne distingue pas un tampon de migration d'une séance réellement
+     validée aujourd'hui : la fixture v1 en contient une au 14 septembre, et le
+     test tombait ce jour-là — le 2026-09-14, précisément. L'assertion n'est pas
+     assouplie, elle est resserrée : elle épingle les dates au lieu d'exclure
+     une seule valeur. */
+  const v1Dates = Object.values(JSON.parse(fixture("v1")).logs).map((r) => r.date).sort();
+  assert.deepEqual(rows(res).map((r) => r.updatedAt.slice(0, 10)).sort(), v1Dates);
 });
 
 test("compatibilité : une séance sans date de validation retombe sur l'horodatage courant (#40)", async () => {
