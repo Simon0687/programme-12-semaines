@@ -10,7 +10,7 @@ Entraînement périodisé Wendler 5/3/1 avec hypertrophie et cardio, suivi en te
 
 ## Branches
 
-- **main** — Production (déploiement automatique sur Netlify)
+- **main** — Production (build et déploiement automatiques sur Cloudflare Pages)
 - **staging** — Pre-prod (déploiement manuel)
 - **dev** — Développement (tests, PR avant staging)
 
@@ -20,12 +20,15 @@ Format SemVer : `MAJOR.MINOR.PATCH` (cf. tags Git).
 
 ## Déploiement
 
-1. Code poussé sur `dev` ou `staging`
-2. GitHub Actions valide (lint, build)
-3. PR mergée sur `main` → Netlify déploie auto
-4. Version bumpée et taggée (v1.0.0, v1.0.1, etc.)
+Cloudflare Pages construit le site directement depuis GitHub. Il n'y a pas de
+workflow de déploiement à maintenir dans le dépôt.
 
-Pour un changement : commentaire → modifications Claude → push sur `dev` → validation sur Netlify preview → merge sur `main`.
+1. Push sur n'importe quelle branche → build `npm test && npm run build`
+2. La suite de tests garde le déploiement : si `npm test` échoue, rien n'est publié
+3. `main` → URL de production ; toute autre branche → sa propre URL de preview
+4. Version bumpée et taggée à la main (`npm run release`)
+
+Pour un changement : commentaire → modifications Claude → push sur `dev` → validation sur l'URL de preview → merge sur `main`.
 
 ## Développement local
 
