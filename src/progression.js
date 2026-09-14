@@ -135,15 +135,26 @@ export function planned(prog, state, slotId, week, si, date) {
     const l = kind === "deload" ? roundTo(v.start * 0.85, v.incr) : v.start;
     return { load: l, text: loadText(v, l), why: kind === "deload" ? "charge de départ −15 % (décharge)" : "charge de départ" };
   }
-  const load = Math.max(...base.sets.map((s) => (s.w == null ? 0 : s.w)));
-  const allTop = base.sets.every((s) => s.r >= mx);
-  const lowCount = base.sets.filter((s) => s.r < mn).length;
-  let next = load, why = "même charge";
-
+  /* Sans charge, il n'y a rien à regrouper : ce retour passe avant workingSets()
+     plutôt qu'après, ce qui confine la règle de #31 aux unités chargées par
+     construction au lieu d'une garde. Le verdict y reste calculé sur toutes les
+     séries, comme il l'a toujours été. */
   if (unit === "time" || unit === "reps") {
-    const t = allTop ? `progresser : ${unit === "time" ? "+5 s" : "+1 rep ou amplitude"}` : `viser le haut de la fourchette (${label})`;
+    const top = base.sets.every((s) => s.r >= mx);
+    const t = top ? `progresser : ${unit === "time" ? "+5 s" : "+1 rep ou amplitude"}` : `viser le haut de la fourchette (${label})`;
     return { load: null, text: `Cible ${label}`, why: `dernière fois ${base.sets.map((s) => s.r).join("/")} — ${t}` };
   }
+
+  /* La charge sur laquelle le verdict se prononce, et ses séries à elle (#31).
+     Avant, c'était Math.max des charges de la séance et la fourchette jugée sur
+     toutes ses séries, d'où un verdict qui parlait d'autre chose que la charge
+     qu'il annonçait. */
+  const work = workingSets(base.sets, mn, mx);
+  const load = work.load;
+  const allTop = work.sets.every((s) => s.r >= mx);
+  const lowCount = work.sets.filter((s) => s.r < mn).length;
+  let next = load, why = "même charge";
+
   if (base.kind === "calibration" || base.kind === "deload") {
     if (allTop) { next = roundTo(load * 1.05, v.incr); why = "calibration : +5 %"; }
     else if (lowCount >= 1) { next = roundTo(load * 0.95, v.incr); why = "calibration : −5 %"; }

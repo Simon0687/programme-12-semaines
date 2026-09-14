@@ -443,3 +443,82 @@ describe("workingSets", () => {
     assert.equal(workingSets([s(null, 8), s(0, 6)], 4, 8).mixed, false, "null et 0 sont le même groupe");
   });
 });
+
+/* ---- charges mixtes dans une même séance (#31) ----------------------- */
+
+describe("mixed loads in one session", () => {
+  /* dc : fourchette 4–8, incrément 2,5 kg. Le haut de la fourchette commence
+     donc à 6. Les verdicts attendus sont ceux de docs/features/
+     31-working-load-not-heaviest-set/spec.md, Acceptance criteria. */
+
+  test("un essai lourd au ras de la fourchette n'est pas adopté", () => {
+    /* 4 reps à 120 sont dans la fourchette 4–8, mais c'est le 8 à 100 qui est la
+       série de travail : on repart de 100 et on ajoute l'incrément. Avant #31,
+       Math.max élisait 120 et la séance suivante était prescrite à 120. */
+    const p = planned(
+      prog,
+      S({ week: 2, sid: "hautA", vid: "dc", sets: [set(100, 8, 1), set(120, 4, 0)] }),
+      "dc", 3, si("hautA"), dateOf(3, "hautA")
+    );
+    assert.equal(p.load, 102.5);
+    assert.match(p.why, /^\+2,5 kg/);
+  });
+
+  test("la charge lourde est adoptée dès qu'elle est tenue au haut de la fourchette", () => {
+    const p = planned(
+      prog,
+      S(
+        { week: 2, sid: "hautA", vid: "dc", sets: [set(100, 8, 1), set(120, 4, 0)] },
+        { week: 3, sid: "hautA", vid: "dc", sets: [set(120, 8, 1), set(120, 8, 1), set(120, 8, 1)] }
+      ),
+      "dc", 4, si("hautA"), dateOf(4, "hautA")
+    );
+    assert.equal(p.load, 122.5, "méritée, pas supposée");
+  });
+
+  test("une charge qui a raté le bas de la fourchette ne devient pas la prescription", () => {
+    /* Avant #31 : load = 120, lowCount = 1 donc aucune réduction, et l'appli
+       demandait « viser plus de reps » à une charge qui venait d'en donner 3. */
+    const p = planned(
+      prog,
+      S({ week: 2, sid: "hautA", vid: "dc", sets: [set(110, 5, 1), set(110, 5, 1), set(120, 3, 0)] }),
+      "dc", 3, si("hautA"), dateOf(3, "hautA")
+    );
+    assert.equal(p.load, 110);
+    assert.match(p.why, /^même charge : viser plus de reps/);
+  });
+
+  test("en calibration, le verdict porte sur la plus lourde ayant atteint le haut", () => {
+    /* Le 8 reps a été fait à 90 : il ne valide pas 105. 105 a tenu 7 reps, dans
+       la fourchette sans en atteindre le haut, donc la charge est validée telle
+       quelle — le nombre que l'appli affichait déjà, pour une raison qui tient. */
+    const p = planned(
+      prog,
+      S({ week: 1, sid: "hautA", vid: "dc", sets: [set(100, 7, 2), set(105, 7, 2), set(90, 8, 2)] }),
+      "dc", 2, si("hautA"), dateOf(2, "hautA")
+    );
+    assert.equal(p.load, 105);
+    assert.match(p.why, /^charge validée en calibration/);
+  });
+
+  test("quand rien n'a tenu la fourchette, la suggestion n'est jamais plus lourde que la plus légère tentée", () => {
+    const p = planned(
+      prog,
+      S({ week: 1, sid: "hautA", vid: "dc", sets: [set(120, 3, 0), set(130, 2, 0)] }),
+      "dc", 2, si("hautA"), dateOf(2, "hautA")
+    );
+    assert.ok(p.load <= 120, `${p.load} devrait être au plus 120`);
+    assert.match(p.why, /^calibration : −5 %/);
+  });
+
+  test("une décharge lue comme base passe par la même règle", () => {
+    /* base.kind === "deload" emprunte la branche calibration ; la charge jugée
+       doit être celle de la règle, pas le maximum de la séance. */
+    const p = planned(
+      prog,
+      S({ week: 7, sid: "hautA", vid: "dc", sets: [set(85, 8, 4), set(95, 4, 2)] }),
+      "dc", 8, si("hautA"), dateOf(8, "hautA")
+    );
+    assert.equal(p.load, 90, "roundTo(85 * 1,05 ; 2,5) — jugé sur 85, pas sur 95");
+  });
+});
