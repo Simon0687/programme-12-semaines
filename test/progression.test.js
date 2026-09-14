@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { buildProgram } from "../src/program.js";
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
-import { planned, history, lastEntry, lastEntryLabel, computeKind, workingSets } from "../src/progression.js";
+import { planned, history, lastEntry, lastEntryLabel, computeKind, workingSets, loadDrops } from "../src/progression.js";
 import { dateForSlot } from "../src/schema.js";
 
 /* Pins the behaviour of planned() as it shipped in 1.0.0, before #3-#6
@@ -602,4 +602,108 @@ test("au poids du corps, la mention parle en lest", () => {
     "pull", 3, si("hautB"), dateOf(3, "hautB")
   );
   assert.match(nu.why, /\(jugé sur Poids du corps\)$/);
+});
+
+/* ---- séance allégée (#43) -------------------------------------------- */
+
+describe("séance allégée", () => {
+  const wk = (week, sets, kind) => ({ week, sid: "hautA", vid: "dc", sets, kind });
+
+  test("une base allégée n'est jamais lue : on repart de la séance d'avant", () => {
+    /* Le cas qui motive #43. Sans le saut, 8 reps à 80 kg deviennent la
+       référence et il faut neuf séances à +2,5 pour revenir à 102,5. */
+    const p = planned(
+      prog,
+      S(
+        { week: 2, sid: "hautA", vid: "dc", sets: [set(100, 8, 1), set(100, 8, 1), set(100, 8, 1)] },
+        { week: 3, sid: "hautA", vid: "dc", sets: [set(80, 8, 3), set(80, 8, 3), set(80, 8, 3)] }
+      ),
+      "dc", 4, si("hautA"), dateOf(4, "hautA")
+    );
+    assert.equal(p.load, 82.5, "sans marquage, la séance légère fait référence");
+
+    const st = S(
+      { week: 2, sid: "hautA", vid: "dc", sets: [set(100, 8, 1), set(100, 8, 1), set(100, 8, 1)] },
+      { week: 3, sid: "hautA", vid: "dc", sets: [set(80, 8, 3), set(80, 8, 3), set(80, 8, 3)] }
+    );
+    st.logs[`${dateOf(3, "hautA")}_hautA`].kind = "allege";
+    const q = planned(prog, st, "dc", 4, si("hautA"), dateOf(4, "hautA"));
+    assert.equal(q.load, 102.5, "marquée allégée, elle est sautée et la base reste 100");
+  });
+
+  test("une base allégée sans rien avant elle prend la branche normale", () => {
+    /* Aucune séance sur quoi se rabattre : on repart d'elle, mais sans la coupe
+       de la branche calibration, qu'elle n'a pas à expliquer. */
+    const st = S({ week: 2, sid: "hautA", vid: "dc", sets: [set(80, 8, 1), set(80, 8, 1), set(80, 8, 1)] });
+    st.logs[`${dateOf(2, "hautA")}_hautA`].kind = "allege";
+    const p = planned(prog, st, "dc", 3, si("hautA"), dateOf(3, "hautA"));
+    assert.equal(p.load, 82.5);
+    assert.match(p.why, /^\+2,5 kg/, "branche normale, pas « calibration : +5 % »");
+  });
+
+  test("baseLoad porte la charge de la base réellement lue", () => {
+    const st = S(
+      { week: 2, sid: "hautA", vid: "dc", sets: [set(100, 8, 1), set(100, 8, 1), set(100, 8, 1)] },
+      { week: 3, sid: "hautA", vid: "dc", sets: [set(80, 8, 3), set(80, 8, 3), set(80, 8, 3)] }
+    );
+    st.logs[`${dateOf(3, "hautA")}_hautA`].kind = "allege";
+    assert.equal(planned(prog, st, "dc", 4, si("hautA"), dateOf(4, "hautA")).baseLoad, 100);
+  });
+
+  test("baseLoad est nul quand il n'y a pas de base, ou pas de charge", () => {
+    assert.equal(planned(prog, S(), "dc", 1, si("hautA"), dateOf(1, "hautA")).baseLoad, null);
+    assert.equal(planned(prog, S(), "reardelt", 1, si("hautA"), dateOf(1, "hautA")).baseLoad, null);
+    assert.equal(planned(prog, S(), "sideplank", 1, si("basA"), dateOf(1, "basA")).baseLoad, null);
+    const st = S({ week: 2, sid: "basA", vid: "sideplank", sets: [set(null, 40, 2), set(null, 35, 2)] });
+    assert.equal(planned(prog, st, "sideplank", 3, si("basA"), dateOf(3, "basA")).baseLoad, null, "unité sans charge");
+  });
+});
+
+/* ---- loadDrops (#43) -------------------------------------------------- */
+
+describe("loadDrops", () => {
+  const e = (name, load, baseLoad, incr) => ({ vid: name, name, load, baseLoad, incr });
+
+  test("une baisse de plus d'un incrément est retenue", () => {
+    assert.deepEqual(loadDrops([e("dc", 80, 100, 2.5)]).map((x) => x.name), ["dc"]);
+  });
+
+  test("une baisse d'un incrément exactement ne l'est pas", () => {
+    /* 102,5 devenus 100 faute de disques : un arrondi, pas une séance allégée —
+       et un 8/8/8 à 100 redonne 102,5 dès la séance suivante. */
+    assert.deepEqual(loadDrops([e("dc", 100, 102.5, 2.5)]), []);
+    assert.deepEqual(loadDrops([e("squat", 100, 105, 5)]), []);
+    assert.deepEqual(loadDrops([e("squat", 99, 105, 5)]).length, 1, "au-delà, oui");
+  });
+
+  test("une charge égale ou plus lourde n'est pas une baisse", () => {
+    assert.deepEqual(loadDrops([e("dc", 100, 100, 2.5), e("squat", 110, 105, 5)]), []);
+  });
+
+  test("un exercice sans référence est ignoré, jamais compté comme une baisse", () => {
+    /* Première fois qu'on le fait : rien à comparer. */
+    assert.deepEqual(loadDrops([e("dc", 80, null, 2.5)]), []);
+    assert.deepEqual(loadDrops([e("dc", null, 100, 2.5)]), []);
+  });
+
+  test("sans incrément utilisable, aucune baisse — le seuil n'aurait pas de sens", () => {
+    assert.deepEqual(loadDrops([e("x", 10, 100, 0)]), []);
+    assert.deepEqual(loadDrops([e("x", 10, 100, undefined)]), []);
+  });
+
+  test("plusieurs exercices, seuls ceux qui ont baissé ressortent, dans l'ordre", () => {
+    const drops = loadDrops([
+      e("dc", 80, 100, 2.5),
+      e("row", 60, 60, 2.5),
+      e("squat", 90, 105, 5),
+      e("curl", 20, 21, 2.5),
+    ]);
+    assert.deepEqual(drops.map((x) => x.name), ["dc", "squat"]);
+  });
+
+  test("entrées difformes : liste vide, jamais une exception", () => {
+    assert.deepEqual(loadDrops([]), []);
+    assert.deepEqual(loadDrops(null), []);
+    assert.deepEqual(loadDrops([null, undefined]), []);
+  });
 });

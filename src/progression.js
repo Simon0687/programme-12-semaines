@@ -72,6 +72,24 @@ export const roundTo = (x, inc) => (inc ? Math.round(x / inc) * inc : x);
 
 const loadOf = (s) => (s.w == null ? 0 : s.w);
 
+/* ---------- Les séances dont on ne repart pas (#43) ----------
+
+   La décharge y était déjà : une semaine 7 coupe les charges de 15 % par
+   construction, donc la semaine 8 doit repartir de la semaine 6, sans quoi le
+   programme se saborde tous les sept jours. « Allégée » est exactement la même
+   idée, décidée par l'utilisateur au lieu du calendrier — après une blessure ou
+   une envie de lever le pied.
+
+   Sans ce mécanisme, une séance à 80 kg là où le contrat disait 102,5 devenait
+   la nouvelle référence sur-le-champ : neuf séances à +2,5 kg pour revenir.
+   Constaté sur le moteur réel le 2026-09-14.
+
+   La branche calibration teste toujours `calibration` ou `deload`, donc une base
+   `allege` — le cas où TOUTES les séances sont allégées et où il n'y a rien
+   d'autre sur quoi se rabattre — emprunte la branche normale. C'est le bon
+   verdict : elle ne porte aucune coupe programmée à expliquer. */
+const SKIPPED_AS_BASE = new Set(["deload", "allege"]);
+
 /* Haut de la fourchette. Non arrondi : les reps sont entières, donc les 37,5 du
    carry 30–45 valent « 38 ou plus » sans qu'on ait à le dire. */
 export const topHalf = (mn, mx) => mn + (mx - mn) / 2;
@@ -97,6 +115,29 @@ export function workingSets(sets, mn, mx) {
   const reached = [...byLoad].filter(([, ss]) => ss.some((s) => s.r >= t)).map(([l]) => l);
   const load = reached.length ? Math.max(...reached) : Math.min(...byLoad.keys());
   return { load, sets: byLoad.get(load), mixed: byLoad.size > 1 };
+}
+
+/* ---------- Les exercices sur lesquels la séance est descendue (#43) ----------
+
+   Entrée : un descripteur par exercice de la séance, `{ vid, name, load,
+   baseLoad, incr }`. `load` est la charge de travail des séries **telles qu'elles
+   seront enregistrées** — App.jsx remplit d'abord les poids vides depuis
+   `planned()` —, `baseLoad` celle de la base que le moteur a lue.
+
+   Comparé à la **référence**, pas à la séance précédente. Avec la séance
+   précédente, une deuxième séance légère à la même charge n'afficherait aucune
+   baisse, ne serait jamais proposée à la question, et deviendrait la nouvelle
+   référence en silence — défaisant l'allégement de la première.
+
+   « De plus d'un incrément » : en dessous c'est un arrondi — 102,5 devenus 100
+   faute de disques de 1,25 — et ça remonte tout seul à la séance suivante, un
+   8/8/8 à 100 redonnant 102,5. Une question rare ne vaut que si elle est lue ;
+   la déclencher sur un arrondi apprendrait à la balayer. L'incrément vient du
+   registre, exercice par exercice : ce n'est pas un pourcentage inventé. */
+export function loadDrops(entries) {
+  return (entries || []).filter(
+    (e) => e && e.baseLoad != null && e.load != null && e.incr > 0 && e.baseLoad - e.load > e.incr
+  );
 }
 
 export const phaseOf = (w) =>
@@ -134,17 +175,17 @@ export function planned(prog, state, slotId, week, si, date) {
   const kind = computeKind(week);
   const hist = history(prog, state, vid).filter((e) => e.date < date || (e.date === date && e.si < si));
   let base = hist[hist.length - 1], prev = hist[hist.length - 2];
-  if (base && base.kind === "deload" && hist.some((e) => e.kind !== "deload")) {
-    const nd = hist.filter((e) => e.kind !== "deload");
+  if (base && SKIPPED_AS_BASE.has(base.kind) && hist.some((e) => !SKIPPED_AS_BASE.has(e.kind))) {
+    const nd = hist.filter((e) => !SKIPPED_AS_BASE.has(e.kind));
     base = nd[nd.length - 1]; prev = nd[nd.length - 2];
   }
   const label = unit === "time" ? `${mn}–${mx} s` : unit === "carry" ? `${mn}–${mx} s` : `${mn}–${mx} reps`;
 
   if (!base) {
-    if (unit === "time" || unit === "reps") return { load: null, text: `Cible ${label} à ${phaseOf(week).rir} RIR`, why: "" };
-    if (v.start == null) return { load: null, text: "Paliers", why: "50 → 75 → 100 % de la charge devinée ; la première série dans la fourchette au bon RIR devient la charge de travail" };
+    if (unit === "time" || unit === "reps") return { load: null, text: `Cible ${label} à ${phaseOf(week).rir} RIR`, why: "", baseLoad: null };
+    if (v.start == null) return { load: null, text: "Paliers", why: "50 → 75 → 100 % de la charge devinée ; la première série dans la fourchette au bon RIR devient la charge de travail", baseLoad: null };
     const l = kind === "deload" ? roundTo(v.start * 0.85, v.incr) : v.start;
-    return { load: l, text: loadText(v, l), why: kind === "deload" ? "charge de départ −15 % (décharge)" : "charge de départ" };
+    return { load: l, text: loadText(v, l), why: kind === "deload" ? "charge de départ −15 % (décharge)" : "charge de départ", baseLoad: null };
   }
   /* Sans charge, il n'y a rien à regrouper : ce retour passe avant workingSets()
      plutôt qu'après, ce qui confine la règle de #31 aux unités chargées par
@@ -153,7 +194,7 @@ export function planned(prog, state, slotId, week, si, date) {
   if (unit === "time" || unit === "reps") {
     const top = base.sets.every((s) => s.r >= mx);
     const t = top ? `progresser : ${unit === "time" ? "+5 s" : "+1 rep ou amplitude"}` : `viser le haut de la fourchette (${label})`;
-    return { load: null, text: `Cible ${label}`, why: `dernière fois ${base.sets.map((s) => s.r).join("/")} — ${t}` };
+    return { load: null, text: `Cible ${label}`, why: `dernière fois ${base.sets.map((s) => s.r).join("/")} — ${t}`, baseLoad: null };
   }
 
   /* La charge sur laquelle le verdict se prononce, et ses séries à elle (#31).
@@ -190,7 +231,7 @@ export function planned(prog, state, slotId, week, si, date) {
      qu'elle survive à la réécriture de `why`. Sur une séance uniforme, rien n'est
      ajouté : la chaîne reste identique au caractère près (#31 spec, Q4). */
   if (work.mixed) why = `${why} (jugé sur ${loadText(v, load)})`;
-  return { load: next, text: loadText(v, next), why };
+  return { load: next, text: loadText(v, next), why, baseLoad: load };
 }
 /* Libellé de la dernière séance où l'exercice a été fait (#30).
 
