@@ -15,6 +15,7 @@ Related, and deliberately not repeated here:
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | process, commits, versioning rules, pre-migration backups |
 | [WORKFLOW.md](../WORKFLOW.md) | branches, CI/CD, releases |
 | [.claude/WORKFLOW.md](../.claude/WORKFLOW.md) | how much documentation an issue needs (A/B/C) |
+| [docs/data-model.html](data-model.html) | what is stored, field by field, and the three joins between a logged session and its program |
 | [docs/generation/README.md](generation/README.md) | the three JSON contracts of program generation |
 | `docs/features/<n>-<slug>/` | why one specific issue was decided the way it was |
 

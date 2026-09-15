@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Modèle de données stocké — compagnon de docs/ARCHITECTURE.md.
+     Page autonome : aucune dépendance hors les fontes Google. -->
+<title>Anatomie du journal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  /* Palette reprise des tokens de l'app (#51, tailwind.config.js) :
+     slate pour les surfaces et l'encre, amber-400 pour l'accent,
+     emerald-400 pour « validé ». Le thème clair dérive de la même
+     échelle slate, avec amber-600 / emerald-600 pour tenir le contraste
+     sur fond clair. */
+  :root {
+    --ground: #f8fafc;
+    --raised: #ffffff;
+    --sunken: #f1f5f9;
+    --rule: #cbd5e1;
+    --rule-faint: #e2e8f0;
+    --ink: #0f172a;
+    --ink-soft: #334155;
+    --ink-muted: #64748b;
+    --ink-faint: #94a3b8;
+    --accent: #b45309;
+    --accent-fill: #fbbf24;
+    --done: #047857;
+    --done-fill: #34d399;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 8px 24px -12px rgba(15, 23, 42, .18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0f172a;
+      --raised: #1e293b;
+      --sunken: #172033;
+      --rule: #334155;
+      --rule-faint: #263449;
+      --ink: #f1f5f9;
+      --ink-soft: #cbd5e1;
+      --ink-muted: #94a3b8;
+      --ink-faint: #64748b;
+      --accent: #fbbf24;
+      --accent-fill: #fbbf24;
+      --done: #34d399;
+      --done-fill: #34d399;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -14px rgba(0, 0, 0, .7);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0f172a;
+    --raised: #1e293b;
+    --sunken: #172033;
+    --rule: #334155;
+    --rule-faint: #263449;
+    --ink: #f1f5f9;
+    --ink-soft: #cbd5e1;
+    --ink-muted: #94a3b8;
+    --ink-faint: #64748b;
+    --accent: #fbbf24;
+    --accent-fill: #fbbf24;
+    --done: #34d399;
+    --done-fill: #34d399;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -14px rgba(0, 0, 0, .7);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .wrap {
+    max-width: 78ch;
+    margin: 0 auto;
+    padding-inline: 20px;
+    padding-block: 56px 96px;
+  }
+
+  /* ---------- Type ---------- */
+  h1, h2, h3 { font-family: "IBM Plex Serif", ui-serif, Georgia, serif; text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(2rem, 6vw, 2.9rem); font-weight: 600; letter-spacing: -.02em; line-height: 1.12; }
+  h2 { font-size: 1.5rem; font-weight: 600; letter-spacing: -.01em; }
+  h3 { font-size: 1.05rem; font-weight: 600; }
+  p { margin: 0; }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .72rem;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .lede { font-size: 1.13rem; line-height: 1.55; color: var(--ink-soft); }
+  .muted { color: var(--ink-muted); }
+  .small { font-size: .875rem; line-height: 1.55; }
+
+  code, .mono { font-family: "IBM Plex Mono", ui-monospace, "SF Mono", monospace; }
+  code {
+    font-size: .875em;
+    background: var(--sunken);
+    border: 1px solid var(--rule-faint);
+    border-radius: 4px;
+    padding: .08em .34em;
+    overflow-wrap: break-word;
+  }
+
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+
+  /* ---------- Rhythm ---------- */
+  header.head { display: flex; flex-direction: column; gap: 18px; }
+  section { display: flex; flex-direction: column; gap: 18px; margin-top: 64px; }
+  .stack { display: flex; flex-direction: column; gap: 14px; }
+
+  .rule-top { border-top: 1px solid var(--rule); padding-top: 14px; }
+
+  .meta {
+    display: flex; flex-wrap: wrap; gap: 8px 26px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .8rem; color: var(--ink-muted);
+  }
+  .meta b { color: var(--ink-soft); font-weight: 500; }
+
+  /* ---------- Figures ---------- */
+  figure { margin: 0; display: flex; flex-direction: column; gap: 12px; }
+  .scroller { overflow-x: auto; }
+  figure svg { display: block; width: 100%; min-width: 620px; max-width: 100%; height: auto; color: var(--ink-soft); }
+  figcaption { font-size: .875rem; line-height: 1.55; color: var(--ink-muted); }
+  figcaption b { color: var(--ink-soft); font-weight: 500; }
+
+  /* ---------- Field tables ---------- */
+  .obj {
+    background: var(--raised);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .obj > header {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--sunken);
+  }
+  .obj > header .name { font-family: "IBM Plex Mono", ui-monospace, monospace; font-weight: 600; font-size: .95rem; }
+  .obj > header .where { font-size: .78rem; color: var(--ink-muted); font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .fields { display: grid; grid-template-columns: minmax(9rem, auto) 1fr; }
+  .fields > div { padding: 9px 16px; border-top: 1px solid var(--rule-faint); }
+  .fields > div:first-child, .fields > div:nth-child(2) { border-top: 0; }
+  .fields .k { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .85rem; color: var(--ink); overflow-wrap: anywhere; }
+  .fields .v { font-size: .875rem; color: var(--ink-muted); line-height: 1.5; }
+  .fields .v em { font-style: normal; color: var(--ink-soft); }
+  @media (max-width: 560px) {
+    .fields { grid-template-columns: 1fr; }
+    .fields > div:nth-child(2) { border-top: 0; }
+    .fields .k { padding-bottom: 0; }
+    .fields > div.v { border-top: 0; padding-top: 2px; }
+  }
+
+  /* ---------- Callout ---------- */
+  .note {
+    border-left: 2px solid var(--accent-fill);
+    padding: 2px 0 2px 16px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .note .label {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; color: var(--accent);
+  }
+
+  /* ---------- Risk list ---------- */
+  .risk { display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--rule); }
+  .risk > div {
+    display: grid; grid-template-columns: 7.5rem 1fr; gap: 4px 18px;
+    padding: 14px 0; border-bottom: 1px solid var(--rule-faint);
+  }
+  .risk .verdict {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .74rem; letter-spacing: .08em; text-transform: uppercase;
+    align-self: start; padding-top: 3px;
+  }
+  .risk .safe { color: var(--done); }
+  .risk .danger { color: var(--accent); }
+  .risk .what { font-size: .93rem; }
+  .risk .what strong { font-weight: 600; }
+  .risk .why { grid-column: 2; font-size: .85rem; color: var(--ink-muted); line-height: 1.5; }
+  @media (max-width: 560px) {
+    .risk > div { grid-template-columns: 1fr; }
+    .risk .why { grid-column: 1; }
+  }
+
+  ul.plain { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 8px; }
+  ul.plain li { padding-left: .2rem; }
+  ul.plain li::marker { color: var(--ink-faint); }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+  <header class="head">
+    <p class="eyebrow">Modèle de données · prog12</p>
+    <h1>Anatomie du journal</h1>
+    <p class="lede">
+      Tout ce que l'application conserve tient dans une seule clé de <code>localStorage</code>.
+      Ce document en donne la structure parent-enfant, les champs réels de chaque objet,
+      et les trois jointures qui expliquent pourquoi modifier un programme en cours peut
+      réécrire le sens de ce qui est déjà enregistré.
+    </p>
+    <div class="meta rule-top">
+      <span><b>clé</b> prog12_simon_v1</span>
+      <span><b>schemaVersion</b> 4</span>
+      <span><b>formatVersion</b> 2</span>
+      <span><b>source</b> src/schema.js</span>
+    </div>
+  </header>
+
+  <!-- ============ 1. L'arbre ============ -->
+  <section>
+    <div class="stack">
+      <h2>1 · L'arbre de stockage</h2>
+      <p>
+        Un seul document JSON. Il contient <em>N</em> cycles — un programme chargé ou composé,
+        avec son historique — dont un seul est actif à la fois. Chaque cycle porte quatre
+        registres indépendants et sa propre définition de programme, recopiée en clair.
+      </p>
+    </div>
+
+    <figure>
+      <div class="scroller">
+        <svg viewBox="0 0 880 486" role="img" aria-label="Arbre du journal : la clé localStorage contient un journal, qui contient plusieurs cycles ; chaque cycle porte une définition et trois registres indexés par semaine ou par date.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+            </marker>
+            <marker id="ar-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"></path>
+            </marker>
+          </defs>
+
+          <!-- niveau 1 : localStorage -->
+          <rect x="16" y="20" width="176" height="46" rx="6" fill="none" stroke="currentColor" stroke-width="1" opacity=".5"></rect>
+          <text x="32" y="41" font-family="IBM Plex Mono, monospace" font-size="12" fill="currentColor" opacity=".7">localStorage</text>
+          <text x="32" y="57" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="currentColor" font-weight="600">prog12_simon_v1</text>
+
+          <!-- niveau 2 : journal -->
+          <rect x="16" y="94" width="300" height="110" rx="6" fill="none" stroke="currentColor" stroke-width="1.4"></rect>
+          <text x="32" y="116" font-family="IBM Plex Serif, serif" font-size="13.5" fill="currentColor" font-weight="600">Journal</text>
+          <text x="32" y="140" font-family="IBM Plex Mono, monospace" font-size="12" fill="currentColor" opacity=".78">schemaVersion: 4</text>
+          <text x="32" y="160" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--accent)">activeProgramId</text>
+          <text x="32" y="180" font-family="IBM Plex Mono, monospace" font-size="12" fill="currentColor" opacity=".78">programs { }</text>
+          <line x1="104" y1="66" x2="104" y2="94" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)"></line>
+
+          <!-- niveau 3 : cycles -->
+          <rect x="396" y="94" width="230" height="58" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.6"></rect>
+          <text x="412" y="116" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="var(--accent)" font-weight="600">"upper-lower-4j"</text>
+          <text x="412" y="136" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".7">cycle actif</text>
+
+          <rect x="396" y="166" width="230" height="38" rx="6" fill="none" stroke="currentColor" stroke-width="1" opacity=".5"></rect>
+          <text x="412" y="190" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="currentColor" opacity=".7">"simon-12s"</text>
+
+          <text x="642" y="180" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".55">…</text>
+
+          <line x1="316" y1="149" x2="396" y2="123" stroke="var(--accent)" stroke-width="1.4" marker-end="url(#ar-a)"></line>
+          <text x="322" y="128" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="var(--accent)">désigne</text>
+          <line x1="316" y1="180" x2="396" y2="185" stroke="currentColor" stroke-width="1.1" opacity=".55" marker-end="url(#ar)"></line>
+          <text x="322" y="205" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".6">1 → N cycles</text>
+
+          <!-- niveau 4 : les quatre registres -->
+          <text x="16" y="266" font-family="IBM Plex Serif, serif" font-size="13.5" fill="currentColor" font-weight="600">Contenu d'un cycle</text>
+
+          <rect x="16" y="284" width="196" height="88" rx="6" fill="none" stroke="currentColor" stroke-width="1.3"></rect>
+          <text x="32" y="306" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="currentColor" font-weight="600">definition</text>
+          <text x="32" y="326" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".7">le programme, en clair</text>
+          <text x="32" y="345" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".7">jamais une référence</text>
+          <text x="32" y="363" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".7">au bundle de l'appli</text>
+
+          <rect x="228" y="284" width="196" height="88" rx="6" fill="none" stroke="currentColor" stroke-width="1.3"></rect>
+          <text x="244" y="306" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="currentColor" font-weight="600">logs</text>
+          <text x="244" y="326" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".7">une ligne par séance</text>
+          <text x="244" y="345" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--accent)">clé : (date, slot)</text>
+          <text x="244" y="363" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".7">les séries saisies</text>
+
+          <rect x="440" y="284" width="186" height="88" rx="6" fill="none" stroke="currentColor" stroke-width="1.3"></rect>
+          <text x="456" y="306" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="currentColor" font-weight="600">cardio</text>
+          <text x="456" y="326" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".7">séances de cardio</text>
+          <text x="456" y="345" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="currentColor" opacity=".7">clé : "w3"</text>
+          <text x="456" y="363" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".7">par semaine de cycle</text>
+
+          <rect x="642" y="284" width="222" height="88" rx="6" fill="none" stroke="currentColor" stroke-width="1.3"></rect>
+          <text x="658" y="306" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="currentColor" font-weight="600">checkin</text>
+          <text x="658" y="326" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".7">bilan du dimanche</text>
+          <text x="658" y="345" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="currentColor" opacity=".7">clé : "w3"</text>
+          <text x="658" y="363" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".7">poids, taille, RIR…</text>
+
+          <line x1="511" y1="204" x2="511" y2="248" stroke="currentColor" stroke-width="1.2"></line>
+          <line x1="114" y1="248" x2="753" y2="248" stroke="currentColor" stroke-width="1.2"></line>
+          <line x1="114" y1="248" x2="114" y2="284" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)"></line>
+          <line x1="326" y1="248" x2="326" y2="284" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)"></line>
+          <line x1="533" y1="248" x2="533" y2="284" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)"></line>
+          <line x1="753" y1="248" x2="753" y2="284" stroke="currentColor" stroke-width="1.2" marker-end="url(#ar)"></line>
+
+          <!-- niveau 5 : dans definition -->
+          <rect x="16" y="404" width="404" height="66" rx="6" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="4 3" opacity=".65"></rect>
+          <text x="32" y="426" font-family="IBM Plex Mono, monospace" font-size="12" fill="currentColor" opacity=".8">definition.program</text>
+          <text x="32" y="448" font-family="IBM Plex Mono, monospace" font-size="12" fill="currentColor" opacity=".8">SLOTS · SESSIONS · CORE · WARM</text>
+          <text x="32" y="464" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".6">ce que l'éditeur de #36 produit</text>
+          <line x1="114" y1="372" x2="114" y2="404" stroke="currentColor" stroke-width="1.1" opacity=".65" marker-end="url(#ar)"></line>
+        </svg>
+      </div>
+      <figcaption>
+        <b>Un journal, N cycles, un seul actif.</b> Charger ou composer un programme ajoute une entrée
+        dans <code>programs</code> ; les autres cycles gardent leur historique intact. La définition est
+        recopiée dans chaque cycle plutôt que référencée — c'est l'invariant 2.1, et la raison pour
+        laquelle changer le programme livré ne réécrit plus l'histoire.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 2. Les objets ============ -->
+  <section>
+    <div class="stack">
+      <h2>2 · Les objets, champ par champ</h2>
+      <p class="muted small">Seuls les champs réellement lus par le code sont listés. Les chemins renvoient aux fichiers du dépôt.</p>
+    </div>
+
+    <div class="obj">
+      <header><span class="name">journal</span> <span class="where">src/schema.js · withVersion()</span></header>
+      <div class="fields">
+        <div class="k">schemaVersion</div><div class="v">Entier. <em>4</em> aujourd'hui. Un journal plus récent est refusé plutôt que lu de travers.</div>
+        <div class="k">activeProgramId</div><div class="v">Clé d'une entrée de <code>programs</code>. Le cycle que tous les écrans lisent.</div>
+        <div class="k">programs</div><div class="v">Dictionnaire <em>id de programme → cycle</em>. C'est l'unique niveau de cloisonnement : rien ne traverse d'un cycle à l'autre, sauf la fiche exercice.</div>
+      </div>
+    </div>
+
+    <div class="obj">
+      <header><span class="name">programs[id]</span> <span class="where">un cycle</span></header>
+      <div class="fields">
+        <div class="k">definition</div><div class="v">Le programme figé de ce cycle. Détaillé ci-dessous.</div>
+        <div class="k">logs</div><div class="v">Dictionnaire <em>id de ligne → séance</em>. Une ligne par séance effectuée.</div>
+        <div class="k">cardio</div><div class="v">Dictionnaire <em>"w1".."w12" → { id d'item → { done, min, w, hr } }</em>.</div>
+        <div class="k">checkin</div><div class="v">Dictionnaire <em>"w1".."w12" → { poids, taille, sommeil, energie, rir, nutrition, remarques }</em>. Tout en texte libre.</div>
+      </div>
+    </div>
+
+    <div class="obj">
+      <header><span class="name">definition</span> <span class="where">= le fichier de programme, format 2</span></header>
+      <div class="fields">
+        <div class="k">id · name</div><div class="v">L'id est la clé dans <code>programs</code>. Réutiliser un id, c'est reprendre le cycle existant, pas en créer un.</div>
+        <div class="k">weeks</div><div class="v"><em>12</em>, et rien d'autre : toute autre valeur est refusée aujourd'hui (#14).</div>
+        <div class="k">startDate</div><div class="v">« AAAA-MM-JJ ». <em>Origine de toutes les dates du cycle</em> — voir la jointure 2.</div>
+        <div class="k">startingLoads</div><div class="v">Dictionnaire <em>id d'exercice → kg</em>. Injecté dans le registre à la construction du bundle.</div>
+        <div class="k">profile</div><div class="v">Optionnel. Nutrition : <code>maintenanceKcal</code>, <code>startKcal</code>, <code>macros</code>, <code>targetWeightKg</code>. Absent du programme livré.</div>
+        <div class="k">program</div><div class="v">Le catalogue du cycle. Détaillé ci-dessous.</div>
+      </div>
+    </div>
+
+    <div class="obj">
+      <header><span class="name">definition.program</span> <span class="where">src/journal-shape.js · validateProgram()</span></header>
+      <div class="fields">
+        <div class="k">SLOTS</div><div class="v">Dictionnaire <em>id de créneau → { reps: [min, max], rest, key?, fail?, b1, b2 }</em>. <code>b1</code> et <code>b2</code> nomment l'exercice du bloc 1 (S1–S6) et du bloc 2 (S7–S12).</div>
+        <div class="k">SESSIONS</div><div class="v">Liste ordonnée de <em>{ id, name, sub, day 1–7, warm, core, ex, after? }</em>. <code>ex</code> est une liste de paires <em>[id de créneau, nombre de séries]</em>.</div>
+        <div class="k">CORE</div><div class="v">Dictionnaire <em>id → { label, ex }</em>. Le gainage, référencé par nom depuis une séance.</div>
+        <div class="k">WARM</div><div class="v">Dictionnaire <em>id → texte</em>. L'échauffement, référencé par nom depuis une séance.</div>
+        <div class="k">cardio</div><div class="v"><code>"default"</code> ou <code>null</code>. <code>null</code> retire la section Cardio de l'onglet Plan.</div>
+        <div class="k">volume · fallback</div><div class="v">Optionnels, purement éditoriaux : du texte rendu par l'onglet Plan. Aucun code ne les lit pour calculer quoi que ce soit.</div>
+      </div>
+    </div>
+
+    <div class="obj">
+      <header><span class="name">logs[id]</span> <span class="where">src/schema.js · writeLog()</span></header>
+      <div class="fields">
+        <div class="k">id</div><div class="v">Créé au premier enregistrement pour un couple (date, slot), puis stable.</div>
+        <div class="k">date</div><div class="v">« AAAA-MM-JJ ». <em>Avec <code>slot</code>, c'est l'identité de la séance</em> depuis #16.</div>
+        <div class="k">slot</div><div class="v">L'<em>id de séance</em> — <code>SESSIONS[].id</code>, pas un id de créneau. Le nom du champ est un reste de l'ancien format.</div>
+        <div class="k">ex</div><div class="v">Dictionnaire <em>id d'exercice → liste de séries</em>, chaque série <em>{ w, r, rir }</em> : charge, répétitions, réserve. Les valeurs restent des chaînes telles que saisies.</div>
+        <div class="k">kind</div><div class="v"><code>"calibration"</code> · <code>"deload"</code> · <code>"allege"</code> · <code>"normal"</code>. Dit si la séance peut servir de base au calcul suivant.</div>
+        <div class="k">done</div><div class="v">Booléen. Une séance non validée existe déjà en stockage, mais reste invisible à l'historique.</div>
+        <div class="k">notes · updatedAt</div><div class="v">Texte libre, repris dans le bilan hebdomadaire ; horodatage de la dernière écriture.</div>
+      </div>
+    </div>
+
+    <div class="note">
+      <span class="label">Jamais stocké</span>
+      <p class="small">
+        Le plan calculé n'existe nulle part en base : la charge proposée, la phase, la décharge de S7,
+        l'AMRAP de S12 sont recalculés à chaque affichage depuis <code>definition</code> et l'historique.
+        Le registre des ~63 exercices vit dans le code (<code>src/registry.js</code>), pas dans le journal —
+        celui-ci n'en conserve que des identifiants. Le journal n'enregistre que <em>ce qui a été fait</em>,
+        jamais <em>ce qui était prescrit</em>.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ 3. Les jointures ============ -->
+  <section>
+    <div class="stack">
+      <h2>3 · Les trois jointures</h2>
+      <p>
+        Une ligne de séance ne contient ni le nom de la séance, ni celui de l'exercice, ni la fourchette
+        de répétitions visée. Elle contient des <em>clés</em>, relues à chaque affichage contre la définition
+        du cycle. Ce sont ces trois jointures qui décident si une modification du programme est sans effet
+        sur le passé, ou le réécrit.
+      </p>
+    </div>
+
+    <figure>
+      <div class="scroller">
+        <svg viewBox="0 0 880 396" role="img" aria-label="Trois jointures relient une ligne de séance à la définition du cycle : l'id de séance, la date calculée depuis startDate et le jour, et l'id d'exercice qui pointe vers le registre du code.">
+          <defs>
+            <marker id="jr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)"></path>
+            </marker>
+            <marker id="jr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+            </marker>
+          </defs>
+
+          <!-- ligne de séance -->
+          <rect x="16" y="56" width="216" height="168" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="32" y="46" font-family="IBM Plex Serif, serif" font-size="13" fill="currentColor" font-weight="600">Une ligne de séance</text>
+          <text x="32" y="82" font-family="IBM Plex Mono, monospace" font-size="12" fill="currentColor" opacity=".55">id: "l7f2…"</text>
+          <text x="32" y="112" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="var(--accent)" font-weight="500">date: "2026-09-29"</text>
+          <text x="32" y="142" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="var(--accent)" font-weight="500">slot: "upperA"</text>
+          <text x="32" y="172" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="var(--accent)" font-weight="500">ex: { "dc_db": […] }</text>
+          <text x="32" y="202" font-family="IBM Plex Mono, monospace" font-size="12" fill="currentColor" opacity=".55">done: true</text>
+
+          <!-- definition -->
+          <rect x="396" y="34" width="244" height="212" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+          <text x="412" y="24" font-family="IBM Plex Serif, serif" font-size="13" fill="currentColor" font-weight="600">definition (du cycle)</text>
+          <text x="412" y="60" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="currentColor">startDate</text>
+          <text x="412" y="92" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="currentColor">SESSIONS[].id</text>
+          <text x="412" y="116" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="currentColor">SESSIONS[].day</text>
+          <text x="412" y="156" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="currentColor">SLOTS[].b1 / .b2</text>
+          <text x="412" y="188" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="currentColor">SLOTS[].reps</text>
+          <text x="412" y="220" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".6">recopiée dans le cycle</text>
+
+          <!-- registre -->
+          <rect x="694" y="130" width="170" height="70" rx="6" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="4 3" opacity=".7"></rect>
+          <text x="710" y="156" font-family="IBM Plex Mono, monospace" font-size="12.5" fill="currentColor" opacity=".85">EXERCISES</text>
+          <text x="710" y="176" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".6">src/registry.js</text>
+          <text x="710" y="192" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".6">code, jamais stocké</text>
+
+          <!-- jointure 1 : slot -->
+          <path d="M 232 138 L 312 138 L 312 92 L 396 92" fill="none" stroke="var(--accent)" stroke-width="1.6" marker-end="url(#jr)"></path>
+          <text x="240" y="130" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="var(--accent)">1 · retrouve la séance</text>
+
+          <!-- jointure 2 : date -->
+          <path d="M 396 66 L 320 66 L 320 108 L 232 108" fill="none" stroke="var(--accent)" stroke-width="1.6" marker-end="url(#jr)"></path>
+          <text x="240" y="60" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="var(--accent)">2 · dateForSlot() calcule la date</text>
+
+          <!-- jointure 3 : exercice -->
+          <path d="M 232 172 L 340 172 L 340 262 L 779 262 L 779 200" fill="none" stroke="var(--accent)" stroke-width="1.6" marker-end="url(#jr)"></path>
+          <text x="352" y="278" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="var(--accent)">3 · nomme l'exercice exécuté</text>
+
+          <!-- b1 vers registre -->
+          <path d="M 640 156 L 694 160" fill="none" stroke="currentColor" stroke-width="1.2" opacity=".6" marker-end="url(#jr2)"></path>
+
+          <!-- reps juge -->
+          <path d="M 396 194 L 300 194 L 300 186 L 232 186" fill="none" stroke="currentColor" stroke-width="1.3" stroke-dasharray="5 3" opacity=".75" marker-end="url(#jr2)"></path>
+          <text x="238" y="212" font-family="IBM Plex Sans, sans-serif" font-size="11" fill="currentColor" opacity=".7">juge les séries enregistrées</text>
+
+          <!-- légende bas -->
+          <line x1="16" y1="316" x2="864" y2="316" stroke="currentColor" stroke-width="1" opacity=".3"></line>
+          <text x="16" y="340" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".75">Changer </text>
+          <text x="66" y="340" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--accent)">SESSIONS[].id</text>
+          <text x="152" y="340" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".75">, </text>
+          <text x="160" y="340" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--accent)">.day</text>
+          <text x="190" y="340" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".75">, </text>
+          <text x="198" y="340" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--accent)">startDate</text>
+          <text x="262" y="340" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".75"> ou </text>
+          <text x="288" y="340" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--accent)">SLOTS[].reps</text>
+          <text x="370" y="340" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".75"> casse une jointure : les lignes restent en base, l'appli ne les lit plus pareil.</text>
+          <text x="16" y="364" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".75">Changer </text>
+          <text x="66" y="364" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="currentColor">SLOTS[].b1</text>
+          <text x="140" y="364" font-family="IBM Plex Sans, sans-serif" font-size="11.5" fill="currentColor" opacity=".75"> n'en casse aucune : les anciennes séries gardent leur exercice, la progression repart sur le nouveau.</text>
+        </svg>
+      </div>
+      <figcaption>
+        <b>Les clés voyagent, les libellés non.</b> <code>findLog(logs, date, slot)</code> a besoin des jointures 1
+        et 2 ; <code>history(prog, state, vid)</code> a besoin des jointures 1 et 3. La flèche en pointillé
+        n'est pas une jointure mais un jugement : <code>planned()</code> relit les séries déjà enregistrées
+        contre la fourchette actuelle du créneau.
+      </figcaption>
+    </figure>
+  </section>
+
+  <!-- ============ 4. Ce qui casse ============ -->
+  <section>
+    <div class="stack">
+      <h2>4 · Modifier un programme déjà commencé</h2>
+      <p>
+        Il n'y a pas une réponse par cycle, il y en a une par type de modification.
+        Ce tableau est la conséquence directe des trois jointures.
+      </p>
+    </div>
+
+    <div class="risk">
+      <div>
+        <span class="verdict safe">Sans effet</span>
+        <span class="what"><strong>Ajouter</strong> une séance, un créneau, une série au programme</span>
+        <span class="why">Rien de déjà enregistré ne pointe vers ce qui n'existait pas. Un exercice d'abdos ajouté à toutes les séances A en semaine 4 apparaît en semaine 4 et laisse les trois premières intactes.</span>
+      </div>
+      <div>
+        <span class="verdict safe">Sans effet</span>
+        <span class="what"><strong>Renommer</strong> un <code>name</code>, un <code>sub</code>, un texte d'échauffement</span>
+        <span class="why">Aucune jointure ne passe par un libellé. Seuls les <code>id</code> comptent.</span>
+      </div>
+      <div>
+        <span class="verdict safe">Sans effet</span>
+        <span class="what"><strong>Changer l'exercice</strong> d'un créneau (<code>b1</code> / <code>b2</code>)</span>
+        <span class="why">Les séries passées restent rangées sous l'ancien identifiant : elles ne disparaissent pas, elles cessent simplement d'alimenter la progression du nouvel exercice — ce qui est la lecture correcte de « j'ai changé d'exercice ». L'historique reste visible dans la fiche exercice, qui lit tous les cycles.</span>
+      </div>
+      <div>
+        <span class="verdict danger">Réécrit</span>
+        <span class="what"><strong>Changer l'id</strong> d'une séance</span>
+        <span class="why">Jointure 1 rompue. Les séances déjà faites sortent de l'historique et des pastilles de la semaine, alors que leurs lignes sont toujours en base. Perte silencieuse.</span>
+      </div>
+      <div>
+        <span class="verdict danger">Réécrit</span>
+        <span class="what"><strong>Changer le jour</strong> d'une séance, ou la <code>startDate</code> du cycle</span>
+        <span class="why">Jointure 2 rompue. L'appli cherche la séance à une date où rien n'a été enregistré. Une <code>startDate</code> décalée déplace d'un coup les douze semaines.</span>
+      </div>
+      <div>
+        <span class="verdict danger">Réécrit</span>
+        <span class="what"><strong>Changer la fourchette</strong> de répétitions d'un créneau</span>
+        <span class="why">Les séries ne bougent pas, leur sens si : 8 répétitions faites dans du 4–8 étaient un haut de fourchette, relues dans du 8–12 elles deviennent un bas de fourchette, et la progression en tire la conclusion inverse.</span>
+      </div>
+    </div>
+
+    <div class="note">
+      <span class="label">Ce que le tableau ne couvre pas</span>
+      <p class="small">
+        « La machine de presse est prise, je passe au développé couché » et « aujourd'hui j'ajoute une série »
+        ne sont pas des modifications de programme : ce sont des écarts d'une seule séance, que le programme
+        ne doit justement pas enregistrer. L'application ne sait faire ni l'un ni l'autre aujourd'hui — le nombre
+        de lignes de séries vient du programme, et l'exercice affiché aussi. C'est un manque distinct de
+        l'éditeur de programme, sur l'écran Séance.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ 5. Autres clés ============ -->
+  <section>
+    <div class="stack">
+      <h2>5 · Les autres clés du navigateur</h2>
+      <p class="muted small">Aucune ne contient de donnée d'entraînement qui ne soit pas déjà dans le journal.</p>
+    </div>
+    <ul class="plain small">
+      <li><code>prog12_simon_v1_backup_pre&lt;N&gt;</code> — copie verbatim d'avant une migration, écrite une seule fois, jamais relue automatiquement.</li>
+      <li><code>prog12_simon_v1_backup_dropped</code> — copie d'avant le filtrage de lignes illisibles.</li>
+      <li><code>prog12_simon_v1_backup_preimport</code> — copie d'avant qu'un fichier importé remplace le journal.</li>
+      <li><code>prog12_simon_v1_last_export</code> — une date, écrasée à chaque export. Ce n'est pas une sauvegarde.</li>
+      <li><code>prog12_screen</code> — dans <code>sessionStorage</code>, pas <code>localStorage</code> : l'écran ouvert, pour survivre à un rechargement en pleine séance. Meurt avec l'onglet.</li>
+    </ul>
+    <p class="small muted rule-top">
+      Les trois copies de sauvegarde se téléchargent depuis l'onglet Plan, section « Données ».
+      Une deuxième migration n'écrase pas la copie de la première : l'état qui vaut d'être récupéré
+      est celui d'avant que tout cela commence.
+    </p>
+  </section>
+
+</div>
+</body>
+</html>
