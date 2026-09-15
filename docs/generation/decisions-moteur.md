@@ -7,7 +7,9 @@ Portée : **choix produit** — ce que l'app fabrique elle-même et ce qu'elle
 délègue. Les choix d'implémentation du registre (Q7/Q8) sont tranchés et
 intouchés ; ce document ne les rouvre pas.
 Langue : français, comme le reste de `docs/generation/`.
-Statut : en attente des réponses de Simon.
+Statut : les quatre questions sont tranchées — réponses de Simon du 2026-09-15,
+enregistrées sous chaque question. Les suites à donner sont listées en fin de
+document (« Comment appliquer »).
 
 ---
 
