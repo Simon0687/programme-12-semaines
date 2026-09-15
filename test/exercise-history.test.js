@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { exerciseHistory, recordsFor, seriesByCycle, chartPoint, chartMode, estimate10RM } from "../src/exercise-history.js";
+import { exerciseHistory, recordsFor, seriesByCycle, chartPoint, chartMode, headline, estimate10RM } from "../src/exercise-history.js";
 
 /* Deux cycles, comme un journal réel après un an : l'ancien porte ses propres
    noms de séance (« Pousser »), le nouveau les siens (« Haut A »). C'est la
@@ -197,6 +197,46 @@ test("chartMode : chaque unité sait ce qu'elle fait progresser", () => {
   assert.deepEqual(chartMode("carry"), { kind: "dual", line: "time", bar: "kg" });
   assert.deepEqual(chartMode("time"), { kind: "raw", line: "time" });
   assert.deepEqual(chartMode("reps"), { kind: "raw", line: "reps" });
+});
+
+/* ---------- Le chiffre en tête de fiche (#49) ---------- */
+
+test("headline : la valeur du jour, et sa variation depuis la toute première séance", () => {
+  /* La base est le 25 mai, dans l'**autre** cycle : c'est exactement ce que la
+     décision Q1 tranche — une frontière de cycle remettrait ce nombre à zéro
+     tous les trois mois. */
+  const h = headline(exerciseHistory(journal(), "dc"), "kg");
+  assert.equal(h.value, 76.6, "le 10RM du 31 août");
+  assert.equal(h.delta, 5.3, "contre 71,3 le 25 mai, dans le cycle précédent");
+  assert.equal(h.dim, false);
+});
+
+test("headline : une seule séance n'a pas de variation, et surtout pas zéro", () => {
+  /* Elle *est* la base : « +0 » annoncerait un plateau au lieu d'une absence de
+     recul. */
+  const h = headline([{ date: "2026-06-01", sets: [{ w: 80, r: 8 }] }], "kg");
+  assert.equal(h.value, 76);
+  assert.equal(h.delta, null);
+});
+
+test("headline : hors fenêtre d'estimation, le chiffre de tête est grisé", () => {
+  /* Un 10RM calculé sur une série de 2 reps ne doit pas être la chose la plus
+     assurée de l'écran — la courbe grise déjà ses points pour cette raison. */
+  const h = headline([{ sets: [{ w: 100, r: 8 }] }, { sets: [{ w: 120, r: 2 }] }], "kg");
+  assert.equal(h.dim, true);
+});
+
+test("headline : en double progression, le lest accompagne la valeur", () => {
+  /* Les deux grandeurs, sans quoi 8 tractions à vide et 8 à +10 kg s'écriraient
+     pareil. La variation porte sur ce que trace la courbe — les reps. */
+  const h = headline([{ sets: [{ w: 0, r: 8 }] }, { sets: [{ w: 10, r: 6 }] }], "bw");
+  assert.deepEqual([h.value, h.bar, h.delta], [6, 10, -2]);
+});
+
+test("headline : sans séance exploitable, rien à afficher", () => {
+  assert.equal(headline([], "kg"), null);
+  assert.equal(headline(null, "kg"), null);
+  assert.equal(headline([{ sets: [] }], "kg"), null);
 });
 
 test("seriesByCycle : un segment par cycle, dans l'ordre", () => {
