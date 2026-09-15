@@ -153,11 +153,11 @@ export function LoadPickerOverlay({ picker }) {
   const vw = typeof window !== "undefined" ? window.innerWidth : 360;
   return (
     <div className="fixed inset-0 z-50" style={{ touchAction: "none" }} aria-hidden="true">
-      <div className="absolute rounded-lg bg-slate-900 border border-amber-400 shadow-xl overflow-hidden"
+      <div className="absolute rounded-lg bg-surface border border-accent shadow-xl overflow-hidden"
         style={{ left: Math.max(8, Math.min(picker.x - 56, vw - 120)), top: Math.max(8, top), width: 112 }}>
         {rows.map((r) => (
           <div key={r.offset}
-            className={`flex items-center justify-center ${r.selected ? "bg-amber-400 text-slate-900 font-semibold" : "text-slate-300"}`}
+            className={`flex items-center justify-center ${r.selected ? "bg-accent text-ink-inverse font-semibold" : "text-ink-soft"}`}
             style={{ height: PX_PER_NOTCH, opacity: r.clamped ? 0.25 : 1 - Math.abs(r.offset) * 0.18, fontVariantNumeric: "tabular-nums" }}>
             {fmt(r.value)}{r.selected ? ` ${picker.unit}` : ""}
           </div>
