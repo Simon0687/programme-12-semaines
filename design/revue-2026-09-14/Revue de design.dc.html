@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/nocturne-31046579-c94b-42de-aa99-78a30b483d93/styles.css">
+<script src="_ds/nocturne-31046579-c94b-42de-aa99-78a30b483d93/_ds_bundle.js"></script>
+<style>
+html{background:#0e0f18}
+body{margin:0;background:#0e0f18;font-family:"Inter",system-ui,sans-serif}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(233,233,237,.08);scroll-margin-top:16px;background:#0e0f18}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}
+.dv-tid{font:500 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#e9e9ed;color:#161826;border-radius:4px;text-decoration:none}
+.dv-tname{font:500 13px/1.2 "Inter",system-ui,sans-serif;color:#e9e9ed}
+.dv-opts{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:10px;scroll-margin-top:16px;width:390px}
+.dv-oid{font:500 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:#2b2741;color:#d2cefd;border-radius:5px;text-decoration:none;white-space:nowrap}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11.5px/1.3 "Inter",system-ui,sans-serif;color:#b2b6ca}
+.dv-opt:target .dv-oid{background:#9184d9;color:#161826}
+.dv-next{margin:24px 0 0;font:12px/1.6 "Inter",system-ui,sans-serif;color:#b2b6ca}
+.noscroll{scrollbar-width:none}
+.noscroll::-webkit-scrollbar{width:0;height:0;display:none}
+</style>
+</helmet>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Revue des 4 écrans — constats et redesign sur Nocturne</span></div>
+
+<div style="display:flex;gap:34px;align-items:flex-start;flex-wrap:wrap;margin:0 0 34px">
+<div style="width:390px;background:#232532;border-radius:14px;padding:18px 20px;box-shadow:0 0 0 1px #3f424d">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab;margin-bottom:10px">Ce sur quoi je me base</div>
+<div style="font:400 12.5px/1.6 Inter;color:#cfd3e5">Les 4 captures, plus le dépôt <span style="color:#e9e9ed">programme-12-semaines</span> — <span style="color:#9397ab">src/plan.js</span> pour le contenu du Plan, les maquettes <span style="color:#9397ab">design/</span> pour ton vocabulaire actuel (slate 900, ambre, vert de validation, cadre 390×844).</div>
+<div style="height:1px;background:linear-gradient(to right,transparent,rgba(233,233,237,.16) 20px,rgba(233,233,237,.16) calc(100% - 20px),transparent);margin:14px 0"></div>
+<div style="font:400 12.5px/1.6 Inter;color:#cfd3e5">Tes réponses : téléphone en main entre les séries, historique consulté pendant la séance, valeurs pré-remplies depuis le prévu, Plan en sous-pages, texte recoupable.</div>
+</div>
+
+<div style="width:390px;background:#232532;border-radius:14px;padding:18px 20px;box-shadow:0 0 0 1px #3f424d">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab;margin-bottom:10px">Le système que je pose</div>
+<div style="display:flex;flex-direction:column;gap:9px;font:400 12.5px/1.5 Inter;color:#cfd3e5">
+<div><span style="color:#9184d9">Un seul accent.</span> Aujourd'hui l'ambre, le vert et le blanc se disputent l'œil. Nocturne est mono : l'accent ne marque que <span style="color:#e9e9ed">ce qui est vivant</span> — le jour, la charge prévue, la série en cours. Ce qui est fait passe en neutre avec une coche fine.</div>
+<div><span style="color:#9184d9">Deux chiffres, pas un paragraphe.</span> Entre deux séries tu lis la charge prévue et la dernière fois. Le « pourquoi » se déplie.</div>
+<div><span style="color:#9184d9">Une hiérarchie réelle.</span> Libellés de section en 10,5 px capitales espacées, valeurs en 17–34 px. Aujourd'hui tout est à 14–16 px.</div>
+<div><span style="color:#9184d9">Le pouce d'abord.</span> Cibles ≥ 44 px, actions primaires en bas d'écran, jamais au bout d'un scroll de 3 000 px.</div>
+</div>
+</div>
+
+<div style="width:390px;background:#232532;border-radius:14px;padding:18px 20px;box-shadow:0 0 0 1px #3f424d">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab;margin-bottom:10px">Deux bugs vus au passage</div>
+<div style="display:flex;flex-direction:column;gap:9px;font:400 12.5px/1.5 Inter;color:#cfd3e5">
+<div><span style="color:#e9e9ed">Bilan de la semaine</span> — « Sommeil moyen (h) » et « Énergie (1–5) » apparaissent deux fois, et « Rameur Z2 dimanche » est listé deux fois à l'identique.</div>
+<div><span style="color:#e9e9ed">Haut A, exercice 2</span> — les séries sont numérotées S1, S2, S2, S3.</div>
+<div><span style="color:#e9e9ed">Haut A, exercices 4 et 5</span> — prévu 20 kg et 7,5 kg, saisi 25 kg et 10 kg. L'écart est invisible à l'écran alors que c'est exactement ce que le moteur de progression va lire.</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opts">
+
+<!-- ═══ 1a — SEMAINE ═══ -->
+<div class="dv-opt" id="1a">
+<div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Semaine — le jour d'abord, le bilan sorti du scroll</div>
+<div data-screen-label="1a Semaine" style="width:390px;height:844px;background:#161826;color:#e9e9ed;display:flex;flex-direction:column;overflow:hidden;font-variant-numeric:tabular-nums;border-radius:20px;box-shadow:0 0 0 1px #595d6c,0 16px 40px rgba(0,0,0,.6)">
+
+<div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:9px 18px 4px;font:500 11px Inter;color:#9397ab">
+<span>22:12</span>
+<span style="display:flex;align-items:center;gap:5px"><span style="font-size:9.5px;letter-spacing:.04em">5G</span><span style="width:18px;height:9px;border:1px solid #75798c;border-radius:2px;display:inline-block;position:relative"><span style="position:absolute;inset:1.5px;right:9px;background:#75798c;border-radius:1px;display:block"></span></span></span>
+</div>
+
+<div style="flex-shrink:0;padding:6px 18px 12px;border-bottom:1px solid rgba(233,233,237,.1)">
+<div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+<div style="width:44px;height:44px;margin-left:-11px;display:flex;align-items:center;justify-content:center;color:#9397ab">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>
+</div>
+<div style="text-align:center;flex:1">
+<div style="font:500 19px/1.1 Inter;letter-spacing:-.01em">Semaine 2 <span style="color:#9397ab">/ 12</span></div>
+<div style="font:400 11.5px/1.4 Inter;color:#9397ab;margin-top:3px">14 – 20 sept. · Bloc 1 · 1 RIR</div>
+</div>
+<div style="width:44px;height:44px;margin-right:-11px;display:flex;align-items:center;justify-content:center;color:#cfd3e5">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+</div>
+<sc-if value="{{ weekRail }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;gap:3px;margin-top:11px">
+<span style="flex:1;height:3px;border-radius:2px;background:#595d6c"></span>
+<span style="flex:1;height:3px;border-radius:2px;background:#9184d9"></span>
+<span style="flex:1;height:3px;border-radius:2px;background:#292b31"></span>
+<span style="flex:1;height:3px;border-radius:2px;background:#292b31"></span>
+<span style="flex:1;height:3px;border-radius:2px;background:#292b31"></span>
+<span style="flex:1;height:3px;border-radius:2px;background:#292b31"></span>
+<span style="flex:1;height:3px;border-radius:2px;background:#423a6a"></span>
+<span style="flex:1;height:3px;border-radius:2px;background:#292b31"></span>
+<span style="flex:1;height:3px;border-radius:2px;background:#292b31"></span>
+<span style="flex:1;height:3px;border-radius:2px;background:#292b31"></span>
+<span style="flex:1;height:3px;border-radius:2px;background:#292b31"></span>
+<span style="flex:1;height:3px;border-radius:2px;background:#292b31"></span>
+</div>
+</sc-if>
+</div>
+
+<div class="noscroll" style="flex:1;overflow:hidden;padding:0 18px">
+
+<div style="margin-top:14px;border-radius:12px;background:#232532;box-shadow:0 0 0 1px #423a6a;padding:14px 15px 13px">
+<div style="display:flex;align-items:baseline;justify-content:space-between">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9184d9;white-space:nowrap">Aujourd'hui · mercredi</div>
+<div style="font:400 11px Inter;color:#9397ab">3<sup style="font-size:8px">e</sup> sur 5</div>
+</div>
+<div style="font:500 26px/1.15 Inter;letter-spacing:-.02em;margin-top:7px">Haut B</div>
+<div style="font:400 12.5px/1.5 Inter;color:#9397ab;margin-top:4px">Dos, biceps, épaules · 12 séries dures + abdos</div>
+<div style="display:flex;gap:16px;margin-top:11px;padding-top:11px;border-top:1px solid rgba(233,233,237,.1)">
+<div><div style="font:400 10.5px Inter;color:#9397ab;white-space:nowrap">Tractions lestées</div><div style="font:500 15px Inter;margin-top:2px">+ 5 kg <span style="font-size:11.5px;color:#9397ab">6–10</span></div></div>
+<div><div style="font:400 10.5px Inter;color:#9397ab;white-space:nowrap">Rowing barre</div><div style="font:500 15px Inter;margin-top:2px">70 kg <span style="font-size:11.5px;color:#9397ab">8–12</span></div></div>
+</div>
+<div style="height:46px;margin-top:13px;border:1px solid #9184d9;border-radius:8px;color:#9184d9;display:flex;align-items:center;justify-content:center;gap:7px;font:500 15px Inter">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9z"></path></svg>Commencer la séance
+</div>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin:18px 0 4px">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab;white-space:nowrap">Séances de la semaine</div>
+<div style="display:flex;align-items:center;gap:5px">
+<span style="width:6px;height:6px;border-radius:3px;background:#9184d9"></span>
+<span style="width:6px;height:6px;border-radius:3px;background:#9184d9"></span>
+<span style="width:6px;height:6px;border-radius:3px;background:#3f424d"></span>
+<span style="width:6px;height:6px;border-radius:3px;background:#3f424d"></span>
+<span style="width:6px;height:6px;border-radius:3px;background:#3f424d"></span>
+<span style="font:400 11px Inter;color:#9397ab;margin-left:3px">2 / 5</span>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;gap:11px;height:48px;border-bottom:1px solid rgba(233,233,237,.07)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9184d9" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M20 6 9 17l-5-5"></path></svg>
+<div style="flex:1;min-width:0"><span style="font:400 14.5px Inter;color:#9397ab">Haut A</span> <span style="font:400 12px Inter;color:#9397ab">lundi · DC 75 kg 8/8/8</span></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+<div style="display:flex;align-items:center;gap:11px;height:48px;border-bottom:1px solid rgba(233,233,237,.07)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9184d9" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M20 6 9 17l-5-5"></path></svg>
+<div style="flex:1;min-width:0"><span style="font:400 14.5px Inter;color:#9397ab">Bas A</span> <span style="font:400 12px Inter;color:#9397ab">mardi · Squat 100 kg 8/8/8</span></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+<div style="display:flex;align-items:center;gap:11px;height:48px;border-bottom:1px solid rgba(233,233,237,.07)">
+<span style="width:15px;height:15px;border:1.5px solid #9184d9;border-radius:8px;flex-shrink:0;box-shadow:0 0 0 3px rgba(145,132,217,.14)"></span>
+<div style="flex:1;min-width:0"><span style="font:500 14.5px Inter">Haut B</span> <span style="font:400 12px Inter;color:#9184d9">mercredi · en cours</span></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9397ab" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+<div style="display:flex;align-items:center;gap:11px;height:48px;border-bottom:1px solid rgba(233,233,237,.07)">
+<span style="width:15px;height:15px;border:1.5px solid #3f424d;border-radius:8px;flex-shrink:0"></span>
+<div style="flex:1;min-width:0"><span style="font:400 14.5px Inter;color:#cfd3e5">Haut C</span> <span style="font:400 12px Inter;color:#9397ab">vendredi</span></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+<div style="display:flex;align-items:center;gap:11px;height:48px;border-bottom:1px solid rgba(233,233,237,.07)">
+<span style="width:15px;height:15px;border:1.5px solid #3f424d;border-radius:8px;flex-shrink:0"></span>
+<div style="flex:1;min-width:0"><span style="font:400 14.5px Inter;color:#cfd3e5">Bas B</span> <span style="font:400 12px Inter;color:#9397ab">samedi</span></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+</div>
+
+<div style="display:flex;align-items:center;gap:11px;height:56px;margin-top:6px;padding:0 13px;border-radius:10px;background:#232532;box-shadow:0 0 0 1px #3f424d">
+<span style="width:7px;height:7px;border-radius:4px;background:#9184d9;flex-shrink:0"></span>
+<div style="flex:1;min-width:0"><div style="font:500 14px Inter">Bilan de la semaine</div><div style="font:400 11.5px Inter;color:#9397ab;margin-top:1px">à remplir dimanche · 2 champs obligatoires</div></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9397ab" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab;margin:20px 0 2px;white-space:nowrap">Cardio et mobilité <span style="color:#9397ab;letter-spacing:0;text-transform:none;font-size:11px"> · 1 / 5 fait</span></div>
+
+<div style="display:flex;align-items:center;gap:11px;height:50px;border-bottom:1px solid rgba(233,233,237,.07)">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9184d9" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M20 6 9 17l-5-5"></path></svg>
+<div style="flex:1;min-width:0"><div style="font:400 14px Inter;color:#9397ab">Rameur Z2 · mercredi</div></div>
+<div style="font:400 12.5px Inter;color:#cfd3e5">36 min · 110 W · 134 bpm</div>
+</div>
+<div style="padding:11px 0 0">
+<div style="display:flex;align-items:center;gap:11px;height:32px">
+<span style="width:15px;height:15px;border:1.5px solid #3f424d;border-radius:3px;flex-shrink:0"></span>
+<div style="flex:1;font:400 14px Inter;color:#cfd3e5">Rameur intervalles · jeudi</div>
+<div style="font:400 11.5px Inter;color:#9397ab">4 × 4 min Z4</div>
+</div>
+<div style="display:flex;gap:7px;margin:9px 0 0 26px">
+<div><div style="font:400 10px Inter;color:#9397ab;margin-bottom:3px">min</div><div style="height:42px;width:74px;border-radius:7px;background:#1c1e2b;box-shadow:0 0 0 1px #3f424d"></div></div>
+<div><div style="font:400 10px Inter;color:#9397ab;margin-bottom:3px">W moyen</div><div style="height:42px;width:74px;border-radius:7px;background:#1c1e2b;box-shadow:0 0 0 1px #3f424d"></div></div>
+<div><div style="font:400 10px Inter;color:#9397ab;margin-bottom:3px">bpm moyen</div><div style="height:42px;width:84px;border-radius:7px;background:#1c1e2b;box-shadow:0 0 0 1px #3f424d"></div></div>
+</div>
+</div>
+</div>
+
+<div style="flex-shrink:0;border-top:1px solid rgba(233,233,237,.1);display:grid;grid-template-columns:1fr 1fr">
+<div style="height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#9184d9">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M8 2v4M16 2v4M3 10h18"></path></svg>
+<span style="font:500 11px Inter">Semaine</span>
+</div>
+<div style="height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#9397ab">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h10"></path></svg>
+<span style="font:400 11px Inter">Plan</span>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+<div style="background:#232532;border-radius:12px;padding:15px 16px;box-shadow:0 0 0 1px #3f424d;display:flex;flex-direction:column;gap:8px">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab">Constats → correctifs</div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">1.</span> Trois métiers dans un seul scroll : la séance du jour, la checklist cardio, le bilan du dimanche. <span style="color:#9397ab">→ le bilan devient une ligne qui ouvre son écran ; il ne pèse plus 1 000 px sous le pli.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">2.</span> « aujourd'hui » est une pastille de 60 px : rien ne dit ce que je fais maintenant. <span style="color:#9397ab">→ carte du jour en tête, nom en 26 px, les deux charges clés, un bouton de 46 px.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">3.</span> 12 champs gris vides pour le cardio, étiquetés seulement par leur placeholder. <span style="color:#9397ab">→ une ligne par séance, les champs n'apparaissent qu'au clic, étiquettes au-dessus et donc persistantes.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">4.</span> « 2 sur 5 validées » en gris 12 px à droite, et rien sur les 12 semaines. <span style="color:#9397ab">→ compteur à points, et rail de 12 segments sous le titre (décharge S7 marquée).</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">5.</span> Le prévu de la séance du jour n'est visible qu'après l'avoir ouverte. <span style="color:#9397ab">→ les charges des deux premiers exercices remontent sur la carte.</span></div>
+</div>
+</sc-if>
+</div>
+
+<!-- ═══ 1b — SÉANCE ═══ -->
+<div class="dv-opt" id="1b">
+<div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Séance — un exercice actif, valeurs pré-remplies, action en bas</div>
+<div data-screen-label="1b Séance" style="width:390px;height:844px;background:#161826;color:#e9e9ed;display:flex;flex-direction:column;overflow:hidden;font-variant-numeric:tabular-nums;border-radius:20px;box-shadow:0 0 0 1px #595d6c,0 16px 40px rgba(0,0,0,.6)">
+
+<div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:9px 18px 4px;font:500 11px Inter;color:#9397ab">
+<span>22:13</span>
+<span style="display:flex;align-items:center;gap:5px"><span style="font-size:9.5px;letter-spacing:.04em">5G</span><span style="width:18px;height:9px;border:1px solid #75798c;border-radius:2px;display:inline-block;position:relative"><span style="position:absolute;inset:1.5px;right:9px;background:#75798c;border-radius:1px;display:block"></span></span></span>
+</div>
+
+<div style="flex-shrink:0;padding:2px 18px 11px;border-bottom:1px solid rgba(233,233,237,.1)">
+<div style="height:34px;display:flex;align-items:center;gap:5px;margin-left:-6px;color:#9397ab;font:400 13px Inter">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>Semaine
+</div>
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px">
+<div>
+<div style="font:500 22px/1.1 Inter;letter-spacing:-.015em">Haut A</div>
+<div style="font:400 11.5px/1.4 Inter;color:#9397ab;margin-top:3px;white-space:nowrap">S2 · lundi 14 sept. · Pecs, épaules</div>
+</div>
+<div style="text-align:right;flex-shrink:0">
+<div style="font:500 17px/1 Inter"><span style="color:#9184d9">5</span><span style="color:#9397ab"> / 12</span></div>
+<div style="font:400 10px Inter;color:#9397ab;margin-top:2px">séries dures</div>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ restTimer }}" hint-placeholder-val="{{ true }}">
+<div style="flex-shrink:0;padding:9px 18px;background:#1c1e2b;border-bottom:1px solid rgba(233,233,237,.1);display:flex;align-items:center;gap:11px">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#9184d9" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2M9 2h6"></path></svg>
+<div style="flex:1;min-width:0">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font:400 11.5px Inter;color:#9397ab;white-space:nowrap">Repos — série 2 sur 3</span><span style="font:500 15px Inter;color:#9184d9">1:48</span></div>
+<div style="height:3px;border-radius:2px;background:#292b31;margin-top:5px"><div style="width:28%;height:3px;border-radius:2px;background:#9184d9"></div></div>
+</div>
+<div style="font:400 12px Inter;color:#9397ab;flex-shrink:0">Passer</div>
+</div>
+</sc-if>
+
+<div class="noscroll" style="flex:1;overflow:hidden;padding:0 18px">
+
+<div style="display:flex;align-items:center;gap:10px;height:52px;border-bottom:1px solid rgba(233,233,237,.07)">
+<span style="font:400 12px Inter;color:#9397ab;width:12px;flex-shrink:0">1</span>
+<div style="flex:1;min-width:0"><div style="font:400 14px Inter;color:#9397ab;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Développé couché barre</div></div>
+<div style="font:400 12.5px Inter;color:#cfd3e5;flex-shrink:0">75 kg · 8/8/8</div>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9184d9" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M20 6 9 17l-5-5"></path></svg>
+</div>
+
+<div style="margin:14px 0 0;padding:14px 15px 13px;border-radius:12px;background:#232532;box-shadow:0 0 0 1px #423a6a">
+<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+<div style="flex:1;min-width:0">
+<div style="font:500 16px/1.25 Inter">2. Développé incliné haltères</div>
+<div style="font:400 11.5px Inter;color:#9397ab;margin-top:3px">banc 30° · 3 × 6–10 reps · 1 RIR</div>
+</div>
+<div style="flex-shrink:0;height:34px;padding:0 10px;border-radius:7px;box-shadow:0 0 0 1px #3f424d;color:#cfd3e5;display:flex;align-items:center;gap:5px;font:400 13px Inter">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2M9 2h6"></path></svg>2:00
+</div>
+</div>
+
+<div style="display:flex;align-items:flex-end;gap:18px;margin-top:13px;padding-bottom:12px;border-bottom:1px solid rgba(233,233,237,.1)">
+<div>
+<div style="font:400 10px/1 Inter;color:#9397ab;letter-spacing:.06em;text-transform:uppercase">Prévu</div>
+<div style="font:500 30px/1 Inter;color:#9184d9;letter-spacing:-.02em;margin-top:5px">28 <span style="font-size:14px;color:#b5abfc">kg / main</span></div>
+</div>
+<div style="padding-bottom:3px">
+<div style="font:400 10px/1 Inter;color:#9397ab;letter-spacing:.06em;text-transform:uppercase">Dernière fois</div>
+<div style="font:400 14px/1 Inter;color:#cfd3e5;margin-top:7px">24 → 26 kg · 8/8/8</div>
+<div style="font:400 10.5px/1 Inter;color:#9397ab;margin-top:4px">7 sept., calibration</div>
+</div>
+</div>
+
+<div style="display:flex;align-items:center;gap:6px;padding:9px 0 3px;font:400 12px Inter;color:#9397ab">
+Pourquoi 28 kg
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+<span style="margin-left:auto;display:flex;align-items:center;gap:6px">Technique<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></span>
+</div>
+
+<div style="display:grid;grid-template-columns:24px 1fr 1fr 1fr 46px;gap:7px;margin-top:9px;align-items:center">
+<div></div>
+<div style="font:400 10px Inter;color:#9397ab;text-align:center">kg</div>
+<div style="font:400 10px Inter;color:#9397ab;text-align:center">reps</div>
+<div style="font:400 10px Inter;color:#9397ab;text-align:center">RIR</div>
+<div></div>
+
+<div style="font:400 12px Inter;color:#9397ab">S1</div>
+<div style="height:42px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:400 15px Inter;color:#cfd3e5">28</div>
+<div style="height:42px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:400 15px Inter;color:#cfd3e5">8</div>
+<div style="height:42px;border-radius:7px;display:flex;align-items:center;justify-content:center;font:400 15px Inter;color:#cfd3e5">1</div>
+<div style="height:42px;width:46px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#9184d9">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+</div>
+
+<div style="font:500 12px Inter;color:#9184d9">S2</div>
+<div style="height:46px;border-radius:7px;background:#1c1e2b;box-shadow:0 0 0 1px #9184d9;display:flex;align-items:center;justify-content:center;font:500 17px Inter">28</div>
+<div style="height:46px;border-radius:7px;background:#1c1e2b;box-shadow:0 0 0 1px #9184d9;display:flex;align-items:center;justify-content:center;font:500 17px Inter">8</div>
+<div style="height:46px;border-radius:7px;background:#1c1e2b;box-shadow:0 0 0 1px #9184d9;display:flex;align-items:center;justify-content:center;font:500 17px Inter">1</div>
+<div style="height:46px;width:46px;border-radius:7px;background:#9184d9;color:#161826;display:flex;align-items:center;justify-content:center">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+</div>
+
+<div style="font:400 12px Inter;color:#9397ab">S3</div>
+<div style="height:42px;border-radius:7px;border:1px dashed #3f424d;display:flex;align-items:center;justify-content:center;font:400 15px Inter;color:#9397ab">28</div>
+<div style="height:42px;border-radius:7px;border:1px dashed #3f424d;display:flex;align-items:center;justify-content:center;font:400 15px Inter;color:#9397ab">8</div>
+<div style="height:42px;border-radius:7px;border:1px dashed #3f424d;display:flex;align-items:center;justify-content:center;font:400 15px Inter;color:#9397ab">1</div>
+<div style="height:42px;width:46px;border-radius:7px;border:1px dashed #3f424d;display:flex;align-items:center;justify-content:center;color:#595d6c">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+</div>
+</div>
+<div style="font:400 11px/1.4 Inter;color:#9397ab;margin-top:9px">Valeurs reprises du prévu — corrige seulement ce qui change.</div>
+</div>
+
+<div style="display:flex;align-items:center;gap:10px;height:52px;border-bottom:1px solid rgba(233,233,237,.07)">
+<span style="font:400 12px Inter;color:#9397ab;width:12px;flex-shrink:0">3</span>
+<div style="flex:1;min-width:0"><div style="font:400 14px Inter;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Élévations latérales haltères</div><div style="font:400 11px Inter;color:#9397ab">2 × 8–12 · prévu 12 kg / main</div></div>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+<div style="display:flex;align-items:center;gap:10px;height:52px;border-bottom:1px solid rgba(233,233,237,.07)">
+<span style="font:400 12px Inter;color:#9397ab;width:12px;flex-shrink:0">4</span>
+<div style="flex:1;min-width:0"><div style="font:400 14px Inter;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Reverse pec deck</div><div style="font:400 11px Inter;color:#9397ab">2 × 10–12 · prévu 20 kg</div></div>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+<div style="display:flex;align-items:center;gap:10px;height:52px">
+<span style="font:400 12px Inter;color:#9397ab;width:12px;flex-shrink:0">5</span>
+<div style="flex:1;min-width:0"><div style="font:400 14px Inter;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Extension triceps à la poulie</div><div style="font:400 11px Inter;color:#9397ab">2 × 8–12 · prévu 7,5 kg</div></div>
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+</div>
+
+<div style="flex-shrink:0;padding:10px 18px 12px;border-top:1px solid rgba(233,233,237,.1);background:#1c1e2b">
+<div style="height:48px;border:1px solid #9184d9;border-radius:8px;color:#9184d9;display:flex;align-items:center;justify-content:center;gap:8px;font:500 15px Inter">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>Terminer la séance
+</div>
+</div>
+
+<div style="flex-shrink:0;border-top:1px solid rgba(233,233,237,.1);display:grid;grid-template-columns:1fr 1fr">
+<div style="height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#9184d9">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M8 2v4M16 2v4M3 10h18"></path></svg>
+<span style="font:500 11px Inter">Semaine</span>
+</div>
+<div style="height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#9397ab">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h10"></path></svg>
+<span style="font:400 11px Inter">Plan</span>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+<div style="background:#232532;border-radius:12px;padding:15px 16px;box-shadow:0 0 0 1px #3f424d;display:flex;flex-direction:column;gap:8px">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab">Constats → correctifs</div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">1.</span> Les 7 exercices sont dépliés en même temps : 2 500 px, et rien ne dit où j'en suis. <span style="color:#9397ab">→ un seul bloc actif ; les faits se replient sur une ligne avec leur résultat, les suivants sur une ligne avec leur prévu.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">2.</span> Trois lignes de prose au-dessus de chaque grille, alors qu'entre deux séries je lis deux chiffres. <span style="color:#9397ab">→ « Prévu 28 kg » en 30 px, « dernière fois » à côté, le calcul derrière « Pourquoi 28 kg ».</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">3.</span> Toutes les coches sont vertes, tous les champs identiques : la série en cours n'existe pas visuellement. <span style="color:#9397ab">→ trois états — faite (neutre, coche fine), en cours (contour accent, 46 px), à venir (fantôme).</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">4.</span> « Mettre à jour la séance » attend au bout du scroll. <span style="color:#9397ab">→ barre d'action fixe en bas, au-dessus des onglets.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">5.</span> Le minuteur 2:30 est une pastille morte. <span style="color:#9397ab">→ il se déclenche à la validation d'une série et occupe une bande avec sa progression.</span></div>
+</div>
+</sc-if>
+</div>
+
+<!-- ═══ 1c — FICHE EXO ═══ -->
+<div class="dv-opt" id="1c">
+<div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Fiche exo — l'écart avant la courbe, échelle honnête</div>
+<div data-screen-label="1c Fiche exo" style="width:390px;height:844px;background:#161826;color:#e9e9ed;display:flex;flex-direction:column;overflow:hidden;font-variant-numeric:tabular-nums;border-radius:20px;box-shadow:0 0 0 1px #595d6c,0 16px 40px rgba(0,0,0,.6)">
+
+<div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:9px 18px 4px;font:500 11px Inter;color:#9397ab">
+<span>22:13</span>
+<span style="display:flex;align-items:center;gap:5px"><span style="font-size:9.5px;letter-spacing:.04em">5G</span><span style="width:18px;height:9px;border:1px solid #75798c;border-radius:2px;display:inline-block;position:relative"><span style="position:absolute;inset:1.5px;right:9px;background:#75798c;border-radius:1px;display:block"></span></span></span>
+</div>
+
+<div style="flex-shrink:0;padding:2px 18px 12px;border-bottom:1px solid rgba(233,233,237,.1)">
+<div style="height:34px;display:flex;align-items:center;gap:5px;margin-left:-6px;color:#9397ab;font:400 13px Inter">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>Séance Haut A
+</div>
+<div style="font:500 22px/1.15 Inter;letter-spacing:-.015em">Développé couché barre</div>
+<div style="display:flex;gap:6px;margin-top:8px">
+<span style="font:400 10.5px Inter;padding:3px 8px;border-radius:20px;background:#2b2741;color:#d2cefd;white-space:nowrap">Composé</span>
+<span style="font:400 10.5px Inter;padding:3px 8px;border-radius:20px;box-shadow:0 0 0 1px #3f424d;color:#9397ab;white-space:nowrap">Exercice clé</span>
+<span style="font:400 10.5px Inter;padding:3px 8px;border-radius:20px;box-shadow:0 0 0 1px #3f424d;color:#9397ab;white-space:nowrap">Ancre 2 blocs</span>
+</div>
+</div>
+
+<div class="noscroll" style="flex:1;overflow:hidden;padding:0 18px">
+
+<div style="padding:16px 0 0">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab">10RM estimé</div>
+<div style="display:flex;align-items:flex-end;gap:12px;margin-top:9px">
+<div style="font:500 36px/1 Inter;letter-spacing:-.025em">71,3 <span style="font-size:17px;color:#9397ab">kg</span></div>
+<div style="padding-bottom:4px;font:500 14px Inter;color:#9184d9">+ 2,3 kg</div>
+<div style="padding-bottom:5px;font:400 11px Inter;color:#9397ab">depuis le 7 sept.</div>
+</div>
+
+<div style="margin-top:14px;position:relative;height:104px">
+<div style="position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between">
+<div style="display:flex;align-items:center;gap:8px"><span style="font:400 9.5px Inter;color:#9397ab;width:16px;text-align:right">80</span><span style="flex:1;height:1px;background:rgba(233,233,237,.07)"></span></div>
+<div style="display:flex;align-items:center;gap:8px"><span style="font:400 9.5px Inter;color:#9397ab;width:16px;text-align:right">70</span><span style="flex:1;height:1px;background:rgba(233,233,237,.07)"></span></div>
+<div style="display:flex;align-items:center;gap:8px"><span style="font:400 9.5px Inter;color:#9397ab;width:16px;text-align:right">60</span><span style="flex:1;height:1px;background:rgba(233,233,237,.07)"></span></div>
+</div>
+<svg viewBox="0 0 320 104" preserveAspectRatio="none" style="position:absolute;left:24px;right:0;top:0;height:104px;width:calc(100% - 24px)">
+<defs><linearGradient id="fadeUp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9184d9" stop-opacity=".22"></stop><stop offset="1" stop-color="#9184d9" stop-opacity="0"></stop></linearGradient></defs>
+<path d="M14 63 L306 51 L306 104 L14 104 Z" fill="url(#fadeUp)"></path>
+<path d="M14 63 L306 51" stroke="#9184d9" stroke-width="2" fill="none" stroke-linecap="round"></path>
+<circle cx="14" cy="63" r="4" fill="#161826" stroke="#9184d9" stroke-width="2"></circle>
+<circle cx="306" cy="51" r="4.5" fill="#9184d9"></circle>
+</svg>
+<div style="position:absolute;left:24px;right:0;bottom:-16px;display:flex;justify-content:space-between;font:400 9.5px Inter;color:#9397ab"><span>7 sept.</span><span>14 sept.</span></div>
+</div>
+
+<div style="font:400 11px/1.5 Inter;color:#9397ab;margin-top:26px">Échelle 60 – 80 kg, ta fourchette de travail. 2 séances : la tendance se lira à partir de 5. Le point creux est une calibration.</div>
+</div>
+
+<div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(233,233,237,.1)">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab">Records</div>
+<div style="font:400 10.5px/1.4 Inter;color:#9397ab;margin-top:5px">Charge la plus lourde par nombre de reps.</div>
+<div style="display:flex;gap:8px;margin-top:11px">
+<div style="flex:1;padding:10px 12px;border-radius:9px;background:#232532;box-shadow:0 0 0 1px #3f424d">
+<div style="font:400 10.5px Inter;color:#9397ab">8 reps</div>
+<div style="font:500 19px/1.1 Inter;margin-top:3px">75 kg</div>
+<div style="font:400 10px Inter;color:#9397ab;margin-top:2px">14 sept.</div>
+</div>
+<div style="flex:1;padding:10px 12px;border-radius:9px;box-shadow:0 0 0 1px #292b31">
+<div style="font:400 10.5px Inter;color:#9397ab">5 reps</div>
+<div style="font:400 19px/1.1 Inter;color:#9397ab;margin-top:3px">—</div>
+<div style="font:400 10px Inter;color:#9397ab;margin-top:2px">jamais tenté</div>
+</div>
+<div style="flex:1;padding:10px 12px;border-radius:9px;box-shadow:0 0 0 1px #292b31">
+<div style="font:400 10.5px Inter;color:#9397ab">12 reps</div>
+<div style="font:400 19px/1.1 Inter;color:#9397ab;margin-top:3px">—</div>
+<div style="font:400 10px Inter;color:#9397ab;margin-top:2px">jamais tenté</div>
+</div>
+</div>
+</div>
+
+<div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(233,233,237,.1)">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab">Historique</div>
+<div style="display:flex;align-items:baseline;gap:10px;height:40px;border-bottom:1px solid rgba(233,233,237,.07);margin-top:6px">
+<div style="width:62px;flex-shrink:0"><span style="font:400 13px Inter">14 sept.</span></div>
+<div style="font:400 11px Inter;color:#9397ab;flex-shrink:0">Haut A</div>
+<div style="flex:1;text-align:right;font:400 13px Inter;color:#cfd3e5">75 kg 8/8/8 <span style="color:#9397ab">· 2-1 RIR</span></div>
+</div>
+<div style="display:flex;align-items:baseline;gap:10px;height:40px;border-bottom:1px solid rgba(233,233,237,.07)">
+<div style="width:62px;flex-shrink:0"><span style="font:400 13px Inter">7 sept.</span></div>
+<div style="font:400 10px Inter;color:#d2cefd;background:#2b2741;padding:2px 6px;border-radius:20px;flex-shrink:0">calibration</div>
+<div style="flex:1;text-align:right;font:400 13px Inter;color:#cfd3e5">70 → 72,5 kg 8/8/8 <span style="color:#9397ab">· 3-2 RIR</span></div>
+</div>
+</div>
+
+<div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(233,233,237,.1)">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab">Ce que ça travaille</div>
+<div style="display:flex;height:9px;border-radius:5px;overflow:hidden;margin-top:11px">
+<div style="width:60%;background:#9184d9"></div>
+<div style="width:20%;background:#5d5294"></div>
+<div style="width:20%;background:#423a6a"></div>
+</div>
+<div style="display:flex;gap:14px;margin-top:9px;font:400 11.5px Inter;color:#9397ab">
+<span style="display:flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:2px;background:#9184d9"></span>Pectoraux 60</span>
+<span style="display:flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:2px;background:#5d5294"></span>Triceps 20</span>
+<span style="display:flex;align-items:center;gap:5px;white-space:nowrap"><span style="width:7px;height:7px;border-radius:2px;background:#423a6a"></span>Delt. ant. 20</span>
+</div>
+</div>
+
+<div style="margin-top:16px;padding-top:13px;border-top:1px solid rgba(233,233,237,.1);display:flex;align-items:center;justify-content:space-between;height:34px">
+<span style="font:400 14px Inter">Technique et détails</span>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9397ab" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+</div>
+</div>
+
+<div style="flex-shrink:0;border-top:1px solid rgba(233,233,237,.1);display:grid;grid-template-columns:1fr 1fr">
+<div style="height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#9184d9">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M8 2v4M16 2v4M3 10h18"></path></svg>
+<span style="font:500 11px Inter">Semaine</span>
+</div>
+<div style="height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#9397ab">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h10"></path></svg>
+<span style="font:400 11px Inter">Plan</span>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+<div style="background:#232532;border-radius:12px;padding:15px 16px;box-shadow:0 0 0 1px #3f424d;display:flex;flex-direction:column;gap:8px">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab">Constats → correctifs</div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">1.</span> L'axe va de 68 à 72 : une progression de 2,3 kg dessine une fusée. <span style="color:#9397ab">→ échelle fixe sur la fourchette de travail (60–80), et l'écart écrit en chiffres au-dessus de la courbe.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">2.</span> Records : un tableau à 3 colonnes pour une seule donnée, avec 200 px de vide. <span style="color:#9397ab">→ trois cartes par nombre de reps, les non tentées visibles — elles disent quoi viser.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">3.</span> Trois barres ambre et grises pour 60/20/20 : la couleur dit « bien / moins bien » au lieu de dire « part ». <span style="color:#9397ab">→ une barre empilée, une seule teinte en trois valeurs.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">4.</span> 10RM, Records, Historique, Technique, Détails : cinq titres au même poids, la page lit comme cinq pavés. <span style="color:#9397ab">→ libellés en capitales 10,5 px, valeurs en 19–36 px ; Technique et Détails repliés en bas.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">5.</span> Rien ne dit que cet exercice est une ancre des deux blocs, alors que ça change sa lecture. <span style="color:#9397ab">→ trois étiquettes sous le titre.</span></div>
+</div>
+</sc-if>
+</div>
+
+<!-- ═══ 1d — PLAN INDEX ═══ -->
+<div class="dv-opt" id="1d">
+<div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Plan — un sommaire, plus un mur</div>
+<div data-screen-label="1d Plan" style="width:390px;height:844px;background:#161826;color:#e9e9ed;display:flex;flex-direction:column;overflow:hidden;font-variant-numeric:tabular-nums;border-radius:20px;box-shadow:0 0 0 1px #595d6c,0 16px 40px rgba(0,0,0,.6)">
+
+<div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:9px 18px 4px;font:500 11px Inter;color:#9397ab">
+<span>22:13</span>
+<span style="display:flex;align-items:center;gap:5px"><span style="font-size:9.5px;letter-spacing:.04em">5G</span><span style="width:18px;height:9px;border:1px solid #75798c;border-radius:2px;display:inline-block;position:relative"><span style="position:absolute;inset:1.5px;right:9px;background:#75798c;border-radius:1px;display:block"></span></span></span>
+</div>
+
+<div style="flex-shrink:0;padding:10px 18px 12px;border-bottom:1px solid rgba(233,233,237,.1)">
+<div style="font:500 22px/1.1 Inter;letter-spacing:-.015em">Plan</div>
+<div style="font:400 11.5px/1.5 Inter;color:#9397ab;margin-top:4px">Haut/Bas 5 jours — définition musculaire et condition · S2 / 12</div>
+</div>
+
+<div class="noscroll" style="flex:1;overflow:hidden;padding:0 18px">
+<div style="font:400 11.5px/1.5 Inter;color:#9397ab;padding:12px 0 2px">Référence du programme. Les modifications se font dans le chat, le fichier est régénéré.</div>
+
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab;margin:14px 0 2px">La méthode</div>
+<div style="display:flex;align-items:center;gap:12px;height:56px;border-bottom:1px solid rgba(233,233,237,.07)">
+<div style="flex:1;min-width:0"><div style="font:400 14.5px Inter">Structure des 12 semaines</div><div style="font:400 11px Inter;color:#9397ab;margin-top:1px">Calibration, bloc 1, décharge S7, bloc 2, bilan</div></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+<div style="display:flex;align-items:center;gap:12px;height:56px;border-bottom:1px solid rgba(233,233,237,.07)">
+<div style="flex:1;min-width:0"><div style="font:400 14.5px Inter">Volume par semaine</div><div style="font:400 11px Inter;color:#9397ab;margin-top:1px">72 séries dures, 11 groupes, et où elles se font</div></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+<div style="display:flex;align-items:center;gap:12px;height:56px;border-bottom:1px solid rgba(233,233,237,.07)">
+<div style="flex:1;min-width:0"><div style="font:400 14.5px Inter">Règles de progression</div><div style="font:400 11px Inter;color:#9397ab;margin-top:1px">Double progression, incréments, calibration, repos</div></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+<div style="display:flex;align-items:center;gap:12px;height:56px;border-bottom:1px solid rgba(233,233,237,.07)">
+<div style="flex:1;min-width:0"><div style="font:400 14.5px Inter">Décharge</div><div style="font:400 11px Inter;color:#9397ab;margin-top:1px">5 déclencheurs, la recette, l'allègement ciblé</div></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+<div style="display:flex;align-items:center;gap:12px;height:56px">
+<div style="flex:1;min-width:0"><div style="font:400 14.5px Inter">Plan de repli</div><div style="font:400 11px Inter;color:#9397ab;margin-top:1px">4, 3 ou 2 séances dans la semaine</div></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab;margin:18px 0 2px">Autour de la salle</div>
+<div style="display:flex;align-items:center;gap:12px;height:56px;border-bottom:1px solid rgba(233,233,237,.07)">
+<div style="flex:1;min-width:0"><div style="font:400 14.5px Inter">Cardio et mobilité</div><div style="font:400 11px Inter;color:#9397ab;margin-top:1px">Z2, intervalles, McGill Big 3</div></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+<div style="display:flex;align-items:center;gap:12px;height:56px;border-bottom:1px solid rgba(233,233,237,.07)">
+<div style="flex:1;min-width:0"><div style="font:400 14.5px Inter">Nutrition</div><div style="font:400 11px Inter;color:#9397ab;margin-top:1px">3 400 kcal, 185 P / 105 L / 470 G, journée type</div></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+<div style="display:flex;align-items:center;gap:12px;height:56px">
+<div style="flex:1;min-width:0"><div style="font:400 14.5px Inter">Charges de départ</div><div style="font:400 11px Inter;color:#9397ab;margin-top:1px">S1, et la règle des paliers</div></div>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#595d6c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+
+<div style="margin-top:20px;padding:13px 14px;border-radius:11px;background:#232532;box-shadow:0 0 0 1px #3f424d">
+<div style="display:flex;align-items:baseline;justify-content:space-between">
+<div style="font:500 13.5px Inter;white-space:nowrap">Programme et données</div>
+<div style="font:400 10.5px Inter;color:#9397ab;white-space:nowrap;flex-shrink:0">14 sept.</div>
+</div>
+<div style="display:flex;gap:7px;margin-top:11px">
+<div style="flex:1;height:40px;border-radius:7px;box-shadow:0 0 0 1px #3f424d;color:#cfd3e5;display:flex;align-items:center;justify-content:center;gap:6px;font:500 12.5px Inter">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 12l5 5 5-5M4 20h16"></path></svg>Télécharger
+</div>
+<div style="flex:1;height:40px;border-radius:7px;box-shadow:0 0 0 1px #3f424d;color:#cfd3e5;display:flex;align-items:center;justify-content:center;gap:6px;font:500 12.5px Inter">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17V5M7 10l5-5 5 5M4 20h16"></path></svg>Importer
+</div>
+</div>
+<div style="font:400 10.5px/1.45 Inter;color:#9397ab;margin-top:9px">Le journal est enregistré sur cet appareil. Avant une mise à jour du fichier, télécharge-le.</div>
+</div>
+</div>
+
+<div style="flex-shrink:0;border-top:1px solid rgba(233,233,237,.1);display:grid;grid-template-columns:1fr 1fr">
+<div style="height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#9397ab">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M8 2v4M16 2v4M3 10h18"></path></svg>
+<span style="font:400 11px Inter">Semaine</span>
+</div>
+<div style="height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#9184d9">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h10"></path></svg>
+<span style="font:500 11px Inter">Plan</span>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+<div style="background:#232532;border-radius:12px;padding:15px 16px;box-shadow:0 0 0 1px #3f424d;display:flex;flex-direction:column;gap:8px">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab">Constats → correctifs</div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">1.</span> Un scroll d'environ 5 000 px, neuf sujets, aucun repère : on ne trouve pas « Nutrition » autrement qu'au pouce. <span style="color:#9397ab">→ un sommaire de 8 lignes, chacune avec ce qu'elle contient ; le texte vit dans sa sous-page.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">2.</span> « Données : sauvegarde et restauration » est enterré sous la nutrition, en encadré ambre qui concurrence le bouton « Charger un programme ». <span style="color:#9397ab">→ un bloc outil séparé en bas, deux actions au même poids, et la date de sauvegarde.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">3.</span> Les deux tableaux (semaines, volume) sont les seules choses lisibles de l'écran, et ils sont compressés. <span style="color:#9397ab">→ ils deviennent le contenu principal de leurs sous-pages, voir <a class="dv-oid" href="#1f" style="padding:1px 5px">1f</a>.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5"><span style="color:#9184d9">4.</span> Un document de référence dans un outil de saisie : même typo, même densité que les écrans de séance. <span style="color:#9397ab">→ sous-pages en mesure de lecture, interlignage 1,6, sous-titres, voir <a class="dv-oid" href="#1e" style="padding:1px 5px">1e</a>.</span></div>
+</div>
+</sc-if>
+</div>
+
+<!-- ═══ 1e — PLAN › PROGRESSION ═══ -->
+<div class="dv-opt" id="1e">
+<div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Plan › Progression — la règle avant la prose</div>
+<div data-screen-label="1e Plan Progression" style="width:390px;height:844px;background:#161826;color:#e9e9ed;display:flex;flex-direction:column;overflow:hidden;font-variant-numeric:tabular-nums;border-radius:20px;box-shadow:0 0 0 1px #595d6c,0 16px 40px rgba(0,0,0,.6)">
+
+<div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:9px 18px 4px;font:500 11px Inter;color:#9397ab">
+<span>22:14</span>
+<span style="display:flex;align-items:center;gap:5px"><span style="font-size:9.5px;letter-spacing:.04em">5G</span><span style="width:18px;height:9px;border:1px solid #75798c;border-radius:2px;display:inline-block;position:relative"><span style="position:absolute;inset:1.5px;right:9px;background:#75798c;border-radius:1px;display:block"></span></span></span>
+</div>
+
+<div style="flex-shrink:0;padding:2px 18px 11px;border-bottom:1px solid rgba(233,233,237,.1)">
+<div style="height:34px;display:flex;align-items:center;gap:5px;margin-left:-6px;color:#9397ab;font:400 13px Inter">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>Plan
+</div>
+<div style="font:500 22px/1.15 Inter;letter-spacing:-.015em">Règles de progression</div>
+</div>
+
+<div class="noscroll" style="flex:1;overflow:hidden;padding:0 18px">
+
+<div style="padding:16px 0 0">
+<div style="font:400 15.5px/1.45 Inter;color:#e9e9ed;padding-left:13px;border-left:2px solid #9184d9">Quand toutes les séries faites à ta charge de travail atteignent le haut de la fourchette, la charge monte à la séance suivante.</div>
+</div>
+
+<div style="margin-top:20px">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab">L'incrément</div>
+<div style="margin-top:9px">
+<div style="display:flex;align-items:center;justify-content:space-between;min-height:32px;padding:2px 0;border-bottom:1px solid rgba(233,233,237,.07)"><span style="font:400 13.5px Inter;color:#cfd3e5;white-space:nowrap">Barre — haut du corps</span><span style="font:500 14px Inter;color:#9184d9">+ 2,5 kg</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;min-height:32px;padding:2px 0;border-bottom:1px solid rgba(233,233,237,.07)"><span style="font:400 13.5px Inter;color:#cfd3e5;white-space:nowrap">Barre — bas du corps</span><span style="font:500 14px Inter;color:#9184d9">+ 5 kg</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;min-height:32px;padding:2px 0;border-bottom:1px solid rgba(233,233,237,.07)"><span style="font:400 13.5px Inter;color:#cfd3e5;white-space:nowrap">Haltères</span><span style="font:500 14px Inter;color:#9184d9">+ 2 kg</span></div>
+<div style="display:flex;align-items:center;justify-content:space-between;min-height:32px;padding:2px 0"><span style="font:400 13.5px Inter;color:#cfd3e5;white-space:nowrap">Machines / poulies</span><span style="font:500 14px Inter;color:#9184d9">+ 5 kg</span></div>
+</div>
+<div style="font:400 11px/1.5 Inter;color:#9397ab;margin-top:7px">Ou le plus petit incrément disponible.</div>
+</div>
+
+<div style="margin-top:20px">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab">Quand ça ne monte pas</div>
+<div style="display:flex;flex-direction:column;gap:9px;margin-top:10px;font:400 13.5px/1.55 Inter;color:#cfd3e5">
+<div style="display:flex;gap:10px"><span style="color:#9184d9;flex-shrink:0">—</span><span>2 séries ou plus sous le bas de la fourchette : on garde la charge. Si ça se répète, <span style="color:#e9e9ed">− 5 %</span>.</span></div>
+<div style="display:flex;gap:10px"><span style="color:#9184d9;flex-shrink:0">—</span><span>Calibration, S1 et S7 : tout au haut de la fourchette <span style="color:#e9e9ed">+ 5 %</span>, une série sous le bas <span style="color:#e9e9ed">− 5 %</span>.</span></div>
+<div style="display:flex;gap:10px"><span style="color:#9184d9;flex-shrink:0">—</span><span>Une séance marquée allégée ne change pas tes références : la suivante repart de là où tu en étais.</span></div>
+</div>
+</div>
+
+<div style="margin-top:16px;padding-top:13px;border-top:1px solid rgba(233,233,237,.1);display:flex;align-items:center;justify-content:space-between;height:36px">
+<span style="font:400 14px Inter;color:#cfd3e5">Cas particuliers — isolations, poids du corps</span>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9397ab" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+</div>
+
+<div style="margin-top:14px;padding-top:13px;border-top:1px solid rgba(233,233,237,.1)">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab">Repos</div>
+<div style="font:400 13.5px/1.5 Inter;color:#cfd3e5;margin-top:7px"><span style="color:#9184d9">2–3 min</span> gros mouvements · <span style="color:#9184d9">1–2 min</span> isolations · <span style="color:#9184d9">1 min</span> abdos</div>
+<div style="font:400 12px/1.5 Inter;color:#9397ab;margin-top:6px">Descente 2–4 s, montée forte. Concentrique dynamique, pas de ralentissement pour « sentir ».</div>
+</div>
+
+</div>
+
+<div style="flex-shrink:0;padding:9px 18px 11px;border-top:1px solid rgba(233,233,237,.1);background:#1c1e2b;display:flex;align-items:center;justify-content:space-between;gap:10px">
+<div style="display:flex;align-items:center;gap:7px;color:#9397ab">
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>
+<span style="font:400 12.5px Inter">Volume</span>
+</div>
+<div style="display:flex;align-items:center;gap:7px;color:#cfd3e5">
+<span style="font:400 12.5px Inter">Décharge</span>
+<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+</div>
+</div>
+
+<div style="flex-shrink:0;border-top:1px solid rgba(233,233,237,.1);display:grid;grid-template-columns:1fr 1fr">
+<div style="height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#9397ab">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M8 2v4M16 2v4M3 10h18"></path></svg>
+<span style="font:400 11px Inter">Semaine</span>
+</div>
+<div style="height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#9184d9">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h10"></path></svg>
+<span style="font:500 11px Inter">Plan</span>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+<div style="background:#232532;border-radius:12px;padding:15px 16px;box-shadow:0 0 0 1px #3f424d;display:flex;flex-direction:column;gap:8px">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab">Ce que je fais du texte</div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5">Le paragraphe de tête faisait 90 mots et contenait quatre choses : la règle, quatre incréments, deux conditions d'échec, une note sur le calcul. <span style="color:#9397ab">La règle passe en 17 px contre un filet accent, les incréments deviennent un tableau, les conditions une liste. Aucun mot inventé, aucun mot perdu.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5">« L'appli calcule la charge prévue à partir de tes séances validées » disparaît d'ici : c'est la réponse à « Pourquoi 28 kg » dans <a class="dv-oid" href="#1b" style="padding:1px 5px">1b</a>, à lire là où la question se pose.</div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5">La barre de pagination en bas enchaîne les sous-pages dans l’ordre du plan : on peut encore le lire en entier, mais par choix. Elle est hors du scroll — sur un texte de référence, un lien en fin de flux n’est jamais vu.</div>
+</div>
+</sc-if>
+</div>
+
+<!-- ═══ 1f — PLAN › VOLUME ═══ -->
+<div class="dv-opt" id="1f">
+<div class="dv-olabel"><a class="dv-oid" href="#1f">1f</a>Plan › Volume — le tableau devient un graphique</div>
+<div data-screen-label="1f Plan Volume" style="width:390px;height:844px;background:#161826;color:#e9e9ed;display:flex;flex-direction:column;overflow:hidden;font-variant-numeric:tabular-nums;border-radius:20px;box-shadow:0 0 0 1px #595d6c,0 16px 40px rgba(0,0,0,.6)">
+
+<div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:9px 18px 4px;font:500 11px Inter;color:#9397ab">
+<span>22:14</span>
+<span style="display:flex;align-items:center;gap:5px"><span style="font-size:9.5px;letter-spacing:.04em">5G</span><span style="width:18px;height:9px;border:1px solid #75798c;border-radius:2px;display:inline-block;position:relative"><span style="position:absolute;inset:1.5px;right:9px;background:#75798c;border-radius:1px;display:block"></span></span></span>
+</div>
+
+<div style="flex-shrink:0;padding:2px 18px 11px;border-bottom:1px solid rgba(233,233,237,.1)">
+<div style="height:34px;display:flex;align-items:center;gap:5px;margin-left:-6px;color:#9397ab;font:400 13px Inter">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg>Plan
+</div>
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px">
+<div style="font:500 22px/1.15 Inter;letter-spacing:-.015em">Volume par semaine</div>
+<div style="text-align:right;flex-shrink:0;padding-bottom:2px"><div style="font:500 20px/1 Inter">72</div><div style="font:400 10px Inter;color:#9397ab;margin-top:2px">séries dures</div></div>
+</div>
+</div>
+
+<div class="noscroll" style="flex:1;overflow:hidden;padding:0 18px">
+<div style="font:400 11.5px/1.5 Inter;color:#9397ab;padding:11px 0 0">Une série dure = une série de travail menée à 1 RIR ou à l'échec. L'échauffement ne compte pas.</div>
+
+<div style="display:flex;flex-direction:column;gap:11px;margin-top:15px">
+
+<div>
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:400 13px Inter;flex:1">Pecs</span><span style="font:500 13px Inter;color:#9184d9;width:16px;text-align:right">8</span></div>
+<div style="height:7px;border-radius:4px;background:#292b31;margin-top:5px"><div style="width:80%;height:7px;border-radius:4px;background:#9184d9"></div></div>
+<div style="font:400 10.5px Inter;color:#9397ab;margin-top:4px">Haut A (couché, incliné 30°) · Haut C (2 presses)</div>
+</div>
+
+<div>
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:400 13px Inter;flex:1">Dos</span><span style="font:500 13px Inter;color:#9184d9;width:16px;text-align:right">7</span></div>
+<div style="height:7px;border-radius:4px;background:#292b31;margin-top:5px"><div style="width:70%;height:7px;border-radius:4px;background:#9184d9"></div></div>
+<div style="font:400 10.5px Inter;color:#9397ab;margin-top:4px">Haut B (tractions, rowing) · Haut C (tirage santé)</div>
+</div>
+
+<div>
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:400 13px Inter;flex:1">Quadriceps</span><span style="font:500 13px Inter;color:#9184d9;width:16px;text-align:right">6</span></div>
+<div style="height:7px;border-radius:4px;background:#292b31;margin-top:5px"><div style="width:60%;height:7px;border-radius:4px;background:#9184d9"></div></div>
+<div style="font:400 10.5px Inter;color:#9397ab;margin-top:4px">Bas A (squat) · Bas B (presse)</div>
+</div>
+
+<div>
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:400 13px Inter;flex:1">Ischios et fessiers</span><span style="font:500 13px Inter;color:#9184d9;width:16px;text-align:right">6</span></div>
+<div style="height:7px;border-radius:4px;background:#292b31;margin-top:5px"><div style="width:60%;height:7px;border-radius:4px;background:#9184d9"></div></div>
+<div style="font:400 10.5px Inter;color:#9397ab;margin-top:4px">Bas A (leg curl) · Bas B (hip thrust)</div>
+</div>
+
+<div>
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:400 13px Inter;flex:1">Mollets</span><span style="font:500 13px Inter;color:#9184d9;width:16px;text-align:right">6</span></div>
+<div style="height:7px;border-radius:4px;background:#292b31;margin-top:5px"><div style="width:60%;height:7px;border-radius:4px;background:#9184d9"></div></div>
+<div style="font:400 10.5px Inter;color:#9397ab;margin-top:4px">Bas A · Bas B</div>
+</div>
+
+<div>
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:400 13px Inter;flex:1">Deltoïdes latéraux</span><span style="font:500 13px Inter;color:#9184d9;width:16px;text-align:right">5</span></div>
+<div style="height:7px;border-radius:4px;background:#292b31;margin-top:5px"><div style="width:50%;height:7px;border-radius:4px;background:#9184d9"></div></div>
+<div style="font:400 10.5px Inter;color:#9397ab;margin-top:4px">Haut A · Haut C</div>
+</div>
+
+<div>
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:400 13px Inter;flex:1">Deltoïdes postérieurs</span><span style="font:500 13px Inter;color:#9184d9;width:16px;text-align:right">4</span></div>
+<div style="height:7px;border-radius:4px;background:#292b31;margin-top:5px"><div style="width:40%;height:7px;border-radius:4px;background:#796cbf"></div></div>
+<div style="font:400 10.5px Inter;color:#9397ab;margin-top:4px">Haut A · Haut B</div>
+</div>
+
+<div>
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:400 13px Inter;flex:1">Biceps</span><span style="font:500 13px Inter;color:#9184d9;width:16px;text-align:right">4</span></div>
+<div style="height:7px;border-radius:4px;background:#292b31;margin-top:5px"><div style="width:40%;height:7px;border-radius:4px;background:#796cbf"></div></div>
+<div style="font:400 10.5px Inter;color:#9397ab;margin-top:4px">Haut B · Haut C</div>
+</div>
+
+<div>
+<div style="display:flex;align-items:baseline;gap:8px"><span style="font:400 13px Inter;flex:1">Triceps</span><span style="font:500 13px Inter;color:#9184d9;width:16px;text-align:right">4</span></div>
+<div style="height:7px;border-radius:4px;background:#292b31;margin-top:5px"><div style="width:40%;height:7px;border-radius:4px;background:#796cbf"></div></div>
+<div style="font:400 10.5px Inter;color:#9397ab;margin-top:4px">Haut A · Haut C</div>
+</div>
+</div>
+
+<div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(233,233,237,.1);display:flex;align-items:center;justify-content:space-between;height:36px">
+<span style="font:400 13px Inter;color:#9397ab">Abdos chargés, gainage anti-mouvement</span>
+<span style="font:500 13px Inter;color:#9184d9">10 + 10</span>
+</div>
+</div>
+
+<div style="flex-shrink:0;border-top:1px solid rgba(233,233,237,.1);display:grid;grid-template-columns:1fr 1fr">
+<div style="height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#9397ab">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M8 2v4M16 2v4M3 10h18"></path></svg>
+<span style="font:400 11px Inter">Semaine</span>
+</div>
+<div style="height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#9184d9">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16M4 12h16M4 19h10"></path></svg>
+<span style="font:500 11px Inter">Plan</span>
+</div>
+</div>
+</div>
+
+<sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}">
+<div style="background:#232532;border-radius:12px;padding:15px 16px;box-shadow:0 0 0 1px #3f424d;display:flex;flex-direction:column;gap:8px">
+<div style="font:500 10.5px/1 Inter;letter-spacing:.09em;text-transform:uppercase;color:#9397ab">Pourquoi cet écran</div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5">Tu dis que le Plan « affiche de la data ». C'est le seul endroit où il y en a vraiment : 11 groupes, un nombre de séries, et où elles se font. <span style="color:#9397ab">En tableau à trois colonnes serrées on lit des nombres ; en barres on voit d'un coup que les pecs sont à 8 et les triceps à 4 — c'est-à-dire la décision du point volume de fin de S4.</span></div>
+<div style="font:400 12px/1.5 Inter;color:#cfd3e5">Les valeurs sous 5 passent en teinte plus sombre du même accent : c'est le bas de la fourchette de volume, pas une autre couleur.</div>
+</div>
+</sc-if>
+</div>
+
+</div>
+
+<p class="dv-next">À dire ensuite : « garde <a class="dv-oid" href="#1b">1b</a> mais montre tous les exercices dépliés » · « le rail des 12 semaines, version plus lisible » · « dessine l'écran Bilan de <a class="dv-oid" href="#1a">1a</a> » · « autres directions pour la fiche exo »</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showNotes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Planche&quot;},&quot;restTimer&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Séance&quot;},&quot;weekRail&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Semaine&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      showNotes: this.props.showNotes ?? true,
+      restTimer: this.props.restTimer ?? true,
+      weekRail: this.props.weekRail ?? true,
+    };
+  }
+}
+</script>
+</body>
+</html>
