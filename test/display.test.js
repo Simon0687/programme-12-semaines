@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  setSummary, muscleRows, detailRows, chartGeometry, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS,
+  setSummary, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS,
 } from "../src/display.js";
 import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS } from "../src/registry.js";
 
@@ -239,4 +239,93 @@ test("chartGeometry : un point allégé est creux, comme une décharge (#43)", (
     ],
   }], { w: 358, h: 162 });
   assert.deepEqual(g.dots.map((d) => d.hollow), [false, true, false]);
+});
+
+/* ---------- Plancher de l'axe : l'ordre ne doit plus passer pour l'ampleur (#49) ----------
+
+   Ces tests portent sur l'empan de l'axe, jamais sur ses bornes exactes :
+   `niceScale` arrondit vers l'extérieur, et figer « 60–80 » dans une assertion
+   ferait tomber la suite au premier réglage des constantes, pour une raison
+   sans rapport avec ce que le plancher promet. */
+
+const span = (g) => g.grid[g.grid.length - 1].value - g.grid[0].value;
+const spread = (g) => Math.max(...g.dots.map((d) => d.y)) - Math.min(...g.dots.map((d) => d.y));
+const frameH = (g) => g.plot.y1 - g.plot.y0;
+const oneCycle = (points) => [{ programId: "p", points }];
+
+test("chartGeometry : 2,3 kg de progrès ne remplissent plus le cadre, et restent centrés", () => {
+  /* Le cas de l'issue : 69 → 71,3 donnait un axe 69–72, donc la même fusée que
+     20 kg auraient dessinée. */
+  const g = chartGeometry(oneCycle([
+    { date: "2026-06-01", value: 69, kind: "normal" },
+    { date: "2026-07-01", value: 71.3, kind: "normal" },
+  ]), { w: 358, h: 162 }, 2.5);
+  assert.ok(span(g) >= 10.5, `empan ${span(g)} : au moins 15 % de la médiane`);
+  /* Élargi symétriquement : ancré sur un bas fixe, l'axe décentrerait la
+     courbe, ce qui est une autre façon de mentir. */
+  const mid = (g.plot.y0 + g.plot.y1) / 2;
+  for (const d of g.dots) assert.ok(Math.abs(d.y - mid) < frameH(g) / 4, `point à ${d.y}, milieu ${mid}`);
+});
+
+test("chartGeometry : un empan déjà large sort inchangé", () => {
+  /* 60 → 87,5 : la médiane vaut 75 et son plancher 11,25, qui n'a rien à dire
+     sur 27,5 kg d'écart. L'axe doit rester celui d'avant #49. */
+  const g = chartGeometry(SERIES, { w: 358, h: 162 }, 2.5);
+  assert.deepEqual(g.grid.map((t) => t.value), [60, 70, 80, 90]);
+});
+
+test("chartGeometry : un plateau bruité se lit plat", () => {
+  /* Six mois tenus à 70 kg à ±1 kg près : le pire cas, parce qu'il ne se résout
+     pas avec plus de données. */
+  const g = chartGeometry(oneCycle([
+    { date: "2026-03-01", value: 70, kind: "normal" },
+    { date: "2026-05-01", value: 71, kind: "normal" },
+    { date: "2026-07-01", value: 69, kind: "normal" },
+    { date: "2026-09-01", value: 70, kind: "normal" },
+  ]), { w: 358, h: 162 }, 2.5);
+  assert.ok(spread(g) < frameH(g) * 0.2, `amplitude ${spread(g)} sur ${frameH(g)} px de cadre`);
+});
+
+test("framed : quelques incréments font plancher sous le plancher", () => {
+  /* Élévations latérales, incr 2 : 15 % d'une médiane de 12,5 ne font que
+     1,9 kg, soit une graduation plus fine que le pas de l'exercice — on
+     graduerait du bruit. */
+  const f = framed([12, 13], 2);
+  assert.ok(f.max - f.min >= 6, `empan ${f.max - f.min}`);
+});
+
+test("framed : le plancher en incréments ne s'applique qu'avec un pas d'axe", () => {
+  /* En double progression la courbe trace des reps ou des secondes alors
+     qu'`incr` est en kilos : ExerciseSheet passe `null`, et seul le pourcentage
+     joue. Sans ça, 6 → 8 tractions se verraient imposer un axe en kilos. */
+  assert.deepEqual(framed([6, 8], null), framed([6, 8], 0));
+  const withIncr = framed([6, 8], 2.5), without = framed([6, 8], null);
+  assert.ok(withIncr.max - withIncr.min > without.max - without.min);
+});
+
+test("framed : une valeur unique ou nulle ne fait rien exploser", () => {
+  for (const vals of [[80], [0, 0], [0]]) {
+    const f = framed(vals, null);
+    assert.ok(Number.isFinite(f.min) && Number.isFinite(f.max) && f.max > f.min, `${vals} → ${f.min}..${f.max}`);
+  }
+});
+
+test("chartGeometry : l'aplat se referme sur le bas du cadre, un par cycle", () => {
+  const g = chartGeometry(SERIES, { w: 358, h: 162 }, 2.5);
+  assert.equal(g.polylines.length, 2);
+  for (const pl of g.polylines) {
+    const pts = pl.area.split(" ").map((p) => p.split(",").map(Number));
+    assert.equal(pts.length, pl.points.split(" ").length + 2, "un point d'ancrage à chaque bout");
+    assert.equal(pts[0][1], g.plot.y1);
+    assert.equal(pts[pts.length - 1][1], g.plot.y1);
+  }
+});
+
+test("valueText et deltaText : le chiffre de tête porte son unité et son signe", () => {
+  assert.equal(valueText(87.5, "kg"), "87,5 kg");
+  assert.equal(valueText(45, "time"), "45 s");
+  assert.equal(valueText(8, "reps"), "8 reps");
+  assert.equal(deltaText(7.5, "kg"), "+7,5 kg");
+  assert.equal(deltaText(-2.5, "kg"), "−2,5 kg");
+  assert.equal(deltaText(0, "kg"), "0 kg", "un plateau se dit, il ne se masque pas");
 });

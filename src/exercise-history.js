@@ -196,6 +196,41 @@ export function seriesByCycle(entries, unit) {
   return out;
 }
 
+/* ---------- Le chiffre en tête de fiche (#49) ----------
+
+   La valeur du jour et sa variation depuis le début. Elle sort de `chartPoint`,
+   la même fonction que la courbe : deux calculs séparés finiraient par se
+   contredire à l'écran, et c'est précisément l'écran où le chiffre doit être
+   plus fiable que le tracé.
+
+   La base est la **première séance jamais faite**, tous cycles confondus, et
+   non le début du cycle courant : une frontière de cycle remettrait à zéro tous
+   les trois mois la seule question que cette fiche existe pour répondre (#49,
+   decisions-spec.md Q1). Que cette première séance soit presque toujours une
+   calibration est le coût assumé — le moteur corrige la prescription suivante,
+   jamais la base.
+
+   `delta` vaut `null`, jamais `0`, quand une seule séance est exploitable :
+   elle *est* la base, et « +0 » annoncerait un plateau au lieu d'une absence de
+   recul. */
+export function headline(entries, unit) {
+  const pts = [];
+  for (const e of entries || []) {
+    const p = chartPoint(e, unit);
+    if (p && p.value != null) pts.push(p);
+  }
+  if (!pts.length) return null;
+  const last = pts[pts.length - 1];
+  return {
+    value: last.value,
+    bar: typeof last.bar === "number" ? last.bar : null,
+    dim: last.dim === true,
+    /* Arrondi au dixième comme l'estimation elle-même : une soustraction de deux
+       valeurs déjà arrondies sort sinon des 7,499999999999999. */
+    delta: pts.length > 1 ? Math.round((last.value - pts[0].value) * 10) / 10 : null,
+  };
+}
+
 /* Records : de la donnée observée, aucun modèle.
 
    Pour N reps, la charge la plus lourde jamais portée sur N reps **ou plus** —

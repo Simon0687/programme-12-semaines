@@ -145,7 +145,11 @@ dans le journal (invariant 2.2), donc abandonner l'un pour l'autre ne demande
 aucune migration. Le pack LLM reste livrable par-dessus un moteur : c'est alors
 un mode « je préfère parler à mon IA », pas l'unique chemin.
 
-**Décision de Simon.** _(à remplir)_
+**Décision de Simon.** **B — moteur déterministe dans l'app** (2026-09-15).
+L'app génère elle-même ; le pack LLM externe reste possible par-dessus, comme
+mode alternatif, mais cesse d'être le chemin principal. Conséquences à traiter :
+le non-goal n°3 d'`ARCHITECTURE.md` et la formule « l'IA propose, l'app
+vérifie » sont à réécrire, et #19 perd sa moitié « pack externe ».
 
 ---
 
@@ -193,7 +197,16 @@ et il transforme Q1 d'une question d'architecture en une question de confort :
 main ? ». Le budget en direct de l'option B reste ajoutable ensuite, exactement
 au même endroit.
 
-**Décision de Simon.** _(à remplir)_
+**Décision de Simon.** **A — chantier séparé, et en premier** (2026-09-15).
+Simon l'a reformulé comme **deux entrées distinctes dans l'app**, pas deux
+réglages du même écran : « je compose ma séance moi-même, sans contrainte » d'un
+côté, « l'app me génère un programme après matériel / focus / nombre de jours /
+niveau » de l'autre. Elles ne partagent pas l'écran ni les questions posées,
+seulement la sortie (`program`) et le validateur.
+
+Contrainte qui en découle, à respecter quand le moteur de Q1 arrivera : sa
+proposition doit **retomber dans l'éditeur manuel** pour être retouchée — le
+moteur remplit l'éditeur, il ne le double pas.
 
 ---
 
@@ -234,7 +247,11 @@ asymétrique (rééducation, priorité forte assumée) devient impossible à cha
 Le message reste « adressable à une IA » comme #19 l'exige, mais il conseille au
 lieu de bloquer.
 
-**Décision de Simon.** _(à remplir)_
+**Décision de Simon.** **A — issue dédiée, maintenant** (2026-09-15), et sur le
+point de sévérité : **signalé, pas bloquant**. Les 6 assertions rendent un avis
+lisible, le programme se charge quand même — un déséquilibre assumé
+(rééducation, priorité forte) reste chargeable. `parseProgramImport()` garde
+seule le droit de rejeter, sur la forme.
 
 ---
 
@@ -275,7 +292,19 @@ bouton « affiner avec ton IA » qui pré-remplit un prompt, jamais le chemin
 obligatoire. Le pack LLM de l'option A de Q1 n'est alors pas perdu : il devient
 ce bouton.
 
-**Décision de Simon.** _(à remplir)_
+**Décision de Simon.** **A — écrans in-app, aucun LLM** (2026-09-15), **avec un
+périmètre réduit pour la v1** : on collecte les contraintes de **matériel**
+(salle complète, haltères, home gym…) et les champs déjà chiffrés
+(jours / durée / objectif / niveau). **Les contraintes de santé — douleurs,
+articulations, limitations — sont reportées**, pas conçues maintenant.
+
+Ce que ça simplifie tout de suite : le filtre de sélection d'exercices se
+réduit au vocabulaire `EQUIPMENT` de `src/registry.js`, déjà fermé et peuplé.
+Le champ `articulations` du registre reste en place mais n'est lu par personne
+en v1 — à ne pas retirer pour autant, c'est l'accroche de la reprise.
+
+La surcouche facultative « affiner avec ton IA » reste possible plus tard, et
+c'est là que les douleurs reviendront naturellement dans la discussion.
 
 ---
 
