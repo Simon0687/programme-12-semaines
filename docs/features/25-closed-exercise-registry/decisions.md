@@ -98,6 +98,19 @@ squat + leg extension; and the 11 muscle keys with `ischios / fessiers` merged.
 
 ## Flagged, not decided here: which engine (README §4)
 
+> **Settled on 2026-09-15, elsewhere.** The question was reopened on 2026-09-12
+> by a third path neither document had: an engine *inside* the app. All four
+> questions are answered in
+> [`docs/generation/decisions-moteur.md`](../../generation/decisions-moteur.md)
+> and summarised in [README §4](../../generation/README.md) - a deterministic
+> engine in `src/`, the manual editor shipped first as a separate piece of work,
+> the six assertions in their own module warning rather than rejecting, and
+> equipment-only in-app collection. The section below is kept as written: it
+> recorded the contradiction accurately, and its unrefuted recommendation is what
+> eventually carried the decision. **Read it as history, not as an open
+> question.** What it says about #25 still holds exactly - Q7 and Q8 were safe to
+> implement before the engine question was settled, and they were.
+
 Asked alongside Q7/Q8, Simon chose *"the document becomes the #19 pack, now -
 the LLM generates the definition, the app validates and executes"*.
 

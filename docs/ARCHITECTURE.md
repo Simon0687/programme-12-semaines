@@ -259,9 +259,16 @@ Three consequences worth keeping:
   over-architecture for the current size.
 - **No calculation delegated to a language model.** Volume, spacing, progression
   and registry compatibility are deterministic problems; they are computed and
-  validated in the app. A model proposes and explains, the app verifies and
-  remembers, the user decides. The generation contracts implementing this split
-  are in [docs/generation/README.md](generation/README.md).
+  validated in the app. Since 2026-09-15 this holds one step further than it
+  used to: the program itself is *composed* in the app, by hand in the editor or
+  by a deterministic engine, so **the app proposes, the app verifies, and the
+  user decides**. The older formula - *a model proposes and explains, the app
+  verifies and remembers* - described the split while generation was delegated
+  to an outside LLM; it no longer describes the main path. A model may still be
+  offered as an optional way to draft a program, never as the only one, and what
+  it returns enters through the same door as any other file. The generation
+  contracts are in [docs/generation/README.md](generation/README.md), the choice
+  itself in [docs/generation/decisions-moteur.md](generation/decisions-moteur.md).
 
 ---
 

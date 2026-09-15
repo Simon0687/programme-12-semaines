@@ -130,29 +130,57 @@ est à rouvrir. Amendement déposé dans la spec de #25.
 
 ---
 
-## 4. Quel moteur ? — choix enregistré le 2026-09-10, argument non refermé
+## 4. Quel moteur ? — tranché le 2026-09-15
 
-> **Simon a choisi la branche LLM** : le document moteur devient le pack #19,
-> l'IA génère la définition, l'app valide et exécute. Enregistré dans
-> [`decisions.md` de #25](../features/25-closed-exercise-registry/decisions.md).
-> La recommandation ci-dessous est l'inverse et reste sur la table — enregistrer
-> un choix ne réfute pas son contre-argument. Ce qui suit est laissé tel quel
-> pour que la question puisse être rouverte sans re-dériver le raisonnement.
+> **Décision : le programme est composé dans l'app.** Les quatre questions de
+> [`decisions-moteur.md`](decisions-moteur.md) sont répondues et la question est
+> close.
 >
-> **Rouverte le 2026-09-12** par une question de Simon : un moteur *dans* l'app,
-> troisième chemin absent des deux documents. Options, implications et
-> recommandations dans [`decisions-moteur.md`](decisions-moteur.md) ; ce §4 est
-> réécrit quand elles sont tranchées.
+> 1. **Qui calcule** — un moteur déterministe **dans** l'app (`src/`). Le pack
+>    LLM externe reste possible *par-dessus*, comme mode alternatif, et cesse
+>    d'être le chemin principal.
+> 2. **L'éditeur manuel** — chantier séparé, **livré en premier**. Simon l'a
+>    reformulé comme deux entrées distinctes de l'app, pas deux réglages d'un
+>    même écran : « je compose ma séance moi-même » d'un côté, « l'app me génère
+>    un programme à partir de mon matériel, mes jours, mon niveau, mon focus » de
+>    l'autre. Elles partagent la sortie (`program`) et le validateur, pas
+>    l'écran. Contrainte induite : la proposition du moteur doit **retomber dans
+>    l'éditeur** pour être retouchée.
+> 3. **Les 6 assertions** — issue dédiée, tout de suite, et elles **avertissent
+>    sans bloquer** : un déséquilibre de volume est un avis, pas une donnée
+>    invalide. `parseProgramImport()` garde seule le droit de refuser, sur la
+>    forme.
+> 4. **La collecte** — écrans in-app, aucun LLM, et **matériel seulement** en v1
+>    (salle, haltères, home gym…). Les contraintes de santé sont reportées : le
+>    filtre de sélection se réduit au vocabulaire `EQUIPMENT` fermé de
+>    `src/registry.js`.
 >
-> Conséquence pratique : **rien ne bloque**. La réconciliation des registres (B3)
-> est sur le chemin critique dans les deux branches et elle est faite (#25, Q7 et
-> Q8). Ce que le choix change, c'est seulement ce que #19 livre — un prompt ou un
-> outil.
+> **Ce que la recommandation historique ci-dessous devient.** Elle disait « LLM
+> pour la collecte, règles pour la génération, moteur **hors** de l'app ». Sa
+> moitié *règles* l'emporte — et plus largement qu'elle ne le demandait, puisque
+> les règles entrent dans l'app. Sa moitié *collecte par LLM* est écartée par Q4,
+> pour la raison même qu'elle invoquait : si une extraction fausse produit un
+> programme cohérent mais faux, mettre un LLM à l'entrée réintroduit à la
+> collecte le mode d'échec que le moteur déterministe vient d'éliminer à la
+> génération. Le texte qui suit est conservé parce que son argument central est
+> ce qui a emporté la décision, pas parce que la question reste ouverte.
 >
-> Sous la branche retenue, un prérequis apparaît : le document moteur devient du
-> *texte de prompt*, et ses contradictions internes deviennent des hallucinations
-> autorisées. Elles sont listées dans
-> [`moteur-generation-programme.notes.md`](moteur-generation-programme.notes.md) §4.
+> **Ce que ça ne change pas** : le registre fermé, le format `formatVersion: 2`,
+> `parseProgramImport()` comme porte unique, et les invariants 2.1/2.2. Tout
+> générateur — main humaine, moteur ou LLM — produit le même objet et entre par
+> la même porte. Les butoirs `weeks !== 12` et les textes S7/S12 codés en dur
+> bloquent toujours la liberté structurelle, dans toutes les branches (#14).
+>
+> **Ce que ça rend caduc** : la moitié « pack téléchargeable » de #19 — le
+> prompt, la boucle de réparation par copier-coller. Tombe avec elle la
+> contrainte « le questionnaire n'a pas le droit de demander poids / taille /
+> âge », qui n'existait que parce qu'un LLM tiers collectait des données de
+> santé. Le document moteur redevient une **spec de code** : ses contradictions
+> internes ([notes](moteur-generation-programme.notes.md) §4) sont de simples
+> bugs de spec à corriger en écrivant le module, plus des hallucinations
+> autorisées.
+
+### Le raisonnement, conservé
 
 Les deux documents de ce dossier ne décrivent pas le même produit.
 
@@ -183,16 +211,20 @@ Et le principe « l'app exécute, elle ne génère pas » reste tenu à la lettr
 le moteur est **un outil séparé qui produit un fichier de définition**, pas un
 module de l'app. L'app garde un seul rôle : valider et exécuter.
 
-À trancher par Simon. Ce qui ne dépend pas de l'arbitrage, et qu'on peut faire
-tout de suite : **la réconciliation des deux registres (B3)**. Elle est sur le
-chemin critique dans les deux branches — un LLM comme un moteur a besoin d'un
-catalogue unique, fermé, portant à la fois la sélection et l'exécution.
+Ce qui ne dépendait de l'arbitrage dans aucune branche : **la réconciliation des
+deux registres (B3)** — un LLM comme un moteur a besoin d'un catalogue unique,
+fermé, portant à la fois la sélection et l'exécution. Elle a été faite par #25
+(Q7 et Q8) avant que la question soit tranchée, ce qui est exactement pourquoi la
+décision de Q1 n'a rien coûté quand elle est tombée.
 
 ---
 
 ## 5. Ce qu'on partage au LLM, en totalité ou en partie
 
-Si la branche LLM est retenue, la règle de partage :
+La branche LLM n'est plus le chemin principal depuis le 2026-09-15 (§4). Cette
+section reste valable telle quelle pour le **mode facultatif** — un bouton
+« rédiger avec ton IA » qui pré-remplit un prompt — et pour tout partage ponctuel
+du corpus. La règle de partage :
 
 | Section | Partagée ? |
 |---|---|
@@ -223,7 +255,11 @@ n'est responsable de traitement.
 | B1 — définition sans profil nutrition | issue **#27** |
 | B3 — réconciliation des deux registres | amendement dans la spec de [#25](../features/25-closed-exercise-registry/spec.md), à trancher avant `/design-tech` |
 | Découper `poulie` et `machine` dans le catalogue | catalogue v2, noté en §4.3 du questionnaire |
-| Quel moteur (§4 ci-dessus) | rouvert le 2026-09-12 : [`decisions-moteur.md`](decisions-moteur.md), en attente des réponses de Simon |
+| Quel moteur (§4 ci-dessus) | **tranché le 2026-09-15** : [`decisions-moteur.md`](decisions-moteur.md) — moteur dans l'app, éditeur manuel d'abord |
+| L'éditeur manuel (Q2) | issue **#36**, à requalifier et à sortir en premier |
+| Le validateur des 6 assertions (Q3) | issue **#37**, avertit sans bloquer |
+| Le moteur déterministe (Q1) | après #37, qui mesure ce qu'il en reste à écrire |
+| Le pack LLM externe | #19 perd sa moitié « pack » : à réécrire en mode facultatif ou à fermer |
 | B2 — timeline continue | rien à faire : #16 puis #14, déjà dans la file |
 
 ### Le programme neutre de #26 est le premier test de bout en bout
