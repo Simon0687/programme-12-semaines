@@ -15,7 +15,7 @@ import { setSummary } from "./display.js";
 import { EXERCISE_IDS } from "./registry.js";
 import ExerciseSheet from "./ExerciseSheet.jsx";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
-import { useLoadPicker, LoadPickerOverlay } from "./LoadPicker.jsx";
+import { useLoadPicker, LoadPickerOverlay, LOAD_FIELD_STYLE } from "./LoadPicker.jsx";
 import { buildBilan } from "./bilan.js";
 import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
 import { LEGACY_DEFINITION } from "./legacy-program.js";
@@ -198,7 +198,7 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
                 placeholder={f === "w" && plan.load != null ? fmt(plan.load) : ""}
                 {...(f === "w" ? picker.handlers(i, f, num(row[f]), plan.load) : {})}
                 onChange={(e) => onSet(vid, i, f, e.target.value)}
-                className={`h-11 w-full text-center rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 ${done ? "bg-slate-900 border border-slate-800 text-slate-400" : isNext ? "bg-slate-800 border border-slate-600 text-slate-100" : "bg-slate-800 border border-slate-700 text-slate-100"}`} style={{ fontVariantNumeric: "tabular-nums", ...(f === "w" ? picker.fieldStyle : null) }} />
+                className={`h-11 w-full text-center rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 ${done ? "bg-slate-900 border border-slate-800 text-slate-400" : isNext ? "bg-slate-800 border border-slate-600 text-slate-100" : "bg-slate-800 border border-slate-700 text-slate-100"}`} style={{ fontVariantNumeric: "tabular-nums", ...(f === "w" ? LOAD_FIELD_STYLE : null) }} />
             )),
             /* #42 : remplit depuis « Prévu », marque la série et lance le repos.
                Les champs restent modifiables : corriger, c'est taper par-dessus. */
