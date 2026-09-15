@@ -120,6 +120,22 @@ export function axisLabel(value, unit) {
   return fmt(value);
 }
 
+/* Le chiffre de tête porte son unité, là où l'axe la laisse nue : au-dessus du
+   cadre il n'y a plus de titre de section pour la nommer (#49). */
+export function valueText(value, unit) {
+  if (unit === "time") return `${fmt(value)} s`;
+  if (unit === "reps") return `${fmt(value)} reps`;
+  return `${fmt(value)} kg`;
+}
+
+/* Le signe est toujours écrit, y compris le zéro : une variation nulle est un
+   plateau, et le masquer la ferait lire comme une donnée manquante. Le moins est
+   le vrai signe typographique, celui qu'affichent déjà les « −5 % » du moteur. */
+export function deltaText(delta, unit) {
+  const sign = delta > 0 ? "+" : delta < 0 ? "−" : "";
+  return `${sign}${valueText(Math.abs(delta), unit)}`;
+}
+
 /* ---------- Libellés du registre ---------- */
 
 export const MUSCLE_LABELS = {
@@ -207,6 +223,51 @@ function niceScale(lo, hi) {
   return { min, max, ticks };
 }
 
+/* ---------- Plancher de l'axe des valeurs (#49) ----------
+
+   `niceScale(min(vals), max(vals))` seul cadre l'axe sur la donnée, donc la
+   donnée remplit toujours le cadre : 69 → 72 dessinait la même fusée que 20 kg
+   de progrès. Le pire cas n'est pas celui-là, c'est le plateau — six mois tenus
+   à 70 kg à ±1 kg près se recadraient sur 69–71 et dessinaient une montée là où
+   il ne s'était rien passé. Ça ne se résout pas avec plus de données : un cycle
+   de maintien resserre l'axe à l'identique.
+
+   D'où un empan minimal. Deux propriétés, et les constantes ne sont que le
+   réglage :
+
+   - **un pourcentage de la médiane**, pas un multiple d'`incr`. `incr` va de 2
+     (élévations latérales) à 10 (presse à mollets) : le même multiple donnerait
+     8 kg d'empan sur l'un et 40 sur l'autre.
+   - **quelques incréments en plancher sous le plancher**, pour qu'un exercice à
+     petits pas n'obtienne jamais un empan plus fin que sa propre granularité —
+     une graduation sous l'incrément ne gradue que du bruit.
+
+   L'élargissement est **symétrique autour de la donnée** : ancré sur un bas
+   fixe, il décentrerait la courbe, ce qui est une autre façon de mentir. Un
+   empan déjà plus large que le plancher ressort inchangé — `framed` rend alors
+   exactement ce que rendait `niceScale`. */
+const MIN_SPAN_RATIO = 0.15;
+const MIN_SPAN_INCR = 3;
+
+function median(vals) {
+  const s = [...vals].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+/* `incr` est le pas de l'**axe**, pas celui de l'exercice : en régime `dual` la
+   courbe trace des reps ou des secondes alors qu'`incr` est en kilos, et
+   l'appelant passe alors `null`. Une médiane nulle ou absente annule simplement
+   le pourcentage — il n'y a rien à diviser, et le comportement retombe sur
+   celui d'avant. */
+export function framed(vals, incr) {
+  const lo = Math.min(...vals), hi = Math.max(...vals);
+  const med = median(vals);
+  const floor = Math.max(med > 0 ? med * MIN_SPAN_RATIO : 0, incr > 0 ? incr * MIN_SPAN_INCR : 0);
+  const pad = (floor - (hi - lo)) / 2;
+  return pad > 0 ? niceScale(lo - pad, hi + pad) : niceScale(lo, hi);
+}
+
 /* Part de la hauteur du cadre laissée aux barres de charge. Les barres vivent
    en bas, sous la courbe, comme les volumes sous un cours : à pleine hauteur
    elles passeraient derrière la polyligne et les deux progressions
@@ -215,7 +276,7 @@ function niceScale(lo, hi) {
    le haut de la zone. */
 const BAR_ZONE = 0.55;
 
-export function chartGeometry(series, box) {
+export function chartGeometry(series, box, axisIncr) {
   const all = (series || []).flatMap((s) => s.points || []);
   if (!all.length) return null;
 
@@ -233,7 +294,7 @@ export function chartGeometry(series, box) {
   const days = all.map((p) => dayNumber(p.date));
   const d0 = Math.min(...days), d1 = Math.max(...days);
   const vals = all.map((p) => p.value);
-  const scale = niceScale(Math.min(...vals), Math.max(...vals));
+  const scale = framed(vals, axisIncr);
 
   const X = (iso) => (d1 === d0 ? (x0 + x1) / 2 : x0 + ((dayNumber(iso) - d0) / (d1 - d0)) * (x1 - x0));
   const Y = (v) => (scale.max === scale.min ? (y0 + y1) / 2 : y1 - ((v - scale.min) / (scale.max - scale.min)) * (y1 - y0));
@@ -249,7 +310,17 @@ export function chartGeometry(series, box) {
   for (const s of series) {
     const pts = (s.points || []).map((p) => ({ ...p, x: r2(X(p.date)), y: r2(Y(p.value)) }));
     if (!pts.length) continue;
-    polylines.push({ programId: s.programId, points: pts.map((p) => `${p.x},${p.y}`).join(" ") });
+    /* `area` referme la polyligne sur le bas du cadre, pour l'aplat dégradé.
+       Il ne vient qu'**après** le plancher d'axe, jamais avant : la base n'est
+       pas zéro, donc une surface pleine se lit comme une quantité là où elle ne
+       représente que « au-dessus de 69 ». Sur une polyligne nue cette
+       distorsion est discrète ; en aplat, c'est la fusée en plus grand. */
+    const line = pts.map((p) => `${p.x},${p.y}`).join(" ");
+    polylines.push({
+      programId: s.programId,
+      points: line,
+      area: `${pts[0].x},${r2(y1)} ${line} ${pts[pts.length - 1].x},${r2(y1)}`,
+    });
     for (const p of pts) {
       dots.push({
         x: p.x, y: p.y, date: p.date, value: p.value,

@@ -23,9 +23,9 @@
 import { useMemo } from "react";
 import { ChevronLeft } from "lucide-react";
 import { EXERCISES } from "./registry.js";
-import { exerciseHistory, recordsFor, seriesByCycle, chartMode, ESTIMATE_REPS } from "./exercise-history.js";
+import { exerciseHistory, recordsFor, seriesByCycle, chartMode, headline, ESTIMATE_REPS } from "./exercise-history.js";
 import { loadText, fmt } from "./progression.js";
-import { setSummary, dateShort, periodLabel, chartGeometry, axisLabel, detailRows, KIND_LABELS } from "./display.js";
+import { setSummary, dateShort, periodLabel, chartGeometry, axisLabel, detailRows, valueText, deltaText, KIND_LABELS } from "./display.js";
 
 const CHART = { w: 358, h: 162 };
 
@@ -68,18 +68,35 @@ function byCycle(entries) {
   return out;
 }
 
+/* Le libellé n'est plus rendu au-dessus du cadre : c'est la tête de fiche qui
+   nomme la valeur depuis #49. Il reste le nom accessible du tracé — un lecteur
+   d'écran n'a pas la mise en page pour rattacher l'un à l'autre. */
 function Chart({ geo, mode, label, note }) {
   return (
     <>
-      <div className="mt-5 text-sm text-ink-muted">{label}</div>
-      <svg width={CHART.w} height={CHART.h} viewBox={`0 0 ${CHART.w} ${CHART.h}`} className="block mt-1 max-w-full" role="img" aria-label={label}>
+      <svg width={CHART.w} height={CHART.h} viewBox={`0 0 ${CHART.w} ${CHART.h}`} className="block mt-3 max-w-full" role="img" aria-label={label}>
+        <defs>
+          {/* `currentColor` plutôt qu'un hexadécimal : l'aplat hérite du token
+              du tracé qu'il prolonge, donc les deux ne peuvent pas diverger —
+              et le fichier ne code aucune couleur en dur (#51). */}
+          <linearGradient id="curve-fill" className="text-data-mark" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.16" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+          </linearGradient>
+        </defs>
         {geo.grid.map((g) => (
           <g key={g.value}>
             <line x1={geo.plot.x0} y1={g.y} x2={geo.plot.x1} y2={g.y} className="stroke-data-grid" strokeWidth="1" />
             <text x={geo.plot.x0 - 5} y={g.y + 4} textAnchor="end" className="fill-data-dim" fontSize="11">{axisLabel(g.value, mode.line)}</text>
           </g>
         ))}
-        {/* Les barres d'abord : la charge est le fond sur lequel se lit la
+        {/* L'aplat avant les barres, et non entre elles et la courbe : posé
+            après, il les voilerait, or les lire ensemble est tout l'objet du
+            régime `dual`. */}
+        {geo.polylines.map((pl) => (
+          <polygon key={`${pl.programId}-area`} points={pl.area} fill="url(#curve-fill)" />
+        ))}
+        {/* Les barres ensuite : la charge est le fond sur lequel se lit la
             courbe, pas l'inverse. */}
         {geo.bars.map((b) => (
           <rect key={`${b.date}-${b.x}`} x={b.x} y={b.y} width={b.w} height={b.h} rx="1" className="fill-data-bar" />
@@ -126,6 +143,49 @@ function Chart({ geo, mode, label, note }) {
   );
 }
 
+/* Le seul chiffre que cet écran existe pour donner, rendu comme tel (#49).
+   Avant, « 10RM estimé » était un titre de section de 14 px comme les quatre
+   autres : la page se lisait en cinq dalles de même poids et « est-ce que je
+   progresse » n'avait aucune réponse visuelle. Le libellé n'a pas disparu, il
+   est passé sous le nombre et en plus petit — il nomme la valeur au lieu de lui
+   disputer la place.
+
+   La variation nomme sa base. « Depuis le début de ce cycle » et « depuis la
+   première séance » sont deux nombres différents et le lecteur ne peut pas
+   deviner lequel il regarde ; c'est la seconde qui est affichée, et elle le
+   dit. La date correspondante est juste dessous, dans le compte de séances. */
+function Headline({ data, mode, label }) {
+  const unit = mode.line;
+  return (
+    <div className="mt-5">
+      <div className="flex items-baseline gap-2.5 flex-wrap">
+        {/* Grisé hors fenêtre d'estimation, comme les points de la courbe : un
+            chiffre calculé sur une série de 3 reps ne doit pas être la chose la
+            plus assurée de l'écran. */}
+        <span className={`text-[32px] leading-none font-semibold ${data.dim ? "text-data-dim" : "text-ink"}`}>
+          {valueText(data.value, unit)}
+        </span>
+        {/* En double progression, la valeur de la courbe seule effacerait ce qui
+            la rend lisible : 8 tractions à vide et 8 à +20 kg s'écriraient
+            pareil. */}
+        {mode.kind === "dual" && data.bar > 0 && (
+          <span className="text-base text-ink-soft">
+            {mode.line === "time" ? "charge" : "lest"} {fmt(data.bar)} kg
+          </span>
+        )}
+      </div>
+      <div className="mt-1.5 text-sm text-ink-muted">
+        {label}
+        {/* Absente sur une seule séance — elle *est* la base, et « +0 »
+            annoncerait un plateau au lieu d'une absence de recul. */}
+        {data.delta != null && (
+          <> · <span className="text-ink-soft">{deltaText(data.delta, unit)}</span> depuis la première séance</>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Records({ records, v, copy }) {
   const cell = "flex items-center h-10 border-b border-rule";
   return (
@@ -155,22 +215,38 @@ function Records({ records, v, copy }) {
 
 /* Muscles, équipement, articulations, type : aucune donnée nouvelle, tout
    vient de EXERCISES[id]. #25 avait stocké ces champs pour un générateur et
-   aucun écran ne les avait jamais lus. Le muscle dominant en ambre, les
-   autres en gris : c’est la distinction principal/secondaire, sans légende à
-   lire ni anneau à déchiffrer pour trois valeurs. */
+   aucun écran ne les avait jamais lus.
+
+   Une seule barre empilée depuis #49, là où il y en avait trois dont une
+   ambrée. L'ambre disait ici « muscle principal » alors qu'il veut dire
+   « alerte » partout ailleurs (trois `role="alert"` sur les erreurs de charge)
+   ou « charge prévue » : une couleur, un sens. Et trois barres répétaient trois
+   fois le même axe 0–100 pour des valeurs dont le registre garantit qu'elles
+   somment à 1,0 (`registry.js:35`). La part se lit maintenant comme une part.
+
+   Les largeurs sortent des pourcentages arrondis, et `display.test.js:84`
+   vérifie qu'ils somment à 100 sur **toutes** les entrées du registre : la barre
+   est donc pleine exactement, pas approximativement. Le dominant reste évident
+   sans légende à déchiffrer — c'est le segment le plus large, et le plus clair. */
+const MUSCLE_SHADES = ["bg-share-1", "bg-share-2", "bg-share-3", "bg-share-4"];
+const shadeOf = (i) => MUSCLE_SHADES[i] || MUSCLE_SHADES[MUSCLE_SHADES.length - 1];
+
 function Details({ rows }) {
   const label = "w-36 shrink-0 text-sm text-ink-muted";
   return (
     <>
       <div className="mt-6 text-sm text-ink-muted">Détails</div>
-      <div className="mt-2 flex flex-col gap-1.5">
-        {rows.muscles.map((m) => (
-          <div key={m.key} className="flex items-center gap-2.5">
-            <div className="w-36 shrink-0 text-sm text-ink-soft">{m.label}</div>
-            <div className="flex-1 h-1.5 rounded-full bg-surface-raised">
-              <div className={`h-1.5 rounded-full ${m.dominant ? "bg-data-mark" : "bg-data-mark-muted"}`} style={{ width: `${m.pct}%` }} />
-            </div>
-            <div className="w-10 text-right text-sm text-ink-muted">{m.pct} %</div>
+      <div className="mt-2 flex h-2 rounded-full overflow-hidden bg-surface-raised">
+        {rows.muscles.map((m, i) => (
+          <div key={m.key} className={shadeOf(i)} style={{ width: `${m.pct}%` }} />
+        ))}
+      </div>
+      <div className="mt-2 flex flex-col gap-1">
+        {rows.muscles.map((m, i) => (
+          <div key={m.key} className="flex items-center gap-2">
+            <span className={`w-2 h-2 shrink-0 rounded-sm ${shadeOf(i)}`} />
+            <div className="flex-1 text-sm text-ink-soft">{m.label}</div>
+            <div className="text-sm text-ink-muted">{m.pct} %</div>
           </div>
         ))}
       </div>
@@ -208,7 +284,13 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
   const entries = useMemo(() => exerciseHistory(journal, exerciseId), [journal, exerciseId]);
   const groups = useMemo(() => byCycle(entries), [entries]);
   const records = useMemo(() => recordsFor(entries, unit), [entries, unit]);
-  const geo = useMemo(() => chartGeometry(seriesByCycle(entries, unit), CHART), [entries, unit]);
+  const head = useMemo(() => headline(entries, unit), [entries, unit]);
+  /* Le pas de l'**axe des valeurs**, pas celui de l'exercice : en double
+     progression la courbe trace des reps ou des secondes tandis qu'`incr` est en
+     kilos, et lui appliquer le plancher en incréments graduerait l'axe dans une
+     unité qui n'est pas la sienne. */
+  const axisIncr = mode.line === "kg" && v ? v.incr : null;
+  const geo = useMemo(() => chartGeometry(seriesByCycle(entries, unit), CHART, axisIncr), [entries, unit, axisIncr]);
   /* null pour les quatre ids sans champs de sélection (#25) : une section
      absente, jamais une section vide. */
   const details = useMemo(() => detailRows(v), [v]);
@@ -218,6 +300,10 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
   if (!v) return null;
 
   const copy = COPY[unit] || COPY.kg;
+  /* Un seul libellé pour les deux : la tête de fiche le rend à l'écran, la
+     courbe le garde comme nom accessible. Deux formulations divergentes
+     décriraient le même chiffre de deux façons. */
+  const chartLabel = `${copy.chart}${v.side ? ", par côté" : ""}`;
   const n = entries.length;
   const hasRecords = records.mode === "best" ? records.best != null : records.rows.length > 0;
 
@@ -241,9 +327,12 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
           </div>
         ) : (
           <>
+            {/* La tête de fiche, elle, s'affiche dès la première séance : elle
+                n'a pas besoin de deux points, seulement d'une valeur. */}
+            {head && <Headline data={head} mode={mode} label={chartLabel} />}
             {/* Pas de courbe sur une seule séance : un point isolé n'est pas une
                 progression, et la liste en dessous le dit déjà. */}
-            {geo && n > 1 && <Chart geo={geo} mode={mode} note={copy.note} label={`${copy.chart}${v.side ? ", par côté" : ""}`} />}
+            {geo && n > 1 && <Chart geo={geo} mode={mode} note={copy.note} label={chartLabel} />}
             <div className="mt-1.5 text-xs text-ink-faint">
               {n} séance{n > 1 ? "s" : ""} validée{n > 1 ? "s" : ""} depuis le {dateShort(entries[0].date)}.
             </div>

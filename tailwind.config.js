@@ -57,11 +57,21 @@ module.exports = {
         "ink-inverse": colors.slate[900],     // sur `accent` et `done`
 
         /* ---- Marques de données (courbe, barres, parts) ---- */
-        "data-mark": colors.amber[400],       // courbe, points, muscle dominant
-        "data-mark-muted": colors.slate[600], // muscle secondaire
+        "data-mark": colors.amber[400],       // courbe, points, et l'aplat qui la prolonge
         "data-bar": colors.slate[700],        // barres de charge sous la courbe
         "data-dim": colors.slate[500],        // estimation hors fenêtre de crédibilité
         "data-grid": colors.slate[800],       // lignes de grille
+
+        /* ---- Parts de muscle : une échelle, pas quatre couleurs ----
+           Les segments de la barre empilée, du dominant au plus discret (#49).
+           L'ordre porte le sens : c'est un rang, donc les tokens se lisent
+           comme un rang. Volontairement hors de l'accent — une part de muscle
+           est une donnée de référence, pas quelque chose de vivant. Le
+           dominant se repère à sa largeur et à sa clarté, sans légende. */
+        "share-1": colors.slate[300],
+        "share-2": colors.slate[500],
+        "share-3": colors.slate[600],
+        "share-4": colors.slate[700],         // et tous les suivants
       },
     },
   },
