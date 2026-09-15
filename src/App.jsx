@@ -15,7 +15,8 @@ import { setSummary } from "./display.js";
 import { EXERCISE_IDS } from "./registry.js";
 import ExerciseSheet from "./ExerciseSheet.jsx";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
-import { useLoadPicker, LoadPickerOverlay, LOAD_FIELD_STYLE } from "./LoadPicker.jsx";
+import { useLoadPicker, LoadPickerOverlay, PICKER_FIELD_STYLE } from "./LoadPicker.jsx";
+import { fieldSetup } from "./load-picker.js";
 import { buildBilan } from "./bilan.js";
 import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
 import { LEGACY_DEFINITION } from "./legacy-program.js";
@@ -130,11 +131,15 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
   const nextIdx = Array.from({ length: sets }).findIndex((_, i) => !rowDone(i));
   const rirTarget = /^\d+$/.test(String(phase.rir)) ? String(phase.rir) : null;
 
-  /* #46 : appui long sur un champ de charge, glisser, relâcher. Corriger une
-     charge, c'est un cran d'écart — `v.incr` le connaît, `planned()` donne
-     l'ancre — et le pavé numérique fait payer quatre frappes ce détour. Le tap
-     court garde le clavier : la roue est le chemin rapide, pas une cage. */
-  const picker = useLoadPicker({ incr: v.incr, onCommit: (i, f, value) => onSet(vid, i, f, value) });
+  /* #46 : appui long sur un champ, glisser, relâcher. Corriger une valeur, c'est
+     un cran d'écart — `v.incr` le connaît pour la charge, reps et RIR se comptent
+     un par un — et le pavé numérique fait payer plusieurs frappes ce détour. Le
+     tap court garde le clavier : la roue est le chemin rapide, pas une cage.
+
+     D'abord livrée sur la seule charge, puis étendue aux trois colonnes une fois
+     le geste essayé en salle. `fieldSetup()` porte ce qui les sépare. */
+  const picker = useLoadPicker({ onCommit: (i, f, value) => onSet(vid, i, f, value) });
+  const setupOf = (f) => fieldSetup(f, { unit, incr: v.incr, planLoad: plan.load, repTop: slot.reps[1], rirTarget: num(rirTarget) });
 
   /* Remplit ce qui manque, n'écrase jamais ce qui est là, et lance le repos.
      Sur une série déjà complète, relance simplement le repos : un bouton vert
@@ -196,9 +201,9 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
               <input key={`${i}${f}`} inputMode="decimal" aria-label={`Série ${i + 1} ${f}`}
                 value={row[f] == null ? "" : row[f]}
                 placeholder={f === "w" && plan.load != null ? fmt(plan.load) : ""}
-                {...(f === "w" ? picker.handlers(i, f, num(row[f]), plan.load) : {})}
+                {...picker.handlers(i, f, num(row[f]), setupOf(f))}
                 onChange={(e) => onSet(vid, i, f, e.target.value)}
-                className={`h-11 w-full text-center rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 ${done ? "bg-slate-900 border border-slate-800 text-slate-400" : isNext ? "bg-slate-800 border border-slate-600 text-slate-100" : "bg-slate-800 border border-slate-700 text-slate-100"}`} style={{ fontVariantNumeric: "tabular-nums", ...(f === "w" ? LOAD_FIELD_STYLE : null) }} />
+                className={`h-11 w-full text-center rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 ${done ? "bg-slate-900 border border-slate-800 text-slate-400" : isNext ? "bg-slate-800 border border-slate-600 text-slate-100" : "bg-slate-800 border border-slate-700 text-slate-100"}`} style={{ fontVariantNumeric: "tabular-nums", ...PICKER_FIELD_STYLE }} />
             )),
             /* #42 : remplit depuis « Prévu », marque la série et lance le repos.
                Les champs restent modifiables : corriger, c'est taper par-dessus. */
@@ -210,7 +215,7 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
           ];
         })}
       </div>
-      <LoadPickerOverlay picker={picker.picker} incr={v.incr} unit={unit === "bw" ? "kg" : unit} />
+      <LoadPickerOverlay picker={picker.picker} />
     </div>
   );
 }

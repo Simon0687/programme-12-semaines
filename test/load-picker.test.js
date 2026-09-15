@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { anchorFor, stepsFromDelta, notchValue, notches, LONG_PRESS_MS, MOVE_CANCEL_PX, PX_PER_NOTCH } from "../src/load-picker.js";
+import { anchorFor, stepsFromDelta, notchValue, notches, fieldSetup, COUNT_INCR, LONG_PRESS_MS, MOVE_CANCEL_PX, PX_PER_NOTCH } from "../src/load-picker.js";
 import { num, fmt } from "../src/progression.js";
 import { EXERCISES } from "../src/registry.js";
 
@@ -115,4 +115,48 @@ describe("l'ecriture passe par le format existant", () => {
 
 test("le delai d'ouverture est celui de l'issue", () => {
   assert.equal(LONG_PRESS_MS, 180);
+});
+
+describe("fieldSetup - ce qui separe les trois colonnes", () => {
+  const ctx = { unit: "kg", incr: 2.5, planLoad: 72.5, repTop: 8, rirTarget: 2 };
+
+  test("la charge prend le pas du registre et l'ancre du moteur", () => {
+    assert.deepEqual(fieldSetup("w", ctx), { incr: 2.5, fallback: 72.5, unit: "kg" });
+  });
+
+  test("les reps se comptent un par un, ancrees sur le haut de fourchette", () => {
+    assert.deepEqual(fieldSetup("r", ctx), { incr: COUNT_INCR, fallback: 8, unit: "reps" });
+  });
+
+  test("le RIR se compte un par un, ancre sur la cible de phase", () => {
+    assert.deepEqual(fieldSetup("rir", ctx), { incr: COUNT_INCR, fallback: 2, unit: "RIR" });
+  });
+
+  test("sur un exercice au temps, la colonne des reps est en secondes", () => {
+    assert.equal(fieldSetup("r", { ...ctx, unit: "time" }).unit, "s");
+    assert.equal(fieldSetup("r", { ...ctx, unit: "carry" }).unit, "s");
+  });
+
+  test("la charge reste en kg sur un bw (c'est le lest) et sur un carry", () => {
+    assert.equal(fieldSetup("w", { ...ctx, unit: "bw" }).unit, "kg");
+    assert.equal(fieldSetup("w", { ...ctx, unit: "carry" }).unit, "kg");
+  });
+
+  test("sans cible de RIR - calibration, decharge - il n'y a pas d'ancre de repli", () => {
+    const s = fieldSetup("rir", { ...ctx, rirTarget: null });
+    assert.equal(anchorFor(null, s.fallback), null);
+    assert.equal(anchorFor(1, s.fallback), 1); // une saisie existante ouvre quand meme la roue
+  });
+
+  test("le repli de chaque champ est ce que le bouton de #42 aurait ecrit", () => {
+    assert.equal(fieldSetup("w", ctx).fallback, ctx.planLoad);
+    assert.equal(fieldSetup("r", ctx).fallback, ctx.repTop);
+    assert.equal(fieldSetup("rir", ctx).fallback, ctx.rirTarget);
+  });
+
+  test("un cran de reps ou de RIR reste un entier, et ne descend pas sous zero", () => {
+    assert.equal(notchValue(8, COUNT_INCR, -3), 5);
+    assert.equal(notchValue(1, COUNT_INCR, -4), 0);
+    assert.equal(fmt(notchValue(8, COUNT_INCR, 2)), "10");
+  });
 });

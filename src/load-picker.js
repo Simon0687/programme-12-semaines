@@ -78,3 +78,27 @@ export function notches(anchor, incr, steps, radius = NOTCH_RADIUS) {
   }
   return out;
 }
+
+/* Reps et RIR se comptent un par un : il n'y a pas de registre à consulter pour
+   ça, et pas de demi-répétition. */
+export const COUNT_INCR = 1;
+
+/* Ce qu'il faut à la roue pour un champ donné : son pas, son ancre de repli et
+   l'unité qu'elle affiche. La roue est née sur la charge, où `v.incr` rend
+   l'incrément évident ; reps et RIR l'ont rejointe une fois le geste validé en
+   salle. Le repli de chacun est **ce que le bouton de validation aurait écrit**
+   (#42, `validateRow`) — haut de fourchette pour les reps, cible de phase pour
+   le RIR. La roue et le bouton proposent ainsi le même chiffre : régler à la
+   main, c'est partir d'où le tap automatique serait arrivé.
+
+   `rirTarget` est nul en calibration et en décharge, où la consigne est une
+   fourchette et non un chiffre. Sans saisie, la roue ne s'ouvre alors pas —
+   c'est le cas 3 de #46, appliqué au RIR. */
+export function fieldSetup(field, { unit, incr, planLoad, repTop, rirTarget }) {
+  /* La charge est en kg quelle que soit l'unité du slot : sur un `bw` c'est le
+     lest, sur un `carry` la fonte portée. Seule la colonne des reps change de
+     sens d'une unité à l'autre. */
+  if (field === "w") return { incr, fallback: planLoad, unit: "kg" };
+  if (field === "r") return { incr: COUNT_INCR, fallback: repTop, unit: unit === "time" || unit === "carry" ? "s" : "reps" };
+  return { incr: COUNT_INCR, fallback: rirTarget, unit: "RIR" };
+}
