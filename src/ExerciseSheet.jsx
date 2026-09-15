@@ -71,81 +71,81 @@ function byCycle(entries) {
 function Chart({ geo, mode, label, note }) {
   return (
     <>
-      <div className="mt-5 text-sm text-slate-400">{label}</div>
+      <div className="mt-5 text-sm text-ink-muted">{label}</div>
       <svg width={CHART.w} height={CHART.h} viewBox={`0 0 ${CHART.w} ${CHART.h}`} className="block mt-1 max-w-full" role="img" aria-label={label}>
         {geo.grid.map((g) => (
           <g key={g.value}>
-            <line x1={geo.plot.x0} y1={g.y} x2={geo.plot.x1} y2={g.y} className="stroke-slate-800" strokeWidth="1" />
-            <text x={geo.plot.x0 - 5} y={g.y + 4} textAnchor="end" className="fill-slate-500" fontSize="11">{axisLabel(g.value, mode.line)}</text>
+            <line x1={geo.plot.x0} y1={g.y} x2={geo.plot.x1} y2={g.y} className="stroke-data-grid" strokeWidth="1" />
+            <text x={geo.plot.x0 - 5} y={g.y + 4} textAnchor="end" className="fill-data-dim" fontSize="11">{axisLabel(g.value, mode.line)}</text>
           </g>
         ))}
         {/* Les barres d'abord : la charge est le fond sur lequel se lit la
             courbe, pas l'inverse. */}
         {geo.bars.map((b) => (
-          <rect key={`${b.date}-${b.x}`} x={b.x} y={b.y} width={b.w} height={b.h} rx="1" className="fill-slate-700" />
+          <rect key={`${b.date}-${b.x}`} x={b.x} y={b.y} width={b.w} height={b.h} rx="1" className="fill-data-bar" />
         ))}
         {geo.barTop && (
-          <text x={geo.plot.x1 + 5} y={geo.barTop.y + 4} textAnchor="start" className="fill-slate-500" fontSize="11">
+          <text x={geo.plot.x1 + 5} y={geo.barTop.y + 4} textAnchor="start" className="fill-data-dim" fontSize="11">
             {fmt(geo.barTop.value)} kg
           </text>
         )}
         {/* Une polyligne par cycle : relier deux cycles par-dessus la coupure
             inventerait une continuité qui n'a pas eu lieu. */}
         {geo.polylines.map((pl) => (
-          <polyline key={pl.programId} points={pl.points} fill="none" className="stroke-amber-400" strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" />
+          <polyline key={pl.programId} points={pl.points} fill="none" className="stroke-data-mark" strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round" />
         ))}
         {geo.dots.map((d) => (d.hollow
-          ? <circle key={`${d.x}-${d.y}-h`} cx={d.x} cy={d.y} r="3" className={`fill-slate-900 ${d.dim ? "stroke-slate-500" : "stroke-amber-400"}`} strokeWidth="1.5" />
-          : <circle key={`${d.x}-${d.y}`} cx={d.x} cy={d.y} r="2.5" className={d.dim ? "fill-slate-500" : "fill-amber-400"} />))}
+          ? <circle key={`${d.x}-${d.y}-h`} cx={d.x} cy={d.y} r="3" className={`fill-surface ${d.dim ? "stroke-data-dim" : "stroke-data-mark"}`} strokeWidth="1.5" />
+          : <circle key={`${d.x}-${d.y}`} cx={d.x} cy={d.y} r="2.5" className={d.dim ? "fill-data-dim" : "fill-data-mark"} />))}
         {geo.xLabels.map((l) => (
-          <text key={`${l.x}${l.label}`} x={l.x} y={CHART.h - 12} textAnchor={l.anchor} className="fill-slate-500" fontSize="11">{l.label}</text>
+          <text key={`${l.x}${l.label}`} x={l.x} y={CHART.h - 12} textAnchor={l.anchor} className="fill-data-dim" fontSize="11">{l.label}</text>
         ))}
       </svg>
-      <div className="flex items-center gap-3 flex-wrap text-xs text-slate-500 mt-0.5">
+      <div className="flex items-center gap-3 flex-wrap text-xs text-ink-faint mt-0.5">
         <span className="inline-flex items-center gap-1.5">
-          <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" className="fill-amber-400" /></svg>séance
+          <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" className="fill-data-mark" /></svg>séance
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="2.6" className="fill-slate-900 stroke-amber-400" strokeWidth="1.3" /></svg>
+          <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="2.6" className="fill-surface stroke-data-mark" strokeWidth="1.3" /></svg>
           calibration ou décharge
         </span>
         {geo.dots.some((d) => d.dim) && (
           <span className="inline-flex items-center gap-1.5">
-            <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" className="fill-slate-500" /></svg>estimation peu fiable
+            <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" className="fill-data-dim" /></svg>estimation peu fiable
           </span>
         )}
         {geo.barTop && (
           <span className="inline-flex items-center gap-1.5">
-            <svg width="8" height="8" viewBox="0 0 8 8"><rect x="2" y="0" width="4" height="8" rx="1" className="fill-slate-700" /></svg>
+            <svg width="8" height="8" viewBox="0 0 8 8"><rect x="2" y="0" width="4" height="8" rx="1" className="fill-data-bar" /></svg>
             {mode.line === "time" ? "charge" : "lest"}
           </span>
         )}
       </div>
-      {note && <p className="mt-1.5 text-xs text-slate-500 leading-4">{note}</p>}
+      {note && <p className="mt-1.5 text-xs text-ink-faint leading-4">{note}</p>}
     </>
   );
 }
 
 function Records({ records, v, copy }) {
-  const cell = "flex items-center h-10 border-b border-slate-700";
+  const cell = "flex items-center h-10 border-b border-rule";
   return (
     <>
-      <div className="mt-6 text-sm text-slate-400">Records</div>
-      <div className="mt-0.5 text-xs text-slate-500 leading-4">{copy.rule}</div>
-      <div className="mt-2 border-t border-slate-700">
+      <div className="mt-6 text-sm text-ink-muted">Records</div>
+      <div className="mt-0.5 text-xs text-ink-faint leading-4">{copy.rule}</div>
+      <div className="mt-2 border-t border-rule">
         {records.mode === "best" ? (
           <div className={`${cell} justify-between gap-2`}>
-            <div className="text-sm text-slate-400">{copy.best}</div>
+            <div className="text-sm text-ink-muted">{copy.best}</div>
             <div className="flex items-center gap-4">
-              <span className="text-[15px] font-medium text-slate-100">{records.best}{v.unit === "time" ? " s" : " reps"}</span>
-              <span className="text-sm text-slate-400">{dateShort(records.date)}</span>
+              <span className="text-[15px] font-medium text-ink">{records.best}{v.unit === "time" ? " s" : " reps"}</span>
+              <span className="text-sm text-ink-muted">{dateShort(records.date)}</span>
             </div>
           </div>
         ) : records.rows.map((r) => (
           <div key={r.reps} className={`${cell} gap-2`}>
-            <div className="w-16 shrink-0 text-sm text-slate-400">{r.reps} reps</div>
-            <div className="flex-1 min-w-0 text-[15px] font-medium text-slate-100">{loadText(v, r.load)}</div>
-            <div className="text-sm text-slate-400">{dateShort(r.date)}</div>
+            <div className="w-16 shrink-0 text-sm text-ink-muted">{r.reps} reps</div>
+            <div className="flex-1 min-w-0 text-[15px] font-medium text-ink">{loadText(v, r.load)}</div>
+            <div className="text-sm text-ink-muted">{dateShort(r.date)}</div>
           </div>
         ))}
       </div>
@@ -159,25 +159,25 @@ function Records({ records, v, copy }) {
    autres en gris : c’est la distinction principal/secondaire, sans légende à
    lire ni anneau à déchiffrer pour trois valeurs. */
 function Details({ rows }) {
-  const label = "w-36 shrink-0 text-sm text-slate-400";
+  const label = "w-36 shrink-0 text-sm text-ink-muted";
   return (
     <>
-      <div className="mt-6 text-sm text-slate-400">Détails</div>
+      <div className="mt-6 text-sm text-ink-muted">Détails</div>
       <div className="mt-2 flex flex-col gap-1.5">
         {rows.muscles.map((m) => (
           <div key={m.key} className="flex items-center gap-2.5">
-            <div className="w-36 shrink-0 text-sm text-slate-300">{m.label}</div>
-            <div className="flex-1 h-1.5 rounded-full bg-slate-800">
-              <div className={`h-1.5 rounded-full ${m.dominant ? "bg-amber-400" : "bg-slate-600"}`} style={{ width: `${m.pct}%` }} />
+            <div className="w-36 shrink-0 text-sm text-ink-soft">{m.label}</div>
+            <div className="flex-1 h-1.5 rounded-full bg-surface-raised">
+              <div className={`h-1.5 rounded-full ${m.dominant ? "bg-data-mark" : "bg-data-mark-muted"}`} style={{ width: `${m.pct}%` }} />
             </div>
-            <div className="w-10 text-right text-sm text-slate-400">{m.pct} %</div>
+            <div className="w-10 text-right text-sm text-ink-muted">{m.pct} %</div>
           </div>
         ))}
       </div>
       <div className="mt-3 flex flex-col gap-1.5">
-        {rows.equipement && <div className="flex gap-2.5"><div className={label}>Équipement</div><div className="text-sm text-slate-300">{rows.equipement}</div></div>}
-        {rows.articulations && <div className="flex gap-2.5"><div className={label}>Articulations</div><div className="text-sm text-slate-300">{rows.articulations}</div></div>}
-        {rows.type && <div className="flex gap-2.5"><div className={label}>Type</div><div className="text-sm text-slate-300">{rows.type}</div></div>}
+        {rows.equipement && <div className="flex gap-2.5"><div className={label}>Équipement</div><div className="text-sm text-ink-soft">{rows.equipement}</div></div>}
+        {rows.articulations && <div className="flex gap-2.5"><div className={label}>Articulations</div><div className="text-sm text-ink-soft">{rows.articulations}</div></div>}
+        {rows.type && <div className="flex gap-2.5"><div className={label}>Type</div><div className="text-sm text-ink-soft">{rows.type}</div></div>}
       </div>
     </>
   );
@@ -187,14 +187,14 @@ function HistoryRow({ entry, v }) {
   const kind = KIND_LABELS[entry.kind];
   return (
     <div className="py-2 min-h-[2.5rem] flex items-center justify-between gap-2">
-      <div className="text-sm text-slate-400 inline-flex items-center gap-1.5 flex-wrap">
+      <div className="text-sm text-ink-muted inline-flex items-center gap-1.5 flex-wrap">
         {dateShort(entry.date)}
         {/* Sans nom de séance — définition d'un cycle abîmé (#32) — la date
             seule suffit : c'est l'identité du log (ARCHITECTURE §2.3). */}
         {entry.sessionName && <span>· {entry.sessionName}</span>}
-        {kind && <span className="rounded-full px-2 py-0.5 text-xs bg-slate-800 text-slate-300">{kind}</span>}
+        {kind && <span className="rounded-full px-2 py-0.5 text-xs bg-surface-raised text-ink-soft">{kind}</span>}
       </div>
-      <div className="text-sm text-slate-100 text-right">{setSummary(entry.sets, v)}</div>
+      <div className="text-sm text-ink text-right">{setSummary(entry.sets, v)}</div>
     </div>
   );
 }
@@ -223,8 +223,8 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
 
   return (
     <>
-      <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-700 px-4 pt-1 pb-2">
-        <button onClick={onBack} className="h-11 -ml-2 px-2 inline-flex items-center gap-1 text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-400 rounded">
+      <div className="sticky top-0 z-10 bg-surface border-b border-rule px-4 pt-1 pb-2">
+        <button onClick={onBack} className="h-11 -ml-2 px-2 inline-flex items-center gap-1 text-sm text-ink-soft focus:outline-none focus:ring-2 focus:ring-focus rounded">
           <ChevronLeft size={18} />{backLabel}
         </button>
         <div className="text-xl font-semibold leading-tight">{v.name}</div>
@@ -233,8 +233,8 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
       <div className="px-4 pb-6" style={{ fontVariantNumeric: "tabular-nums" }}>
         {n === 0 ? (
           <div className="mt-6">
-            <div className="text-base font-medium text-slate-100">Jamais fait.</div>
-            <p className="mt-1 text-sm text-slate-400 leading-relaxed">
+            <div className="text-base font-medium text-ink">Jamais fait.</div>
+            <p className="mt-1 text-sm text-ink-muted leading-relaxed">
               Aucune série enregistrée pour cet exercice, dans aucun cycle. La première
               série validée ouvrira ici sa courbe, ses records et son historique.
             </p>
@@ -244,13 +244,13 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
             {/* Pas de courbe sur une seule séance : un point isolé n'est pas une
                 progression, et la liste en dessous le dit déjà. */}
             {geo && n > 1 && <Chart geo={geo} mode={mode} note={copy.note} label={`${copy.chart}${v.side ? ", par côté" : ""}`} />}
-            <div className="mt-1.5 text-xs text-slate-500">
+            <div className="mt-1.5 text-xs text-ink-faint">
               {n} séance{n > 1 ? "s" : ""} validée{n > 1 ? "s" : ""} depuis le {dateShort(entries[0].date)}.
             </div>
 
             {hasRecords && <Records records={records} v={v} copy={copy} />}
 
-            <div className="mt-6 text-sm text-slate-400">Historique</div>
+            <div className="mt-6 text-sm text-ink-muted">Historique</div>
             {/* Un en-tête par cycle, le premier compris. Il ne manquait qu'au
                 groupe le plus récent, et c'est ce qui a fait passer pour un bug
                 une séance du 7 sept. enregistrée dans deux cycles différents
@@ -264,14 +264,14 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
             {groups.map((g, i) => (
               <div key={g.programId}>
                 <div className={`flex items-center gap-2 pb-3 ${i === 0 ? "pt-2" : "pt-4"}`}>
-                  <div className="flex-1 h-px bg-slate-700" />
-                  <div className="text-xs text-slate-500 whitespace-nowrap">
+                  <div className="flex-1 h-px bg-rule" />
+                  <div className="text-xs text-ink-faint whitespace-nowrap">
                     {g.programName ? `${g.programName} · ` : ""}
                     {periodLabel(g.rows[g.rows.length - 1].date, g.rows[0].date)}
                   </div>
-                  <div className="flex-1 h-px bg-slate-700" />
+                  <div className="flex-1 h-px bg-rule" />
                 </div>
-                <div className="divide-y divide-slate-700 border-y border-slate-700">
+                <div className="divide-y divide-rule border-y border-rule">
                   {g.rows.map((e) => <HistoryRow key={`${e.programId}${e.date}${e.slot}`} entry={e} v={v} />)}
                 </div>
               </div>
@@ -281,8 +281,8 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
 
         {v.cue && (
           <>
-            <div className="mt-6 text-sm text-slate-400">Technique</div>
-            <p className="mt-1 text-sm text-slate-300 leading-relaxed">{v.cue}</p>
+            <div className="mt-6 text-sm text-ink-muted">Technique</div>
+            <p className="mt-1 text-sm text-ink-soft leading-relaxed">{v.cue}</p>
           </>
         )}
 
