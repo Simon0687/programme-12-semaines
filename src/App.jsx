@@ -71,29 +71,29 @@ const weekRange = (start, w) => {
 function Section({ title, children, open: o0 = false }) {
   const [open, setOpen] = useState(o0);
   return (
-    <div className="border-b border-slate-700">
-      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between py-3 text-left focus:outline-none focus:ring-2 focus:ring-amber-400 rounded">
-        <span className="font-medium text-slate-100">{title}</span>
-        <ChevronDown size={18} className={`text-slate-400 transition-transform ${open ? "rotate-180" : ""}`} />
+    <div className="border-b border-rule">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between py-3 text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
+        <span className="font-medium text-ink">{title}</span>
+        <ChevronDown size={18} className={`text-ink-muted transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
-      {open && <div className="pb-4 text-sm text-slate-300 leading-relaxed space-y-2">{children}</div>}
+      {open && <div className="pb-4 text-sm text-ink-soft leading-relaxed space-y-2">{children}</div>}
     </div>
   );
 }
 function Field({ label, value, onChange, placeholder, wide, type = "text" }) {
   return (
     <label className={`block ${wide ? "col-span-2" : ""}`}>
-      <span className="text-xs text-slate-400">{label}</span>
+      <span className="text-xs text-ink-muted">{label}</span>
       <input type={type} inputMode={type === "text" ? "text" : "decimal"} value={value || ""} placeholder={placeholder} onChange={(e) => onChange(e.target.value)}
-        className="mt-1 w-full h-11 px-3 rounded-md bg-slate-800 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+        className="mt-1 w-full h-11 px-3 rounded-md bg-surface-raised border border-rule text-ink focus:outline-none focus:ring-2 focus:ring-focus" />
     </label>
   );
 }
 function Btn({ children, onClick, primary, small, disabled }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      className={`${small ? "h-9 px-3 text-sm" : "h-12 px-4 text-base"} rounded-md font-medium inline-flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-40
-        ${primary ? "bg-amber-400 text-slate-900" : "bg-slate-800 text-slate-100 border border-slate-700"}`}>
+      className={`${small ? "h-9 px-3 text-sm" : "h-12 px-4 text-base"} rounded-md font-medium inline-flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-focus disabled:opacity-40
+        ${primary ? "bg-accent text-ink-inverse" : "bg-surface-raised text-ink border border-rule"}`}>
       {children}
     </button>
   );
@@ -156,60 +156,60 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
   };
 
   return (
-    <div className="py-4 border-b border-slate-700">
+    <div className="py-4 border-b border-rule">
       <div className="flex items-start justify-between gap-3">
         <div>
           {/* #17 : le nom ouvre la fiche de l’exercice. La cible existait déjà —
               c’est la première chose qu’on lit — et le chevron la signale. */}
-          <button onClick={() => onOpen(vid)} className="text-left focus:outline-none focus:ring-2 focus:ring-amber-400 rounded">
-            <span className="font-medium text-slate-100 leading-snug">{idx}. {v.name}</span>
-            <ChevronRight size={15} className="inline text-slate-500 ml-1 mb-0.5" />
+          <button onClick={() => onOpen(vid)} className="text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
+            <span className="font-medium text-ink leading-snug">{idx}. {v.name}</span>
+            <ChevronRight size={15} className="inline text-ink-faint ml-1 mb-0.5" />
           </button>
-          <div className="text-sm text-slate-400 mt-0.5">
+          <div className="text-sm text-ink-muted mt-0.5">
             {sets} × {repLabel}{v.side ? " par côté" : ""}, RIR {phase.rir}
-            {failOk && <span className="ml-2 inline-flex items-center gap-1 text-amber-400"><Zap size={13} />dernière série à l'échec OK</span>}
-            {amrap && <span className="ml-2 text-amber-400">S12 : dernière série AMRAP</span>}
+            {failOk && <span className="ml-2 inline-flex items-center gap-1 text-badge"><Zap size={13} />dernière série à l'échec OK</span>}
+            {amrap && <span className="ml-2 text-badge">S12 : dernière série AMRAP</span>}
           </div>
         </div>
-        <button onClick={() => onTimer(slot.rest, v.name)} aria-label="Lancer le repos" className="shrink-0 h-9 px-2 rounded-md bg-slate-800 border border-slate-700 text-slate-300 inline-flex items-center gap-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400">
+        <button onClick={() => onTimer(slot.rest, v.name)} aria-label="Lancer le repos" className="shrink-0 h-9 px-2 rounded-md bg-surface-raised border border-rule text-ink-soft inline-flex items-center gap-1 text-sm focus:outline-none focus:ring-2 focus:ring-focus">
           <Timer size={15} />{Math.floor(slot.rest / 60)}:{String(slot.rest % 60).padStart(2, "0")}
         </button>
       </div>
 
       <div className="mt-2 text-sm">
-        <span className="text-slate-100">Prévu : <span className="text-amber-400 font-medium">{plan.text}</span></span>
-        {plan.why && <span className="text-slate-400"> — {plan.why}</span>}
+        <span className="text-ink">Prévu : <span className="text-accent font-medium">{plan.text}</span></span>
+        {plan.why && <span className="text-ink-muted"> — {plan.why}</span>}
       </div>
-      {last && <div className="text-sm text-slate-400">Dernière fois ({lastEntryLabel(last)}) : {setSummary(last.sets, v)}</div>}
+      {last && <div className="text-sm text-ink-muted">Dernière fois ({lastEntryLabel(last)}) : {setSummary(last.sets, v)}</div>}
 
-      <button onClick={() => setOpen(!open)} className="mt-1 text-sm text-slate-400 inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-amber-400 rounded">
+      <button onClick={() => setOpen(!open)} className="mt-1 text-sm text-ink-muted inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-focus rounded">
         Technique <ChevronDown size={14} className={open ? "rotate-180" : ""} />
       </button>
-      {open && <p className="text-sm text-slate-300 leading-relaxed mt-1">{v.cue}</p>}
+      {open && <p className="text-sm text-ink-soft leading-relaxed mt-1">{v.cue}</p>}
 
       <div className="mt-3 grid gap-2" style={{ gridTemplateColumns: fields.length === 3 ? "2rem 1fr 1fr 1fr 2.75rem" : "2rem 1fr 1fr 2.75rem" }}>
         <div />
-        {cols.map((c) => <div key={c} className="text-xs text-slate-400 text-center">{c}</div>)}
+        {cols.map((c) => <div key={c} className="text-xs text-ink-muted text-center">{c}</div>)}
         <div />
         {Array.from({ length: sets }).map((_, i) => {
           const row = rows[i] || {};
           const done = rowDone(i);
           const isNext = i === nextIdx;
           return [
-            <div key={`n${i}`} className={`text-sm self-center ${done ? "text-emerald-400" : isNext ? "text-slate-100" : "text-slate-400"}`}>S{i + 1}</div>,
+            <div key={`n${i}`} className={`text-sm self-center ${done ? "text-done" : isNext ? "text-ink" : "text-ink-muted"}`}>S{i + 1}</div>,
             ...fields.map((f) => (
               <input key={`${i}${f}`} inputMode="decimal" aria-label={`Série ${i + 1} ${f}`}
                 value={row[f] == null ? "" : row[f]}
                 placeholder={f === "w" && plan.load != null ? fmt(plan.load) : ""}
                 {...picker.handlers(i, f, num(row[f]), setupOf(f))}
                 onChange={(e) => onSet(vid, i, f, e.target.value)}
-                className={`h-11 w-full text-center rounded-md focus:outline-none focus:ring-2 focus:ring-amber-400 ${done ? "bg-slate-900 border border-slate-800 text-slate-400" : isNext ? "bg-slate-800 border border-slate-600 text-slate-100" : "bg-slate-800 border border-slate-700 text-slate-100"}`} style={{ fontVariantNumeric: "tabular-nums", ...PICKER_FIELD_STYLE }} />
+                className={`h-11 w-full text-center rounded-md focus:outline-none focus:ring-2 focus:ring-focus ${done ? "bg-surface border border-rule-faint text-ink-muted" : isNext ? "bg-surface-raised border border-rule-strong text-ink" : "bg-surface-raised border border-rule text-ink"}`} style={{ fontVariantNumeric: "tabular-nums", ...PICKER_FIELD_STYLE }} />
             )),
             /* #42 : remplit depuis « Prévu », marque la série et lance le repos.
                Les champs restent modifiables : corriger, c'est taper par-dessus. */
             <button key={`v${i}`} onClick={() => validateRow(i)}
               aria-label={done ? `Relancer le repos après la série ${i + 1}` : `Valider la série ${i + 1}`}
-              className={`h-11 w-11 rounded-md inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-amber-400 ${done ? "bg-emerald-400 border border-emerald-400 text-slate-900" : isNext ? "bg-slate-800 border border-amber-400 text-amber-400" : "bg-slate-800 border border-slate-700 text-slate-600"}`}>
+              className={`h-11 w-11 rounded-md inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-focus ${done ? "bg-done border border-done text-ink-inverse" : isNext ? "bg-surface-raised border border-accent text-accent" : "bg-surface-raised border border-rule text-ink-dim"}`}>
               <Check size={20} strokeWidth={2.5} />
             </button>,
           ];
@@ -715,36 +715,36 @@ export default function Programme() {
   const ci = state.checkin[weekKey(week)] || {};
   const bilanFilled = BILAN_KEYS.filter((k) => (ci[k] || "") !== "").length;
 
-  if (!loaded) return <div className="min-h-screen bg-slate-900 text-slate-400 flex items-center justify-center">Chargement du journal…</div>;
+  if (!loaded) return <div className="min-h-screen bg-surface text-ink-muted flex items-center justify-center">Chargement du journal…</div>;
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100" style={{ fontVariantNumeric: "tabular-nums" }}>
+    <div className="min-h-screen bg-surface text-ink" style={{ fontVariantNumeric: "tabular-nums" }}>
       <div className="max-w-md mx-auto pb-24">
         {/* #41 : un en-tête par écran, plus un en-tête pour tout le monde.
             C'est la bascule dont tout le reste découle — les flèches de semaine
             n'avaient de sens au-dessus de Séance que parce qu'on pouvait y
             arriver sans avoir choisi. */}
         {screen !== "seance" && screen !== "exercice" && (
-          <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-700 px-4 pt-3 pb-2">
+          <div className="sticky top-0 z-10 bg-surface border-b border-rule px-4 pt-3 pb-2">
             <div className="flex items-center justify-between">
-              <button onClick={() => setWeek(Math.max(1, week - 1))} aria-label="Semaine précédente" className="h-11 w-11 rounded-md bg-slate-800 border border-slate-700 inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-amber-400"><ChevronLeft size={18} /></button>
+              <button onClick={() => setWeek(Math.max(1, week - 1))} aria-label="Semaine précédente" className="h-11 w-11 rounded-md bg-surface-raised border border-rule inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-focus"><ChevronLeft size={18} /></button>
               <div className="text-center">
-                <div className="text-lg font-semibold">Semaine {week} <span className="text-slate-400 font-normal">sur {definition.weeks}</span></div>
-                <div className="text-xs text-slate-400">{weekRange(START, week)} — {phase.label}, RIR {phase.rir}</div>
+                <div className="text-lg font-semibold">Semaine {week} <span className="text-ink-muted font-normal">sur {definition.weeks}</span></div>
+                <div className="text-xs text-ink-muted">{weekRange(START, week)} — {phase.label}, RIR {phase.rir}</div>
               </div>
-              <button onClick={() => setWeek(Math.min(definition.weeks, week + 1))} aria-label="Semaine suivante" className="h-11 w-11 rounded-md bg-slate-800 border border-slate-700 inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-amber-400"><ChevronRight size={18} /></button>
+              <button onClick={() => setWeek(Math.min(definition.weeks, week + 1))} aria-label="Semaine suivante" className="h-11 w-11 rounded-md bg-surface-raised border border-rule inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-focus"><ChevronRight size={18} /></button>
             </div>
           </div>
         )}
 
         {screen === "seance" && (
-          <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-700 px-4 pt-3 pb-2">
+          <div className="sticky top-0 z-10 bg-surface border-b border-rule px-4 pt-3 pb-2">
             {/* Ce que l'en-tête partagé et le rail disaient à eux deux, en deux
                 lignes : quelle séance, quelle semaine, quel jour. */}
             <div className="text-xl font-semibold leading-tight">{session.name}</div>
-            <div className="text-sm text-slate-400 mt-0.5">Semaine {week} · {DAYNAMES[session.day]} {dateLabel(parseLocalDate(dateOf(session.id)))} · {session.sub}</div>
+            <div className="text-sm text-ink-muted mt-0.5">Semaine {week} · {DAYNAMES[session.day]} {dateLabel(parseLocalDate(dateOf(session.id)))} · {session.sub}</div>
             {timer && (
-              <div className={`mt-2 flex items-center justify-between rounded-md px-3 h-11 ${remaining === 0 ? "bg-amber-400 text-slate-900" : "bg-slate-800 border border-slate-700"}`}>
+              <div className={`mt-2 flex items-center justify-between rounded-md px-3 h-11 ${remaining === 0 ? "bg-accent text-ink-inverse" : "bg-surface-raised border border-rule"}`}>
                 <span className="text-sm truncate">{remaining === 0 ? "Repos terminé, à toi" : `Repos — ${timer.label}`}</span>
                 <span className="text-xl font-semibold">{Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}</span>
                 <button onClick={() => setTimer(null)} aria-label="Arrêter le repos" className="ml-2 focus:outline-none"><X size={18} /></button>
@@ -753,7 +753,7 @@ export default function Programme() {
           </div>
         )}
 
-        {loadError && <p role="alert" className="mx-4 mt-3 text-sm text-amber-400">{loadError}</p>}
+        {loadError && <p role="alert" className="mx-4 mt-3 text-sm text-alert">{loadError}</p>}
 
         {/* #15 : rendu ici, hors de tout onglet, pour la même raison que
             loadError — un rappel qu'on ne voit qu'en allant dans le panneau
@@ -761,13 +761,13 @@ export default function Programme() {
             depuis un mois n'y va pas. Masquable pour la session : le voir
             revenir au lancement suivant est le comportement correct. */}
         {!loadError && exportStale && !exportWarnDismissed && (
-          <div className="mx-4 mt-3 flex items-start justify-between gap-3 rounded-md border border-slate-700 bg-slate-800 p-3">
-            <p className="text-sm text-amber-400">
+          <div className="mx-4 mt-3 flex items-start justify-between gap-3 rounded-md border border-rule bg-surface-raised p-3">
+            <p className="text-sm text-notice">
               {lastExport
                 ? `Dernier export il y a ${daysBetween(lastExport, todayIso)} jours. Télécharge une copie du journal : onglet Plan, section Données.`
                 : "Aucune copie de ce journal n'a jamais quitté cet appareil. Télécharge-la : onglet Plan, section Données."}
             </p>
-            <button onClick={() => setExportWarnDismissed(true)} aria-label="Masquer ce rappel" className="shrink-0 h-11 w-11 -my-1 -mr-1 inline-flex items-center justify-center text-slate-400 rounded focus:outline-none focus:ring-2 focus:ring-amber-400">
+            <button onClick={() => setExportWarnDismissed(true)} aria-label="Masquer ce rappel" className="shrink-0 h-11 w-11 -my-1 -mr-1 inline-flex items-center justify-center text-ink-muted rounded focus:outline-none focus:ring-2 focus:ring-focus">
               <X size={18} />
             </button>
           </div>
@@ -775,7 +775,7 @@ export default function Programme() {
 
         {screen === "seance" && (
           <div className="px-4">
-            {!storageOk && !loadError && <p className="text-sm text-amber-400 mt-3">Stockage indisponible ici : les saisies ne survivront pas à la fermeture. Télécharge le journal (onglet Plan) en fin de séance.</p>}
+            {!storageOk && !loadError && <p className="text-sm text-notice mt-3">Stockage indisponible ici : les saisies ne survivront pas à la fermeture. Télécharge le journal (onglet Plan) en fin de séance.</p>}
 
             {/* #41 : le rail de chips est parti. Il faisait doublon avec la
                 liste de Semaine — qui dit la même chose avec plus
@@ -785,27 +785,27 @@ export default function Programme() {
             <div>
               <div>
                 <div className="pt-3 pb-2">
-                  <div className="text-sm text-slate-400">{setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week)} séries dures + abdos. {PHASE_NOTES[phase.id]}</div>
-                  {log.done && <div className="mt-2 text-sm text-emerald-400 inline-flex items-center gap-1"><Check size={15} />Validée le {log.updatedAt && log.updatedAt.slice(0, 10)}. <button onClick={reopen} className="underline text-slate-300 ml-1 focus:outline-none">Rouvrir</button></div>}
+                  <div className="text-sm text-ink-muted">{setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week)} séries dures + abdos. {PHASE_NOTES[phase.id]}</div>
+                  {log.done && <div className="mt-2 text-sm text-done inline-flex items-center gap-1"><Check size={15} />Validée le {log.updatedAt && log.updatedAt.slice(0, 10)}. <button onClick={reopen} className="underline text-ink-soft ml-1 focus:outline-none">Rouvrir</button></div>}
                 </div>
                 <Section title="Échauffement">{prog.WARM[session.warm]}</Section>
                 {session.ex.map(([slotId, n], i) => (
                   <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} state={state}
                     rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onOpen={openExercise} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
-                <div className="pt-4 text-sm text-slate-400">{prog.CORE[session.core].label}</div>
+                <div className="pt-4 text-sm text-ink-muted">{prog.CORE[session.core].label}</div>
                 {prog.CORE[session.core].ex.map(([slotId, n], i) => (
                   <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} state={state}
                     rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onOpen={openExercise} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 {session.after && cardio && (
-                  <p className="text-sm text-slate-400 mt-3">
+                  <p className="text-sm text-ink-muted mt-3">
                     Après la séance : {AFTER_HINTS[session.after](cardio)}
                   </p>
                 )}
                 <label className="block mt-4">
-                  <span className="text-xs text-slate-400">Notes de séance (douleur 0–10, forme, remarques)</span>
-                  <textarea value={log.notes || ""} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Remontées dans le bilan de la semaine." className="mt-1 w-full p-3 rounded-md bg-slate-800 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                  <span className="text-xs text-ink-muted">Notes de séance (douleur 0–10, forme, remarques)</span>
+                  <textarea value={log.notes || ""} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Remontées dans le bilan de la semaine." className="mt-1 w-full p-3 rounded-md bg-surface-raised border border-rule text-ink focus:outline-none focus:ring-2 focus:ring-focus" />
                 </label>
                 {/* #43 : le panneau remplace le bouton — une seule décision, un
                     seul moment. Les deux boutons valident, ils ne diffèrent que
@@ -815,16 +815,16 @@ export default function Programme() {
                     défaut qui attire le pouce. Même motif que la confirmation
                     d'import, plus bas. */}
                 {pendingLight ? (
-                  <div className="mt-4 rounded-md border border-slate-700 bg-slate-800 p-3 space-y-2">
-                    <p className="text-sm text-slate-100 font-medium">Séance plus légère que la précédente</p>
+                  <div className="mt-4 rounded-md border border-rule bg-surface-raised p-3 space-y-2">
+                    <p className="text-sm text-ink font-medium">Séance plus légère que la précédente</p>
                     {pendingLight.map((d) => (
-                      <p key={d.vid} className="text-sm text-slate-400">
-                        {d.name} : <span className="text-slate-100">{loadText(d.v, d.load)}</span> au lieu de <span className="text-slate-100">{loadText(d.v, d.baseLoad)}</span>.
+                      <p key={d.vid} className="text-sm text-ink-muted">
+                        {d.name} : <span className="text-ink">{loadText(d.v, d.load)}</span> au lieu de <span className="text-ink">{loadText(d.v, d.baseLoad)}</span>.
                       </p>
                     ))}
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-ink-muted">
                       {pendingLight.length === 1
-                        ? <>Si c'était volontaire, ta charge de référence ne bouge pas : la prochaine séance repartira de <span className="text-slate-100">{loadText(pendingLight[0].v, pendingLight[0].baseLoad)}</span>.</>
+                        ? <>Si c'était volontaire, ta charge de référence ne bouge pas : la prochaine séance repartira de <span className="text-ink">{loadText(pendingLight[0].v, pendingLight[0].baseLoad)}</span>.</>
                         : "Si c'était volontaire, tes charges de référence ne bougent pas : la prochaine séance repartira d'où tu en étais."}
                     </p>
                     <div className="flex flex-col gap-2 pt-0.5">
@@ -835,7 +835,7 @@ export default function Programme() {
                 ) : (
                   <div className="mt-4 flex items-center gap-3">
                     <Btn primary onClick={askThenValidate}><Check size={18} />{log.done ? "Mettre à jour la séance" : "Valider la séance"}</Btn>
-                    <span className="text-xs text-slate-500">{saveStatus}</span>
+                    <span className="text-xs text-ink-faint">{saveStatus}</span>
                   </div>
                 )}
               </div>
@@ -851,16 +851,16 @@ export default function Programme() {
 
         {screen === "semaine" && (
           <div className="px-4">
-            {cycleNote && <p className="text-sm text-amber-400 mt-3">{cycleNote}</p>}
-            <p className="text-sm text-slate-300 mt-3">{PHASE_NOTES[phase.id]}</p>
+            {cycleNote && <p className="text-sm text-notice mt-3">{cycleNote}</p>}
+            <p className="text-sm text-ink-soft mt-3">{PHASE_NOTES[phase.id]}</p>
             {/* #41 : le compte remplace le badge que portait la barre du bas.
                 Il monte ici parce que Semaine devient l'écran d'accueil : ce
                 qu'on vient y chercher, c'est où on en est. */}
             <div className="mt-5 flex items-baseline justify-between gap-3">
-              <span className="text-sm text-slate-400">Séances de la semaine</span>
-              <span className={`text-sm ${weekDoneCount === prog.SESSIONS.length ? "text-emerald-400" : "text-slate-400"}`}>{weekDoneCount} sur {prog.SESSIONS.length} validées</span>
+              <span className="text-sm text-ink-muted">Séances de la semaine</span>
+              <span className={`text-sm ${weekDoneCount === prog.SESSIONS.length ? "text-done" : "text-ink-muted"}`}>{weekDoneCount} sur {prog.SESSIONS.length} validées</span>
             </div>
-            <div className="mt-2 divide-y divide-slate-700 border-y border-slate-700">
+            <div className="mt-2 divide-y divide-rule border-y border-rule">
               {prog.SESSIONS.map((s) => {
                 const l = findLog(state.logs, dateOf(s.id), s.id);
                 const keySlot = s.ex[0][0];
@@ -873,15 +873,15 @@ export default function Programme() {
                    feuillette une semaine passée. */
                 const isToday = week === curWeek && s.day === weekday;
                 return (
-                  <button key={s.id} onClick={() => openSession(s.id)} className="w-full py-3 flex items-center justify-between text-left focus:outline-none focus:ring-2 focus:ring-amber-400 rounded">
+                  <button key={s.id} onClick={() => openSession(s.id)} className="w-full py-3 flex items-center justify-between text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
                     <div>
                       <div className="font-medium inline-flex items-center gap-2 flex-wrap">
-                        {l && l.done ? <Check size={16} className="text-emerald-400" /> : <span className="w-4 h-4 rounded-full border border-slate-600 inline-block" />}{s.name} <span className="text-slate-400 font-normal text-sm">{DAYNAMES[s.day]}</span>
-                        {isToday && <span className="rounded-full px-2 py-0.5 text-xs bg-amber-400 text-slate-900 font-medium">aujourd'hui</span>}
+                        {l && l.done ? <Check size={16} className="text-done" /> : <span className="w-4 h-4 rounded-full border border-rule-strong inline-block" />}{s.name} <span className="text-ink-muted font-normal text-sm">{DAYNAMES[s.day]}</span>
+                        {isToday && <span className="rounded-full px-2 py-0.5 text-xs bg-accent text-ink-inverse font-medium">aujourd'hui</span>}
                       </div>
-                      <div className="text-sm text-slate-400 pl-6">{prog.V[vid].name} : {sets.length ? setSummary(sets, prog.V[vid]) : "—"}</div>
+                      <div className="text-sm text-ink-muted pl-6">{prog.V[vid].name} : {sets.length ? setSummary(sets, prog.V[vid]) : "—"}</div>
                     </div>
-                    <ChevronRight size={16} className="text-slate-500" />
+                    <ChevronRight size={16} className="text-ink-faint" />
                   </button>
                 );
               })}
@@ -892,7 +892,7 @@ export default function Programme() {
                 perdue dans le rail de Séance. */}
             {hasCardioContent(prog) && (
               <div className="mt-5">
-                <div className="text-sm text-slate-400">Cardio et mobilité</div>
+                <div className="text-sm text-ink-muted">Cardio et mobilité</div>
                 <div className="mt-2">
                   <CardioView prog={prog} week={week} cardio={cardio} ca={ca} setCardio={setCardio} toggleMob={toggleMob} compact />
                 </div>
@@ -903,8 +903,8 @@ export default function Programme() {
                 semaine — replié, avec son état lisible sans déplier. Réutilise
                 le <Section> de l'onglet Plan plutôt que d'inventer un second
                 accordéon. */}
-            <div className="mt-5 border-t border-slate-700">
-              <Section title={<>Bilan de la semaine <span className={bilanFilled === 0 ? "font-normal text-amber-400" : bilanFilled === BILAN_FIELDS ? "font-normal text-emerald-400" : "font-normal text-slate-400"}>· {bilanFilled === 0 ? "à remplir" : bilanFilled === BILAN_FIELDS ? "complet" : `${bilanFilled} sur ${BILAN_FIELDS}`}</span></>}>
+            <div className="mt-5 border-t border-rule">
+              <Section title={<>Bilan de la semaine <span className={bilanFilled === 0 ? "font-normal text-notice" : bilanFilled === BILAN_FIELDS ? "font-normal text-done" : "font-normal text-ink-muted"}>· {bilanFilled === 0 ? "à remplir" : bilanFilled === BILAN_FIELDS ? "complet" : `${bilanFilled} sur ${BILAN_FIELDS}`}</span></>}>
                 <p>À remplir le dimanche, puis à envoyer dans le chat. Séances, exos clés et notes de séance sont repris automatiquement. Indispensable à saisir : poids et RIR. Le reste est optionnel.</p>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Poids moyen 7 pesées (kg)" value={ci.poids} onChange={(v) => setCheck("poids", v)} type="number" />
@@ -928,7 +928,7 @@ export default function Programme() {
                     chat, là où on l'envoie. */}
                 <div className="flex items-center gap-3">
                   <Btn primary onClick={downloadBilan}><Download size={16} />Télécharger le bilan</Btn>
-                  <span className="text-xs text-slate-500">{bilanStatus}</span>
+                  <span className="text-xs text-ink-faint">{bilanStatus}</span>
                 </div>
               </Section>
             </div>
@@ -937,7 +937,7 @@ export default function Programme() {
 
         {screen === "plan" && (
           <div className="px-4">
-            <p className="text-sm text-slate-300 mt-3">{PLAN_INTRO}</p>
+            <p className="text-sm text-ink-soft mt-3">{PLAN_INTRO}</p>
             <PlanContent plan={plan} />
             <Section title="Programme">
               <p>{definition.name} — départ {dateLabel(START)}</p>
@@ -945,7 +945,7 @@ export default function Programme() {
                 <Btn small onClick={() => fileInputRef.current.click()}>Charger un programme</Btn>
               </div>
               <input ref={fileInputRef} type="file" accept="application/json" onChange={handleProgramFile} className="hidden" />
-              {programError && <p role="alert" className="text-sm text-amber-400">{programError}</p>}
+              {programError && <p role="alert" className="text-sm text-alert">{programError}</p>}
               {Object.keys(journal.programs).length > 1 && (
                 <div className="flex gap-2 flex-wrap">
                   {Object.entries(journal.programs).map(([id, p]) => (
@@ -957,7 +957,7 @@ export default function Programme() {
                 </div>
               )}
               {unusable.size > 0 && (
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-ink-muted">
                   {unusable.size === 1 ? "Un cycle enregistré n'est pas exécutable" : `${unusable.size} cycles enregistrés ne sont pas exécutables`} par cette version : ils restent dans le journal et dans l'export, mais ne peuvent pas être activés.
                 </p>
               )}
@@ -973,23 +973,23 @@ export default function Programme() {
                   chemin « ancre », l'app ne peut pas savoir si le fichier a
                   atterri (decisions-spec.md Q2) — la montrer est ce qui rend
                   une valeur optimiste vérifiable. */}
-              <p className="text-xs text-slate-400">{lastExport ? `Dernier export : ${dateLabel(parseLocalDate(lastExport))}.` : "Aucun export enregistré sur cet appareil."}</p>
+              <p className="text-xs text-ink-muted">{lastExport ? `Dernier export : ${dateLabel(parseLocalDate(lastExport))}.` : "Aucun export enregistré sur cet appareil."}</p>
               {/* #15 : dire ce que le navigateur a répondu, en clair. Un
                   stockage « éligible à l'éviction » est la raison d'être de
                   tout ce panneau — la nommer vaut mieux que la sous-entendre. */}
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-ink-muted">
                 {persisted === true
                   ? "Le navigateur a marqué ce stockage comme persistant : il ne sera pas vidé pour faire de la place."
                   : persisted === false
                     ? "Le navigateur n'a pas accordé de stockage persistant : il peut vider ces données pour faire de la place. Le fichier reste la vraie sauvegarde."
                     : "Ce navigateur ne dit pas si le stockage est persistant."}
               </p>
-              {exportStatus && <p className="text-xs text-slate-300">{exportStatus}</p>}
-              {importError && <p role="alert" className="text-sm text-amber-400">{importError}</p>}
+              {exportStatus && <p className="text-xs text-ink-soft">{exportStatus}</p>}
+              {importError && <p role="alert" className="text-sm text-alert">{importError}</p>}
               {pendingImport && (
-                <div className="rounded-md border border-slate-700 bg-slate-800 p-3 space-y-2">
-                  <p className="text-sm text-slate-100">{pendingImport.name}</p>
-                  <p className="text-sm text-slate-400">Remplacera le journal de cet appareil. Une copie de l'actuel est enregistrée avant, et reste téléchargeable ci-dessous.</p>
+                <div className="rounded-md border border-rule bg-surface-raised p-3 space-y-2">
+                  <p className="text-sm text-ink">{pendingImport.name}</p>
+                  <p className="text-sm text-ink-muted">Remplacera le journal de cet appareil. Une copie de l'actuel est enregistrée avant, et reste téléchargeable ci-dessous.</p>
                   <div className="flex gap-2 flex-wrap">
                     <Btn small primary onClick={() => { const p = pendingImport; setPendingImport(null); importData(p.res); }}>Remplacer le journal</Btn>
                     <Btn small onClick={() => setPendingImport(null)}>Annuler</Btn>
@@ -1013,10 +1013,10 @@ export default function Programme() {
           </div>
         )}
 
-        {toast && <div className="fixed left-1/2 -translate-x-1/2 bottom-20 bg-amber-400 text-slate-900 px-4 py-2 rounded-md text-sm font-medium shadow-none">{toast}</div>}
+        {toast && <div className="fixed left-1/2 -translate-x-1/2 bottom-20 bg-accent text-ink-inverse px-4 py-2 rounded-md text-sm font-medium shadow-none">{toast}</div>}
 
         {/* Navigation */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700">
+        <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-rule">
           {/* #41 : le badge de progression est parti avec cet onglet — il vit
               maintenant en tête de la liste des séances, sur l'écran où l'on
               atterrit et où l'on venait le lire. */}
@@ -1026,8 +1026,8 @@ export default function Programme() {
               l'on retourne. C'est ce qui permet à Séance de n'avoir aucune
               flèche de retour. */}
           <div className="max-w-md mx-auto grid grid-cols-2">
-            <button onClick={goSemaine} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${screen !== "plan" ? "text-amber-400 font-medium" : "text-slate-400"}`}>Semaine</button>
-            <button onClick={goPlan} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 ${screen === "plan" ? "text-amber-400 font-medium" : "text-slate-400"}`}>Plan</button>
+            <button onClick={goSemaine} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen !== "plan" ? "text-accent font-medium" : "text-ink-muted"}`}>Semaine</button>
+            <button onClick={goPlan} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen === "plan" ? "text-accent font-medium" : "text-ink-muted"}`}>Plan</button>
           </div>
         </nav>
       </div>
@@ -1043,7 +1043,7 @@ function Block({ block }) {
       <table className="w-full text-sm">
         <tbody>
           {block.rows.map(([a, b]) => (
-            <tr key={a} className="border-t border-slate-700"><td className="py-1.5 pr-3 text-slate-400 whitespace-nowrap align-top">{a}</td><td className="py-1.5">{b}</td></tr>
+            <tr key={a} className="border-t border-rule"><td className="py-1.5 pr-3 text-ink-muted whitespace-nowrap align-top">{a}</td><td className="py-1.5">{b}</td></tr>
           ))}
         </tbody>
       </table>
@@ -1053,7 +1053,7 @@ function Block({ block }) {
       <table className="w-full text-sm">
         <tbody>
           {block.rows.map(([g, n, o]) => (
-            <tr key={g} className="border-t border-slate-700"><td className="py-1.5 pr-2">{g}</td><td className="py-1.5 pr-2 text-amber-400 text-right">{n}</td><td className="py-1.5 text-slate-400">{o}</td></tr>
+            <tr key={g} className="border-t border-rule"><td className="py-1.5 pr-2">{g}</td><td className="py-1.5 pr-2 text-accent text-right">{n}</td><td className="py-1.5 text-ink-muted">{o}</td></tr>
           ))}
         </tbody>
       </table>
@@ -1072,25 +1072,25 @@ function CardioView({ prog, week, cardio, ca, setCardio, toggleMob, compact }) {
   return (
     <div>
       {!compact && <div className="text-xl font-semibold pb-1">Cardio et mobilité, semaine {week}</div>}
-      <div className="divide-y divide-slate-700 border-y border-slate-700">
+      <div className="divide-y divide-rule border-y border-rule">
         {hasCardioItems(prog) && prog.CARDIO_ITEMS.map((it) => {
           const plan = it.id === "int" ? cardio.intervals : cardio.z2;
           const d = ca[it.id] || {};
           if (it.id === "int" && !plan) return (
-            <div key={it.id} className="py-3 text-sm text-slate-400">Pas d'intervalles cette semaine (calibration, décharge ou bilan) : Z2 uniquement.</div>
+            <div key={it.id} className="py-3 text-sm text-ink-muted">Pas d'intervalles cette semaine (calibration, décharge ou bilan) : Z2 uniquement.</div>
           );
           return (
             <div key={it.id} className="py-3">
               <label className="flex items-start gap-3">
-                <input type="checkbox" checked={!!d.done} onChange={(e) => setCardio(it.id, "done", e.target.checked)} className="mt-1 h-5 w-5 accent-amber-400" />
+                <input type="checkbox" checked={!!d.done} onChange={(e) => setCardio(it.id, "done", e.target.checked)} className="mt-1 h-5 w-5 accent-accent" />
                 <div>
-                  <div className="font-medium">{it.label} <span className="text-slate-400 font-normal text-sm">{it.when}</span></div>
-                  <div className="text-sm text-slate-400">{plan}</div>
+                  <div className="font-medium">{it.label} <span className="text-ink-muted font-normal text-sm">{it.when}</span></div>
+                  <div className="text-sm text-ink-muted">{plan}</div>
                 </div>
               </label>
               <div className="grid grid-cols-3 gap-2 mt-2 pl-8">
                 {[["min", "min"], ["w", "W moyen"], ["hr", "bpm moyen"]].map(([f, l]) => (
-                  <input key={f} inputMode="decimal" aria-label={`${it.label} ${l}`} placeholder={l} value={d[f] || ""} onChange={(e) => setCardio(it.id, f, e.target.value)} className="h-10 w-full text-center rounded-md bg-slate-800 border border-slate-700 text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                  <input key={f} inputMode="decimal" aria-label={`${it.label} ${l}`} placeholder={l} value={d[f] || ""} onChange={(e) => setCardio(it.id, f, e.target.value)} className="h-10 w-full text-center rounded-md bg-surface-raised border border-rule text-ink focus:outline-none focus:ring-2 focus:ring-focus" />
                 ))}
               </div>
             </div>
@@ -1099,10 +1099,10 @@ function CardioView({ prog, week, cardio, ca, setCardio, toggleMob, compact }) {
         {hasMobilityDays(prog) && (
           <div className="py-3">
             <div className="font-medium">Mobilité, 3 fois par semaine</div>
-            <div className="text-sm text-slate-400">{cardio.mob}</div>
+            <div className="text-sm text-ink-muted">{cardio.mob}</div>
             <div className="flex gap-4 mt-2">
               {prog.MOB_DAYS.map((d, i) => (
-                <label key={d} className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={!!(ca.mob && ca.mob[i])} onChange={() => toggleMob(i)} className="h-5 w-5 accent-amber-400" />{d}</label>
+                <label key={d} className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={!!(ca.mob && ca.mob[i])} onChange={() => toggleMob(i)} className="h-5 w-5 accent-accent" />{d}</label>
               ))}
             </div>
           </div>
