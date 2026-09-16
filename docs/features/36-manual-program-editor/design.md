@@ -250,6 +250,45 @@ keeps the testable half testable (§2.6).
 7. **Drag-and-drop reordering** is not attempted: arrows only, which also keeps the
    component free of gesture state.
 
+## Amendements à l'écriture (2026-09-16)
+
+Trois écarts au plan ci-dessus, décidés en codant et livrés avec lui.
+
+1. **Les étapes 3 à 6 sont un seul commit** (`feat(editor): compose, name and
+   save a program from the app`). Le découpage visait des incréments testables
+   un par un ; sans l'enregistrement, aucun des trois premiers ne se teste dans
+   l'appli, et chacun réécrivait le balisage du précédent. Les étapes 1, 2 et 7
+   gardent leur commit.
+
+2. **La clé d'un échauffement n'est pas un titre, contrairement à ce
+   qu'affirme la section « Échauffements et gainage » ci-dessus.** `WARM[clé]`
+   est un texte nu et l'appli n'affiche jamais la clé — la séance rend le texte
+   sous le titre « Échauffement » (`App.jsx:832`). La faire éditer revenait à
+   appeler `renameWarm` à chaque frappe, donc à re-slugger le champ à chaque
+   caractère : l'espace finale disparaît, et « Haut du corps » est impossible à
+   taper. L'écran désigne donc chaque échauffement par son rang et ses premiers
+   mots, ne propose pas de le renommer, et les clés d'un programme importé
+   (`upper`, `lower`) ne sont plus réécrites du tout — ce qui sert aussi le
+   critère d'aller-retour. `renameWarm` reste dans `program-editor.js`, testé,
+   sans appelant. `CORE[clé].label`, lui, est bien affiché (`App.jsx:837`) et
+   reste éditable : l'asymétrie du format est réelle, c'est sa lecture qui était
+   fausse.
+
+3. **Le dimanche cesse d'être un jour bancal** (suivi 6, la moitié qui ne
+   décide de rien). `day` est un décalage de 1 à 7 depuis `startDate`, mais
+   `App.jsx` indexait `DAYNAMES` avec la convention de `Date#getDay()` : `day: 7`
+   affichait « undefined » dans la liste Semaine et en tête de Séance, et la
+   pastille « aujourd'hui » ne pouvait jamais s'allumer un dimanche. `dayName()`
+   vit maintenant dans `display.js`, indexé sur le décalage, et la pastille
+   compare `weekday || 7`. Offrir le dimanche « comme les six autres » supposait
+   qu'il se comporte comme eux. La contradiction de fond — un `startDate` qui ne
+   tomberait pas un lundi — n'est pas tranchée pour autant : elle reste #33.
+
+Un constat sans décision, pour l'étape suivante : `kettlebell` figure dans le
+vocabulaire `EQUIPMENT` du registre et aucune entrée ne le porte. La facette
+n'est donc pas proposée (`FACET_VALUES`, `exercise-filter.js`), et un test le
+consigne — il tombera le jour où un exercice au kettlebell entrera au registre.
+
 ## Open questions
 
 None. The three raised by this design were answered by Simon on 2026-09-16, against
