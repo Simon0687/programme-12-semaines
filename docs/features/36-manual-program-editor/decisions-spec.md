@@ -4,7 +4,8 @@ Source: spec.md
 Scope: product / requirement choices only. The implementation round will get its
 own `decisions.md` beside this file, once `/design-tech 36` has produced
 `design.md`.
-Status: Q1 and Q3 answered by Simon 2026-09-15; Q2, Q4, Q5 awaiting his answers
+Status: Q1 and Q3 answered by Simon 2026-09-15; Q2, Q4 and Q5 answered 2026-09-16 —
+all four recommendations validated. `/design-tech 36` has run.
 
 ---
 
@@ -106,7 +107,16 @@ exact scenario the editor exists for. B is reversible in the permissive directio
 (relaxing a locked field later costs nothing); A is not reversible at all, since the
 cycles it split cannot be merged back.
 
-**Simon's decision.** _(à remplir)_
+**Simon's decision.** **B**, 2026-09-16 — recommendation validated. The rule lands
+as a pure predicate over the active cycle's logs (`src/program-editor.js`), and the
+escape from a locked field is "modifier dans un nouveau cycle", not a warning.
+
+**Sequencing, decided the same day.** B is the target, not the first delivery: the
+editing surface ships first, saving a new cycle every time (`design.md`, steps 1-7),
+and B lands as the issue that follows (step 8). Simon: *"le plus simple possible,
+les règles apparaîtront après."* Nothing about the answer changes — until B ships,
+an edit to a running program costs what option A costs, which is why it is the first
+follow-up to open and not a "later".
 
 ---
 
@@ -141,7 +151,8 @@ down for twenty minutes, not between two sets, and B stays available the day tha
 proves wrong — it adds a key, it changes no format. If the first real use says
 otherwise, B is a small follow-up issue.
 
-**Simon's decision.** _(à remplir)_
+**Simon's decision.** **A**, 2026-09-16 — recommendation validated. No draft is
+stored; leaving the editor with unsaved content asks for a confirmation.
 
 ---
 
@@ -183,15 +194,18 @@ and the panel is a follow-up that costs an afternoon. The sub-question worth
 answering now is the one in the Cons — whether the editor asks for a target duration
 and a theme, which would also be the first fields the future engine reuses verbatim.
 
-**Simon's decision.** _(à remplir)_
+**Simon's decision.** **B**, 2026-09-16 — recommendation validated, *including its
+sequencing*: this editor ships with no assertions panel at all, and the live panel
+(assertions 1–4) is a follow-up issue opened once #37 has shipped. The sub-question
+— whether the editor asks for a target duration and a theme — travels with that
+follow-up, not with this issue.
 
 ---
 
-## How to apply
+## How to apply — done 2026-09-16
 
-Once Simon fills in each "Simon's decision", the answers fold back into `spec.md`:
-resolved points move out of **Open questions** into the section they belong to
-(Q2 into Acceptance criteria and Edge cases, Q4 into Data & storage impact, Q5 into
-Out of scope), and **Open questions** ends as "None". Q1 and Q3 are already applied
-below their headings here and should be folded in at the same time. Then
-`/design-tech 36`.
+The five answers are folded into `spec.md`: Q2 into User-facing behaviour, the
+Acceptance criteria and the Edge cases; Q4 into Data & storage impact; Q5 into Out
+of scope; Q1 and Q3 into Scope and Edge cases. `spec.md`'s **Open questions** now
+reads "None", and `design.md` (`/design-tech 36`) carries the implementation
+questions that remain.
