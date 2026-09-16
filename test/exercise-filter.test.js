@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { filterExercises, MUSCLE_GROUPS, PATTERNS, EQUIPMENT } from "../src/exercise-filter.js";
+import { filterExercises, FACET_VALUES, MUSCLE_GROUPS, PATTERNS, EQUIPMENT } from "../src/exercise-filter.js";
 import { EXERCISES, UNSELECTABLE_IDS } from "../src/registry.js";
 
 const ids = (...args) => filterExercises(...args).map((e) => e.id);
@@ -99,5 +99,24 @@ describe("facettes", () => {
     assert.deepEqual(vides, ["kettlebell"]);
     assert.deepEqual(MUSCLE_GROUPS.filter((muscle) => ids("", { muscle }).length === 0), []);
     assert.deepEqual(PATTERNS.filter((pattern) => ids("", { pattern }).length === 0), []);
+  });
+});
+
+describe("FACET_VALUES : ce que le sélecteur propose", () => {
+  test("chaque valeur proposée rend au moins un exercice", () => {
+    for (const [key, values] of Object.entries(FACET_VALUES)) {
+      for (const v of values) assert.ok(ids("", { [key]: v }).length > 0, `${key} = ${v}`);
+    }
+  });
+
+  test("kettlebell est dans le vocabulaire, pas dans les facettes proposées", () => {
+    assert.ok(EQUIPMENT.includes("kettlebell"));
+    assert.equal(FACET_VALUES.equipment.includes("kettlebell"), false);
+  });
+
+  test("rien d'autre n'est écarté des vocabulaires", () => {
+    assert.deepEqual(FACET_VALUES.muscle, MUSCLE_GROUPS);
+    assert.deepEqual(FACET_VALUES.pattern, PATTERNS);
+    assert.deepEqual(FACET_VALUES.equipment, EQUIPMENT.filter((e) => e !== "kettlebell"));
   });
 });

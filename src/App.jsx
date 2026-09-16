@@ -1,19 +1,21 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Download, Upload, Zap, X } from "lucide-react";
 import { SCHEMA_VERSION, emptyJournal, weekKey, dateForSlot, findLog, writeLog, withVersion } from "./schema.js";
-import { parseJournalImport, parseProgramImport } from "./import.js";
+import { parseJournalImport, parseProgramImport, IMPORT_MESSAGES } from "./import.js";
 import { listBackups, readDroppedBackup, backupPreImportOnce, readPreImportBackup } from "./backup.js";
 import { createStore, loadJournal, saveJournal } from "./storage.js";
 import { saveFile, readFile } from "./file-io.js";
 import { readScreen, writeScreen, resolveScreen } from "./screen-state.js";
 import { readLastExport, writeLastExport, toIsoDate, isExportStale, journalHasContent, daysBetween } from "./export-state.js";
-import { unusableProgramIds } from "./journal-shape.js";
+import { unusableProgramIds, validateDefinition } from "./journal-shape.js";
 import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind, workingSets, loadDrops, loadText } from "./progression.js";
-import { setSummary } from "./display.js";
+import { setSummary, dayName } from "./display.js";
 import { EXERCISE_IDS } from "./registry.js";
 import ExerciseSheet from "./ExerciseSheet.jsx";
+import ProgramEditor from "./ProgramEditor.jsx";
+import { emptyDraft, draftFrom, withNewId, toDefinition, isDirty } from "./program-editor.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { useLoadPicker, LoadPickerOverlay, PICKER_FIELD_STYLE } from "./LoadPicker.jsx";
 import { fieldSetup } from "./load-picker.js";
@@ -58,7 +60,6 @@ const LOAD_ERROR_MESSAGE = "Le journal enregistré n'a pas pu être lu. Rien n'a
 const BILAN_KEYS = ["poids", "taille", "sommeil", "energie", "rir", "nutrition", "remarques"];
 const BILAN_FIELDS = BILAN_KEYS.length;
 const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
-const DAYNAMES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 const addDays = (d, n) =>{ const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const dateLabel = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
@@ -290,6 +291,16 @@ export default function Programme() {
   const [pendingLight, setPendingLight] = useState(null); // exercices descendus sous la référence, question posée (#43)
   const [loadError, setLoadError] = useState("");
   const [programError, setProgramError] = useState(""); // #6 : rejet d'un fichier de programme
+  /* #36 : le brouillon de l'éditeur vit ici et nulle part ailleurs — rien
+     n'est écrit tant que « Enregistrer » n'a pas été touché (Q4). "editeur"
+     n'est volontairement pas un écran de screen-state.js : writeScreen refuse
+     un écran qu'il ne connaît pas, si bien qu'un rechargement en pleine
+     édition rouvre le dernier écran écrit, Plan — qui est de toute façon le
+     retour de l'éditeur. Aucun brouillon ne survit, ce qui répond à Q4 sans
+     une ligne de code de plus. */
+  const [editor, setEditor] = useState(null);
+  const [editorError, setEditorError] = useState(""); // verdict du validateur au moment d'enregistrer
+  const [pendingLeave, setPendingLeave] = useState(null); // sortie demandée alors que le brouillon a changé
   const [backups, setBackups] = useState([]); // [{ from, value }] — sauvegardes d'avant-migration (#8)
   const [droppedBackup, setDroppedBackup] = useState(null); // copie d'avant filtrage des lignes illisibles (#32)
   const [preImportBackup, setPreImportBackup] = useState(null); // copie d'avant le premier import (#11)
@@ -661,7 +672,7 @@ export default function Programme() {
 
   /* #6 : un id déjà présent reprend son cycle (logs/cardio/checkin intacts,
      definition rafraîchie) — jamais de journal écrasé par un rechargement. */
-  const loadProgram = (definition) => {
+  const loadProgram = (definition, toast) => {
     const existing = journal.programs[definition.id];
     setJournal((j) => ({
       ...j,
@@ -671,7 +682,37 @@ export default function Programme() {
         [definition.id]: existing ? { ...j.programs[definition.id], definition } : { definition, logs: {}, cardio: {}, checkin: {} },
       },
     }));
-    showToast(existing ? "Cycle repris." : "Programme chargé.");
+    showToast(toast || (existing ? "Cycle repris." : "Programme chargé."));
+  };
+
+  /* ---------- Éditeur de programme (#36) ----------
+     Deux portes vers le même écran : composer à blanc, ou partir du
+     programme actif. La seconde ne touche pas au cycle en cours — ce lot
+     enregistre toujours un nouveau cycle, si bien que la branche « id déjà
+     présent » de loadProgram() n'est jamais atteinte depuis ici. Corriger un
+     cycle en place est l'issue suivante (design.md, étape 8). */
+  const openEditor = (draft) => { setEditorError(""); setEditor(draft); setNav({ screen: "editeur", sessionId: null }); };
+  const closeEditor = (then) => { setEditor(null); setPendingLeave(null); setEditorError(""); then(); };
+  /* Un brouillon modifié ne se perd pas sur un tap. Même panneau à deux
+     boutons que l'import (#11) plutôt que window.confirm : la question se lit
+     dans l'appli, et le bouton qui détruit n'est pas celui qu'on touche par
+     réflexe. isDirty compare au brouillon d'ouverture, donc défaire ses
+     modifications fait taire la question. */
+  const askLeave = (then) => (editor && isDirty(editor) ? setPendingLeave(() => () => closeEditor(then)) : closeEditor(then));
+  const guarded = (dest) => () => (screen === "editeur" ? askLeave(dest) : dest());
+
+  /* L'enregistrement passe par le validateur partagé, celui des deux portes
+     d'import (ARCHITECTURE §2.9) : l'éditeur n'a aucune règle de forme à lui,
+     et un brouillon refusé n'écrit rien. L'id n'est décidé qu'ici — withNewId
+     lit les cycles déjà présents pour ne pas en écraser un. */
+  const saveDraft = () => {
+    const composed = toDefinition(withNewId(editor, Object.keys(journal.programs)));
+    const bad = validateDefinition(composed);
+    if (bad) { setEditorError(bad.message || IMPORT_MESSAGES[bad.reason] || "Ce programme n'a pas pu être enregistré."); return; }
+    setEditorError("");
+    setEditor(null);
+    loadProgram(composed, "Programme enregistré.");
+    goSemaine();
   };
 
   const handleProgramFile = async (e) => {
@@ -724,7 +765,7 @@ export default function Programme() {
             C'est la bascule dont tout le reste découle — les flèches de semaine
             n'avaient de sens au-dessus de Séance que parce qu'on pouvait y
             arriver sans avoir choisi. */}
-        {screen !== "seance" && screen !== "exercice" && (
+        {screen !== "seance" && screen !== "exercice" && screen !== "editeur" && (
           <div className="sticky top-0 z-10 bg-surface border-b border-rule px-4 pt-3 pb-2">
             <div className="flex items-center justify-between">
               <button onClick={() => setWeek(Math.max(1, week - 1))} aria-label="Semaine précédente" className="h-11 w-11 rounded-md bg-surface-raised border border-rule inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-focus"><ChevronLeft size={18} /></button>
@@ -742,7 +783,7 @@ export default function Programme() {
             {/* Ce que l'en-tête partagé et le rail disaient à eux deux, en deux
                 lignes : quelle séance, quelle semaine, quel jour. */}
             <div className="text-xl font-semibold leading-tight">{session.name}</div>
-            <div className="text-sm text-ink-muted mt-0.5">Semaine {week} · {DAYNAMES[session.day]} {dateLabel(parseLocalDate(dateOf(session.id)))} · {session.sub}</div>
+            <div className="text-sm text-ink-muted mt-0.5">Semaine {week} · {dayName(session.day)} {dateLabel(parseLocalDate(dateOf(session.id)))} · {session.sub}</div>
             {timer && (
               <div className={`mt-2 flex items-center justify-between rounded-md px-3 h-11 ${remaining === 0 ? "bg-accent text-ink-inverse" : "bg-surface-raised border border-rule"}`}>
                 <span className="text-sm truncate">{remaining === 0 ? "Repos terminé, à toi" : `Repos — ${timer.label}`}</span>
@@ -849,6 +890,23 @@ export default function Programme() {
           <ExerciseSheet journal={journal} exerciseId={nav.exerciseId} backLabel={backLabel} onBack={closeExercise} />
         )}
 
+        {screen === "editeur" && editor && (
+          <>
+            <ProgramEditor draft={editor} onChange={setEditor} onBack={() => askLeave(goPlan)} onSave={saveDraft} error={editorError} />
+            {pendingLeave && (
+              <div className="fixed left-0 right-0 bottom-14 z-20 bg-surface border-t border-rule">
+                <div className="max-w-md mx-auto p-3 space-y-2">
+                  <p className="text-sm text-ink-muted">Ce programme n'a pas été enregistré. Le quitter maintenant le perd.</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <Btn small onClick={() => pendingLeave()}>Quitter sans enregistrer</Btn>
+                    <Btn small primary onClick={() => setPendingLeave(null)}>Continuer l'édition</Btn>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
         {screen === "semaine" && (
           <div className="px-4">
             {cycleNote && <p className="text-sm text-notice mt-3">{cycleNote}</p>}
@@ -871,12 +929,19 @@ export default function Programme() {
                    choisir à la place de l'utilisateur. Seulement sur la semaine
                    en cours : « aujourd'hui » n'a pas de sens en S7 quand on
                    feuillette une semaine passée. */
-                const isToday = week === curWeek && s.day === weekday;
+                /* #36 : `day` est un décalage de 1 à 7 depuis startDate, un
+                   lundi — donc 7 vaut dimanche, que getDay() numérote 0. Le
+                   dimanche était le seul jour où la pastille ne pouvait pas
+                   s'allumer ; il devient un jour comme les six autres, ce que
+                   l'éditeur rend atteignable en un tap. La contradiction de
+                   fond — un startDate qui ne tomberait pas un lundi — reste
+                   entière, et reste #33. */
+                const isToday = week === curWeek && s.day === (weekday || 7);
                 return (
                   <button key={s.id} onClick={() => openSession(s.id)} className="w-full py-3 flex items-center justify-between text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
                     <div>
                       <div className="font-medium inline-flex items-center gap-2 flex-wrap">
-                        {l && l.done ? <Check size={16} className="text-done" /> : <span className="w-4 h-4 rounded-full border border-rule-strong inline-block" />}{s.name} <span className="text-ink-muted font-normal text-sm">{DAYNAMES[s.day]}</span>
+                        {l && l.done ? <Check size={16} className="text-done" /> : <span className="w-4 h-4 rounded-full border border-rule-strong inline-block" />}{s.name} <span className="text-ink-muted font-normal text-sm">{dayName(s.day)}</span>
                         {isToday && <span className="rounded-full px-2 py-0.5 text-xs bg-accent text-ink-inverse font-medium">aujourd'hui</span>}
                       </div>
                       <div className="text-sm text-ink-muted pl-6">{prog.V[vid].name} : {sets.length ? setSummary(sets, prog.V[vid]) : "—"}</div>
@@ -943,6 +1008,12 @@ export default function Programme() {
               <p>{definition.name} — départ {dateLabel(START)}</p>
               <div className="flex gap-2 flex-wrap">
                 <Btn small onClick={() => fileInputRef.current.click()}>Charger un programme</Btn>
+                {/* #36 : « Partir du programme actif » et non « Modifier » —
+                    tant que l'édition en place n'existe pas (étape 8), ce
+                    bouton compose un nouveau cycle à partir de celui-ci, et un
+                    nouveau cycle repart sur la calibration. */}
+                <Btn small onClick={() => openEditor(emptyDraft(today))}>Composer un programme</Btn>
+                <Btn small onClick={() => openEditor(draftFrom(definition))}>Partir du programme actif</Btn>
               </div>
               <input ref={fileInputRef} type="file" accept="application/json" onChange={handleProgramFile} className="hidden" />
               {programError && <p role="alert" className="text-sm text-alert">{programError}</p>}
@@ -1026,8 +1097,12 @@ export default function Programme() {
               l'on retourne. C'est ce qui permet à Séance de n'avoir aucune
               flèche de retour. */}
           <div className="max-w-md mx-auto grid grid-cols-2">
-            <button onClick={goSemaine} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen !== "plan" ? "text-accent font-medium" : "text-ink-muted"}`}>Semaine</button>
-            <button onClick={goPlan} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen === "plan" ? "text-accent font-medium" : "text-ink-muted"}`}>Plan</button>
+            {/* #36 : l'éditeur s'ouvre depuis Plan et y retourne — c'est donc
+                Plan qui reste allumé pendant qu'on édite, comme Semaine reste
+                allumée pendant une séance. Les deux onglets passent par le
+                garde-fou : quitter par le bas perd autant qu'en haut. */}
+            <button onClick={guarded(goSemaine)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen !== "plan" && screen !== "editeur" ? "text-accent font-medium" : "text-ink-muted"}`}>Semaine</button>
+            <button onClick={guarded(goPlan)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen === "plan" || screen === "editeur" ? "text-accent font-medium" : "text-ink-muted"}`}>Plan</button>
           </div>
         </nav>
       </div>

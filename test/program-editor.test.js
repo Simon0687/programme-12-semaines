@@ -9,6 +9,8 @@ import {
   referencedExercises, setStartingLoad,
 } from "../src/program-editor.js";
 import { validateProgram, validateDefinition } from "../src/journal-shape.js";
+import { buildProgram } from "../src/program.js";
+import { dateForSlot } from "../src/schema.js";
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 import bundled from "../public/programs/upper-lower-4j.json" with { type: "json" };
 
@@ -397,5 +399,83 @@ describe("toute mutation laisse un programme que le validateur accepte", () => {
     const d = steps.reduce((acc, [, step]) => step(acc), seed());
     assert.equal(validateProgram(d.program), null);
     assert.equal(validateDefinition(toDefinition(withNewId(d, ["upper-lower-4j"]))), null);
+  });
+});
+
+/* ---------- Le chemin complet de l'écran (#36, étapes 3 à 6) ----------
+   Ce que fait l'éditeur bout à bout, avec les valeurs telles que le DOM les
+   rend : un <select> rend "7" et non 7, un champ vidé rend "". Les tests
+   au-dessus prennent les mutations une par une ; celui-ci prend la suite
+   entière, jusqu'à buildProgram() — parce qu'un programme qui passe le
+   validateur mais que le moteur ne sait pas construire serait accepté à
+   l'enregistrement et vide à l'ouverture. */
+describe("composer un programme, de l'écran vide au cycle exécutable", () => {
+  const compose = () => {
+    let d = emptyDraft(new Date(2026, 8, 16));
+    /* Le nom du programme est un champ de l'en-tête, pas une mutation :
+       l'écran rend lui-même le brouillon suivant (ProgramEditor.jsx). */
+    d = { ...d, name: "Full body" };
+    const sid = d.program.SESSIONS[0].id;
+    d = patchSession(d, sid, { name: "Full body", sub: "Tout le corps", day: "7" });
+    d = addRow(d, { session: sid }, "dc");
+    d = patchRow(d, { session: sid }, 0, { sets: "4", rest: 120, key: true, fail: true });
+    d = patchRow(d, { session: sid }, 0, { reps: [5, 8] });
+    d = addRow(d, { session: sid }, "pullup");
+    d = addRow(d, { core: "gainage" }, "abwheel");
+    d = setWarmText(d, "echauffement", "5 min vélo, rotations d'épaules");
+    d = setStartingLoad(d, "dc", 60);
+    d = setStartingLoad(d, "pullup", 0);
+    return d;
+  };
+
+  test("le brouillon composé passe validateDefinition, une fois son id posé", () => {
+    const def = toDefinition(withNewId(compose(), []));
+    assert.equal(validateDefinition(def), null);
+    assert.equal(def.id, "full-body");
+  });
+
+  test("l'id ne peut pas écraser un cycle déjà enregistré", () => {
+    const def = toDefinition(withNewId(compose(), ["full-body", "full-body-2"]));
+    assert.equal(def.id, "full-body-3");
+  });
+
+  test("le moteur sait exécuter ce que l'écran a composé", () => {
+    const def = toDefinition(withNewId(compose(), []));
+    const prog = buildProgram(def);
+    const session = prog.SESSIONS[0];
+    assert.equal(session.name, "Full body");
+    assert.equal(session.day, 7, "un <select> rend une chaîne : patchSession la ramène à un entier");
+    assert.equal(prog.SLOTS[session.ex[0][0]].b1, "dc");
+    assert.equal(session.ex[0][1], 4, "quatre séries");
+    assert.deepEqual(prog.SLOTS[session.ex[0][0]].reps, [5, 8]);
+    assert.equal(prog.V.dc.start, 60, "la charge tapée devient celle de la semaine 1");
+    assert.equal(prog.V.pullup.start, 0, "zéro est une valeur : traction au poids du corps");
+    assert.equal(prog.CORE[session.core].ex.length, 1);
+    assert.equal(prog.WARM[session.warm], "5 min vélo, rotations d'épaules");
+  });
+
+  test("le dimanche tombe bien sept jours après le départ, un lundi", () => {
+    const def = toDefinition(withNewId(compose(), []));
+    assert.equal(def.startDate, "2026-09-21", "le lundi qui vient");
+    assert.equal(dateForSlot(def.startDate, 1, 7), "2026-09-27", "dimanche de la semaine 1");
+  });
+
+  /* Le rejet est le comportement, pas l'exception : l'écran laisse taper une
+     fourchette à moitié écrite, et c'est l'enregistrement qui la refuse — avec
+     la phrase du validateur, la même que pour un fichier importé. */
+  test("une fourchette de reps à moitié tapée est refusée à l'enregistrement, pas avant", () => {
+    let d = compose();
+    const sid = d.program.SESSIONS[0].id;
+    d = patchRow(d, { session: sid }, 0, { reps: ["", 8] });
+    const bad = validateDefinition(toDefinition(withNewId(d, [])));
+    assert.equal(bad.reason, "invalid-program");
+    assert.match(bad.message, /reps/);
+  });
+
+  test("un champ de repos vidé est refusé de la même façon", () => {
+    let d = compose();
+    const sid = d.program.SESSIONS[0].id;
+    d = patchRow(d, { session: sid }, 0, { rest: "" });
+    assert.equal(validateDefinition(toDefinition(withNewId(d, []))).reason, "invalid-program");
   });
 });

@@ -72,3 +72,17 @@ export function filterExercises(query, facets = {}) {
     .map(([id, entry]) => ({ id, ...entry }))
     .sort((a, b) => a.name.localeCompare(b.name, "fr"));
 }
+
+/* Les valeurs de facette qu'au moins une entrée porte. EXERCISES ne change
+   pas à l'exécution : la liste se calcule une fois au chargement, et
+   l'écran n'a rien à calculer pour éviter de proposer une facette qui ne
+   rendrait rien. Le cas existe — « kettlebell » est dans le vocabulaire
+   d'équipement et aucune entrée ne le porte (test/exercise-filter.test.js) —
+   et une facette qui rend une liste vide se lit comme une panne. */
+const withMatches = (values, key) => values.filter((v) => filterExercises("", { [key]: v }).length > 0);
+
+export const FACET_VALUES = {
+  muscle: withMatches(MUSCLE_GROUPS, "muscle"),
+  pattern: withMatches(PATTERNS, "pattern"),
+  equipment: withMatches(EQUIPMENT, "equipment"),
+};
