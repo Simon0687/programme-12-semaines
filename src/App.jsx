@@ -769,7 +769,16 @@ export default function Programme() {
     setEditorError("");
     setEditor(null);
     loadProgram(composed, "Programme enregistré.");
-    goSemaine();
+    /* #57 : Plan, et non Semaine. Un programme qu'on vient de composer a plus
+       de chances de demander une seconde passe que d'être exécuté dans la
+       minute, et c'est dans Plan qu'on le rouvre — c'est aussi là que l'avis
+       du validateur l'attend. Inconditionnel, avis ou pas (decisions-spec.md
+       Q4) : un même geste qui finirait sur deux écrans selon le verdict serait
+       une branche de plus à tenir en tête, pour rien.
+       goPlan et non goSemaine laisse `pendingLight` en place, exactement comme
+       l'onglet Plan de la barre du bas : la question de #43 appartient à la
+       séance ouverte, pas à la navigation. */
+    goPlan();
   };
 
   const handleProgramFile = async (e) => {
