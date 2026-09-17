@@ -24,6 +24,7 @@
    ========================================================= */
 
 import { fmt } from "./progression.js";
+import { traitsOf } from "./units.js";
 
 /* ---------- Résumé des séries (déplacé depuis App.jsx, #23) ---------- */
 
@@ -63,9 +64,10 @@ import { fmt } from "./progression.js";
    désignait la charge d'une série. Un RIR non saisi ne s'écrit pas. */
 export function setSummary(sets, v) {
   if (!sets || !sets.length) return "—";
+  const u = traitsOf(v.unit);
   const unit = v.unit || "kg";
-  const secs = unit === "time" || unit === "carry";
-  const loaded = unit !== "time" && unit !== "reps";
+  const secs = u.repUnit === "s";
+  const loaded = u.hasLoad;
 
   const reps = (s) => (s.r == null ? "?" : fmt(s.r));
   /* Au poids du corps chaque borne porte son unité — « PDC → PDC+10 » — parce
@@ -73,7 +75,7 @@ export function setSummary(sets, v) {
      bornes partagent le même « kg », posé une fois derrière la seconde. */
   const bounds = (a, b) => {
     const bw = (w) => (w > 0 ? `PDC+${fmt(w)}` : "PDC");
-    return unit === "bw" ? `${bw(a)} → ${bw(b)} ` : `${fmt(a)} → ${fmt(b)} kg `;
+    return u.bodyweight ? `${bw(a)} → ${bw(b)} ` : `${fmt(a)} → ${fmt(b)} kg `;
   };
 
   const loads = sets.map((s) => (s.w == null ? 0 : s.w));
@@ -92,7 +94,7 @@ export function setSummary(sets, v) {
   } else {
     /* La forme à charge constante est figée : elle est ce que trois écrans
        affichent depuis #17, et les tests l'épinglent au caractère. */
-    head = unit === "bw" ? (loads[0] > 0 ? `+${fmt(loads[0])} kg ` : "PDC ") : `${fmt(loads[0])} kg `;
+    head = u.bodyweight ? (loads[0] > 0 ? `+${fmt(loads[0])} kg ` : "PDC ") : `${fmt(loads[0])} kg `;
   }
 
   const body = `${head}${sets.map(reps).join("/")}${secs ? " s" : ""}`;
@@ -160,16 +162,20 @@ function isoOfDay(n) {
    le libellé au-dessus du cadre les nomme et la gouttière de gauche ne fait
    que 34 px. */
 export function axisLabel(value, unit) {
-  if (unit === "time") return `${fmt(value)} s`;
-  return fmt(value);
+  /* Nue, sauf les secondes : la gouttière fait 34 px, et un « kg » ou un
+     « reps » répété sur chaque graduation dirait ce que le libellé au-dessus
+     du cadre dit déjà une fois. Les secondes font exception parce qu'un
+     nombre nu s'y lirait comme des répétitions. */
+  return traitsOf(unit).repUnit === "s" ? `${fmt(value)} s` : fmt(value);
 }
 
 /* Le chiffre de tête porte son unité, là où l'axe la laisse nue : au-dessus du
    cadre il n'y a plus de titre de section pour la nommer (#49). */
 export function valueText(value, unit) {
-  if (unit === "time") return `${fmt(value)} s`;
-  if (unit === "reps") return `${fmt(value)} reps`;
-  return `${fmt(value)} kg`;
+  /* Un axe sans charge porte l'unité de sa mesure, un axe chargé porte des
+     kilos : les trois cas de la table, sans en énumérer aucun. */
+  const u = traitsOf(unit);
+  return `${fmt(value)} ${u.hasLoad ? "kg" : u.repUnit}`;
 }
 
 /* Le signe est toujours écrit, y compris le zéro : une variation nulle est un
@@ -209,6 +215,35 @@ export const JOINT_LABELS = {
 };
 
 export const TYPE_LABELS = { compose: "Composé", isolation: "Isolation" };
+
+/* ---------- Les mots d'une unité (#23) ----------
+
+   `units.js` dit ce qu'une unité *implique* — porte-t-elle une charge, se
+   compte-t-elle en secondes. Ce qui suit dit comment elle se **nomme à
+   l'écran**, et c'est ici pour la raison qui a mis MUSCLE_LABELS ici : une
+   table que `progression.js` importerait ne peut pas porter de texte
+   d'interface sans faire du moteur un module de vue (ARCHITECTURE §1).
+
+   Les trois colonnes de la grille de saisie, dans leur ordre : la charge
+   quand il y en a une, la mesure, le RIR. « s / côté » plutôt que « s »
+   parce que les deux exercices concernés (planche latérale, farmer's walk)
+   se tiennent un côté à la fois et que la valeur saisie est celle du côté. */
+export const UNIT_COLUMNS = {
+  kg: ["kg", "reps", "RIR"],
+  bw: ["lest kg", "reps", "RIR"],
+  carry: ["kg", "s / côté", "RIR"],
+  time: ["s / côté", "RIR"],
+  reps: ["reps", "RIR"],
+};
+export const unitColumns = (unit) => UNIT_COLUMNS[unit] || UNIT_COLUMNS.kg;
+
+/* L'unité dans laquelle se tape une charge, avec les mots que loadText()
+   emploie déjà à l'écran Séance : « lest » au poids du corps, « / main » aux
+   haltères. Les deux se composent — la table donne le premier terme, le
+   registre le second — plutôt que de se choisir dans un ternaire, qui faisait
+   du « / main » l'exclusif du kilo sans qu'aucune règle ne le dise. */
+export const unitLoadLabel = (v) =>
+  `${traitsOf(v.unit).bodyweight ? "lest kg" : "kg"}${v.perHand ? " / main" : ""}`;
 
 /* Les seize patterns du registre, pour les facettes du sélecteur
    d'exercices (#36). Même raison d'être que MUSCLE_LABELS juste au-dessus :

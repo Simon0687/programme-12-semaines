@@ -26,6 +26,7 @@ import { EXERCISES } from "./registry.js";
 import { exerciseHistory, recordsFor, seriesByCycle, chartMode, headline, ESTIMATE_REPS } from "./exercise-history.js";
 import { loadText, fmt } from "./progression.js";
 import { setSummary, dateShort, periodLabel, chartGeometry, axisLabel, detailRows, valueText, deltaText, KIND_LABELS } from "./display.js";
+import { traitsOf } from "./units.js";
 
 const CHART = { w: 358, h: 162 };
 
@@ -197,7 +198,7 @@ function Records({ records, v, copy }) {
           <div className={`${cell} justify-between gap-2`}>
             <div className="text-sm text-ink-muted">{copy.best}</div>
             <div className="flex items-center gap-4">
-              <span className="text-[15px] font-medium text-ink">{records.best}{v.unit === "time" ? " s" : " reps"}</span>
+              <span className="text-[15px] font-medium text-ink">{records.best} {traitsOf(v.unit).repUnit}</span>
               <span className="text-sm text-ink-muted">{dateShort(records.date)}</span>
             </div>
           </div>

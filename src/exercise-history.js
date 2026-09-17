@@ -34,18 +34,19 @@
    n'importe pas React (§2.6).
    ========================================================= */
 
-import { num } from "./progression.js";
+import { normalizeSets } from "./progression.js";
+import { traitsOf } from "./units.js";
 
 const isObj = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
 
-const hasLoad = (unit) => unit !== "time" && unit !== "reps";
+const hasLoad = (unit) => traitsOf(unit).hasLoad;
 
+/* Les deux gardes de ce lecteur — l'objet, le tableau — sont parties dans
+   normalizeSets (#23) : ce module lit des journaux que personne n'a validés
+   (#32), et il valait mieux que la fonction partagée les porte pour tout le
+   monde que de garder ici une copie qui en savait plus que les autres. */
 function readSets(rec, exerciseId) {
-  const raw = isObj(rec.ex) && Array.isArray(rec.ex[exerciseId]) ? rec.ex[exerciseId] : [];
-  return raw
-    .filter(isObj)
-    .map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) }))
-    .filter((x) => x.r != null);
+  return normalizeSets(isObj(rec.ex) ? rec.ex[exerciseId] : null);
 }
 
 /* Une définition invalide est exactement le cas où SESSIONS peut manquer :
@@ -114,12 +115,11 @@ export function exerciseHistory(journal, exerciseId) {
      tractions à 6 reps donnerait un lest **négatif**, qui ne veut rien dire.
      D'où deux tracés sur une même abscisse — courbe pour les reps ou la tenue,
      barres pour la charge. */
+
+/* Les cinq cas sont dans UNITS (units.js, #23) ; ce qui reste ici est la
+   porte, et le pourquoi ci-dessus — vers lequel la table renvoie. */
 export function chartMode(unit) {
-  if (unit === "bw") return { kind: "dual", line: "reps", bar: "kg" };
-  if (unit === "carry") return { kind: "dual", line: "time", bar: "kg" };
-  if (unit === "time") return { kind: "raw", line: "time" };
-  if (unit === "reps") return { kind: "raw", line: "reps" };
-  return { kind: "estimate", line: "kg" };
+  return traitsOf(unit).chart;
 }
 
 /* Epley (1RM = w × (1 + r/30)) ramené à dix répétitions, ce qui se simplifie

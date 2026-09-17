@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  setSummary, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, weekdayName, adviceSummary,
+  setSummary, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, weekdayName, adviceSummary, unitColumns, unitLoadLabel,
 } from "../src/display.js";
 import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS, PATTERNS } from "../src/registry.js";
 import { fmt } from "../src/progression.js";
@@ -414,4 +414,27 @@ test("adviceSummary : au pluriel à partir de deux", () => {
    devenu faux ailleurs. */
 test("adviceSummary : zéro reste au singulier", () => {
   assert.equal(adviceSummary(0), "0 point à regarder sur ce programme");
+});
+
+/* ---------- Les mots d'une unité (#23) ---------- */
+
+test("unitColumns : la colonne de charge n'existe que là où il y a une charge", () => {
+  assert.deepEqual(unitColumns("kg"), ["kg", "reps", "RIR"]);
+  assert.deepEqual(unitColumns("bw"), ["lest kg", "reps", "RIR"]);
+  assert.deepEqual(unitColumns("carry"), ["kg", "s / côté", "RIR"]);
+  assert.deepEqual(unitColumns("time"), ["s / côté", "RIR"]);
+  assert.deepEqual(unitColumns("reps"), ["reps", "RIR"]);
+  assert.deepEqual(unitColumns(undefined), unitColumns("kg"), "une unité absente est du kilo");
+});
+
+test("unitLoadLabel : « lest » et « / main » se composent au lieu de s'exclure", () => {
+  /* L'ancien ternaire faisait du « / main » l'exclusif du kilo sans qu'aucune
+     règle ne le dise — le registre n'a simplement pas d'entrée qui soit à la
+     fois au poids du corps et par main. La composition reste juste le jour où
+     il en aurait une. */
+  assert.equal(unitLoadLabel({ unit: "bw" }), "lest kg");
+  assert.equal(unitLoadLabel({ perHand: true }), "kg / main");
+  assert.equal(unitLoadLabel({ unit: "carry" }), "kg");
+  assert.equal(unitLoadLabel({}), "kg");
+  assert.equal(unitLoadLabel({ unit: "bw", perHand: true }), "lest kg / main");
 });

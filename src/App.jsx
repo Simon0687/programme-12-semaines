@@ -13,8 +13,9 @@ import { unusableProgramIds, validateDefinition } from "./journal-shape.js";
 import { assess, targetsFor } from "./assertions.js";
 import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
-import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind, workingSets, loadDrops, loadText } from "./progression.js";
-import { setSummary, dayName, weekdayName, adviceSummary } from "./display.js";
+import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind, workingSets, loadDrops, loadText, normalizeSets } from "./progression.js";
+import { setSummary, dayName, weekdayName, adviceSummary, unitColumns } from "./display.js";
+import { traitsOf } from "./units.js";
 import { EXERCISE_IDS } from "./registry.js";
 import ExerciseSheet from "./ExerciseSheet.jsx";
 import ProgramEditor from "./ProgramEditor.jsx";
@@ -163,9 +164,15 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
   const phase = phaseOf(week);
   const failOk = slot.fail && week >= 3 && week !== 7;
   const amrap = week === weeks && slot.key;
-  const cols = unit === "time" ? ["s / côté", "RIR"] : unit === "reps" ? ["reps", "RIR"] : unit === "carry" ? ["kg", "s / côté", "RIR"] : unit === "bw" ? ["lest kg", "reps", "RIR"] : ["kg", "reps", "RIR"];
-  const fields = unit === "time" || unit === "reps" ? ["r", "rir"] : ["w", "r", "rir"];
-  const repLabel = unit === "time" || unit === "carry" ? `${slot.reps[0]}–${slot.reps[1]} s` : `${slot.reps[0]}–${slot.reps[1]} reps`;
+  /* #23 : trois ternaires indépendants sur la même unité, dont deux
+     n'énuméraient pas les mêmes cas. Les en-têtes viennent de display.js
+     (des mots), les deux autres de units.js (du sens) : une colonne de charge
+     n'existe que si l'unité en porte une, et la colonne du milieu se nomme
+     comme la mesure. */
+  const u = traitsOf(v.unit);
+  const cols = unitColumns(unit);
+  const fields = u.hasLoad ? ["w", "r", "rir"] : ["r", "rir"];
+  const repLabel = `${slot.reps[0]}–${slot.reps[1]} ${u.repUnit}`;
 
   /* #42 : « faite » est dérivé, pas stocké. Une série compte quand elle porte
      ses valeurs — c'est déjà la règle du moteur, planned() ne retient une
@@ -547,7 +554,7 @@ export default function Programme() {
     [...session.ex, ...prog.CORE[session.core].ex].forEach(([slotId]) => {
       const vid = prog.SLOTS[slotId][blockOf(week)];
       const p = planned(prog, st, slotId, week, si, d);
-      const rows = (ex[vid] || []).map((r) => (r.r && !r.w && p.load != null ? { ...r, w: String(p.load).replace(".", ",") } : r));
+      const rows = (ex[vid] || []).map((r) => (r.r && !r.w && p.load != null ? { ...r, w: fmt(p.load) } : r));
       if (rows.length) ex[vid] = rows;
       plans.push({ slotId, vid, plan: p });
     });
@@ -653,7 +660,7 @@ export default function Programme() {
       const vid = prog.SLOTS[slotId][blockOf(week)];
       const sessionsW = prog.SESSIONS.map((s) => findLog(state.logs, dateOf(s.id), s.id)).filter((l) => l && l.done && l.ex && l.ex[vid]);
       if (!sessionsW.length) return null;
-      const sets = sessionsW.flatMap((l) => l.ex[vid]).map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null);
+      const sets = normalizeSets(sessionsW.flatMap((l) => l.ex[vid]));
       if (!sets.length) return null;
       return `${prog.V[vid].name} : ${setSummary(sets, prog.V[vid])}`;
     }).filter(Boolean);
@@ -1025,7 +1032,7 @@ export default function Programme() {
                    mémoire perdu avant que l'autosave n'ait pu l'écrire. */
                 const keySlot = s.ex[0]?.[0];
                 const vid = prog.SLOTS[keySlot]?.[blockOf(week)];
-                const sets = vid && l && l.ex && l.ex[vid] ? l.ex[vid].map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null) : [];
+                const sets = normalizeSets(vid && l && l.ex ? l.ex[vid] : null);
                 /* #41 : ce repère fait le travail de l'effet d'auto-sélection
                    qu'on supprime — dire quelle séance est celle du jour — sans
                    choisir à la place de l'utilisateur. Seulement sur la semaine

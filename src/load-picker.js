@@ -15,6 +15,8 @@
    même chaîne que le clavier aurait produite, relue par `num()` comme avant.
    ========================================================= */
 
+import { traitsOf } from "./units.js";
+
 /* Le seuil qui arbitre entre défiler et régler. Les champs `w` font 44 px de
    haut sur toute la largeur et couvrent l'écran de séance : un champ qui
    capterait le geste vertical sans délai rendrait la page impossible à faire
@@ -99,6 +101,6 @@ export function fieldSetup(field, { unit, incr, planLoad, repTop, rirTarget }) {
      lest, sur un `carry` la fonte portée. Seule la colonne des reps change de
      sens d'une unité à l'autre. */
   if (field === "w") return { incr, fallback: planLoad, unit: "kg" };
-  if (field === "r") return { incr: COUNT_INCR, fallback: repTop, unit: unit === "time" || unit === "carry" ? "s" : "reps" };
+  if (field === "r") return { incr: COUNT_INCR, fallback: repTop, unit: traitsOf(unit).repUnit };
   return { incr: COUNT_INCR, fallback: rirTarget, unit: "RIR" };
 }

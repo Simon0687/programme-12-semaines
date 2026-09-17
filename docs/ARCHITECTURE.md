@@ -43,15 +43,18 @@ Module dependencies, as they actually stand - every edge, no others:
 | `program` | `registry`, `cardio`, `legacy-program` |
 | `definition` | `default-program` |
 | `plan` | `registry` |
-| `display` | `progression` |
-| `exercise-history` | `progression` |
+| `display` | `progression`, `units` |
+| `exercise-history` | `progression`, `units` |
 | `program-editor` | `registry`, `definition`, `legacy-program` |
 | `exercise-filter` | `registry` |
 | `assertions` | `registry` |
-| `schema`, `registry`, `progression`, `cardio`, `backup`, `default-program`, `legacy-program`, `file-io`, `export-state`, `bilan`, `screen-state` | nothing |
+| `progression` | `units` |
+| `load-picker` | `units` |
+| `schema`, `registry`, `units`, `cardio`, `backup`, `default-program`, `legacy-program`, `file-io`, `export-state`, `bilan`, `screen-state` | nothing |
 
-`progression.js`, `registry.js`, `cardio.js`, `backup.js`, `schema.js` and
-`legacy-program.js` import nothing from the app. `schema.js` being a leaf is
+`registry.js`, `units.js`, `cardio.js`, `backup.js`, `schema.js` and
+`legacy-program.js` import nothing from the app, and `progression.js` imports
+only `units.js` - itself one of them. `schema.js` being a leaf is
 load-bearing: it is why migrations take their program knowledge through an
 injected `ctx` instead of importing `program.js`, and why adding a migration
 never risks an import cycle.
@@ -61,6 +64,18 @@ and never the reverse: the engine stays a leaf. That is why `setSummary()` moved
 to `display.js` rather than next to `loadText()` as #23 expected, and why
 `loadText()` did not move at all - `planned()` calls it, so following #23 to the
 letter would have made a leaf of the engine import a view module.
+
+`units.js` (#23) is the same argument taken the other way. What each unit
+implies - does it carry a load, is that load added to the body, is the middle
+column reps or seconds, what shape does its chart take - was decided by eight
+independent ternaries across five modules, two of them identical branches
+written twice. #23 asked for one table in `program.js`; `progression.js` needs
+it and `program.js` sits above the engine, so the table went *below* instead,
+as a leaf the engine may import without becoming anything else. The split that
+keeps that honest is by kind of fact: `units.js` carries meaning, `display.js`
+carries the French words for it (`UNIT_COLUMNS`, `unitLoadLabel`), next to
+`MUSCLE_LABELS` and for the same reason. A table the engine imports cannot
+carry screen text.
 
 `program-editor.js` and `exercise-filter.js` (#36) are the same shape one level
 further: everything the editor screen decides - the draft mutations, the

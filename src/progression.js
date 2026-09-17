@@ -17,7 +17,13 @@
    La sécurité qui excluait un point de décharge (week === 7) de la base de
    calcul du suivant devient kind === "deload" ; la calibration (base.week
    === 1 || 7) devient kind === "calibration" || "deload".
+   #23 : le module reste une feuille, mais il en importe une autre —
+   `units.js`, qui n'importe rien non plus et porte ce que chaque unité
+   implique. C'est le seul import de ce fichier, et le sens de la flèche est
+   le bon : le moteur lit une table de traits, aucune table ne lit le moteur.
    ========================================================= */
+
+import { traitsOf } from "./units.js";
 
 export const num = (s) => {
   if (s === "" || s == null) return null;
@@ -26,6 +32,29 @@ export const num = (s) => {
 };
 export const fmt = (n) => (n == null ? "—" : String(Math.round(n * 100) / 100).replace(".", ","));
 export const roundTo = (x, inc) => (inc ? Math.round(x / inc) * inc : x);
+
+/* ---------- Les séries telles que le moteur les lit (#23) ----------
+
+   Le journal stocke ce que les champs de saisie ont produit : des chaînes,
+   « 72,5 » comme « », et une ligne peut être vide parce que la série n'a pas
+   été faite. Les ramener à des nombres et écarter celles sans répétitions
+   était écrit quatre fois — ici, deux fois dans App.jsx, une dans
+   exercise-history.js — dont deux copies sans les gardes des deux autres.
+
+   La règle porte du sens, ce n'est pas de la plomberie : **une série sans
+   répétitions n'a pas eu lieu.** C'est elle qui fait qu'une ligne laissée
+   vide sur une séance validée ne compte pas. La charge seule ne suffit
+   pas : un poids réglé sur la barre puis reposé n'est pas une série.
+
+   Les deux gardes viennent de exercise-history.js, qui lit des journaux que
+   personne n'a validés (#32) : elles ne changent rien aux appelants dont la
+   donnée est déjà jugée, et évitent que le prochain lecteur brut refasse sa
+   propre copie pour les ajouter. */
+export const normalizeSets = (rows) =>
+  (Array.isArray(rows) ? rows : [])
+    .filter((x) => typeof x === "object" && x !== null && !Array.isArray(x))
+    .map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) }))
+    .filter((x) => x.r != null);
 
 /* ---------- La charge de travail d'une séance (#31) ----------
 
@@ -156,33 +185,47 @@ export function history(prog, state, vid) {
     if (!rec.done) continue;
     const si = prog.SESSIONS.findIndex((s) => s.id === rec.slot);
     if (si < 0) continue; // slot d'un autre programme (custom chargé puis remplacé, #6) : hors du prog courant
-    const sets = ((rec.ex && rec.ex[vid]) || []).map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null);
+    const sets = normalizeSets(rec.ex && rec.ex[vid]);
     if (sets.length) out.push({ date: rec.date, si, kind: rec.kind, session: prog.SESSIONS[si].name, sets });
   }
   out.sort((a, b) => (a.date === b.date ? a.si - b.si : a.date < b.date ? -1 : 1));
   return out;
 }
+/* ---------- « Ce qui précède ce créneau » (#23) ----------
+
+   Depuis #16 un créneau s'identifie par (date, rang de la séance dans la
+   journée) et non par un numéro de semaine. « Avant » se dit donc en deux
+   clauses, et `si` n'est pas un détail : deux séances du même jour se
+   classent entre elles, ce qu'une comparaison de dates seule ne fait pas.
+
+   `lastEntry()` (la ligne « Dernière fois » de la carte) et `planned()` (le
+   moteur) filtraient chacun de leur côté, à la clause près. Les laisser
+   séparés, c'était accepter que l'écran finisse par citer une séance que le
+   calcul a ignorée. */
+export const historyBefore = (prog, state, vid, date, si) =>
+  history(prog, state, vid).filter((e) => e.date < date || (e.date === date && e.si < si));
+
 export function lastEntry(prog, state, vid, date, si) {
-  const h = history(prog, state, vid).filter((e) => e.date < date || (e.date === date && e.si < si));
+  const h = historyBefore(prog, state, vid, date, si);
   return h[h.length - 1] || null;
 }
 export function planned(prog, state, slotId, week, si, date) {
   const slot = prog.SLOTS[slotId];
   const vid = slot[blockOf(week)];
   const v = prog.V[vid];
-  const unit = v.unit || "kg";
+  const u = traitsOf(v.unit);
   const [mn, mx] = slot.reps;
   const kind = computeKind(week);
-  const hist = history(prog, state, vid).filter((e) => e.date < date || (e.date === date && e.si < si));
+  const hist = historyBefore(prog, state, vid, date, si);
   let base = hist[hist.length - 1], prev = hist[hist.length - 2];
   if (base && SKIPPED_AS_BASE.has(base.kind) && hist.some((e) => !SKIPPED_AS_BASE.has(e.kind))) {
     const nd = hist.filter((e) => !SKIPPED_AS_BASE.has(e.kind));
     base = nd[nd.length - 1]; prev = nd[nd.length - 2];
   }
-  const label = unit === "time" ? `${mn}–${mx} s` : unit === "carry" ? `${mn}–${mx} s` : `${mn}–${mx} reps`;
+  const label = `${mn}–${mx} ${u.repUnit}`;
 
   if (!base) {
-    if (unit === "time" || unit === "reps") return { load: null, text: `Cible ${label} à ${phaseOf(week).rir} RIR`, why: "", baseLoad: null };
+    if (!u.hasLoad) return { load: null, text: `Cible ${label} à ${phaseOf(week).rir} RIR`, why: "", baseLoad: null };
     if (v.start == null) return { load: null, text: "Paliers", why: "50 → 75 → 100 % de la charge devinée ; la première série dans la fourchette au bon RIR devient la charge de travail", baseLoad: null };
     const l = kind === "deload" ? roundTo(v.start * 0.85, v.incr) : v.start;
     return { load: l, text: loadText(v, l), why: kind === "deload" ? "charge de départ −15 % (décharge)" : "charge de départ", baseLoad: null };
@@ -191,9 +234,9 @@ export function planned(prog, state, slotId, week, si, date) {
      plutôt qu'après, ce qui confine la règle de #31 aux unités chargées par
      construction au lieu d'une garde. Le verdict y reste calculé sur toutes les
      séries, comme il l'a toujours été. */
-  if (unit === "time" || unit === "reps") {
+  if (!u.hasLoad) {
     const top = base.sets.every((s) => s.r >= mx);
-    const t = top ? `progresser : ${unit === "time" ? "+5 s" : "+1 rep ou amplitude"}` : `viser le haut de la fourchette (${label})`;
+    const t = top ? `progresser : ${u.repUnit === "s" ? "+5 s" : "+1 rep ou amplitude"}` : `viser le haut de la fourchette (${label})`;
     return { load: null, text: `Cible ${label}`, why: `dernière fois ${base.sets.map((s) => s.r).join("/")} — ${t}`, baseLoad: null };
   }
 
@@ -256,6 +299,9 @@ export function lastEntryLabel(last) {
 
 export function loadText(v, l) {
   if (l == null) return "—";
-  if ((v.unit || "kg") === "bw") return l > 0 ? `PDC + ${fmt(l)} kg` : "Poids du corps";
+  /* `bodyweight` et non `unit === "bw"` : ce qui décide de la forme est que
+     la charge s'ajoute au corps au lieu d'être le total soulevé, et c'est ce
+     que la table nomme. */
+  if (traitsOf(v.unit).bodyweight) return l > 0 ? `PDC + ${fmt(l)} kg` : "Poids du corps";
   return `${fmt(l)} kg${v.perHand ? " / main" : ""}`;
 }
