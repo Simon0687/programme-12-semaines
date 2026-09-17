@@ -17,6 +17,14 @@
                         un `program` data-only (registre fermé) ; un
                         fichier à la version 1 ou sans version continue de
                         charger (le champ est optionnel).
+                        **Reste à 2 avec #58** (decisions-spec.md Q2) : le
+                        champ `intent` qu'un programme généré porte
+                        désormais — { frequency, duration, level, objective,
+                        priorities, equipment } — est optionnel et purement
+                        consultatif. Une version antérieure de l'appli
+                        l'ignore et exécute le programme sans rien perdre ;
+                        bumper le format le lui ferait refuser tout entier,
+                        pour un champ qui ne nourrit qu'un avis.
    DEFAULT_DEFINITION   le cycle fourni avec l'appli, sous la même forme
                         qu'un fichier chargé — buildProgram()/buildPlan()
                         ne distinguent pas les deux. Vit dans

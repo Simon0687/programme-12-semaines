@@ -84,6 +84,18 @@ whatever program ended up active, never on the way in. It defends itself the way
 because the two doors being independent means it does run on programs the other
 one would refuse.
 
+`generator.js` (#58) is the one module that sits *above* `assertions.js` and
+calls it rather than being judged by it: `targetsFor()` is its volume model and
+its time budget, not a checker bolted on afterwards - which is the argument
+`decisions-moteur.md` Q1 recorded for building the engine in the app at all. It
+produces a `definition` and hands it to the editor; it never writes, never
+validates and never grades its own output. So the chain a generated program
+travels is the one a loaded file travels: `generator.js` → `program-editor.js` →
+`journal-shape.js` → `storage.js`, with `assess()` giving its opinion at the end,
+on Plan, like on any other program. Since #58 that opinion is no longer partial
+for a generated cycle: the definition carries an `intent`, and the three
+assertions that need targets finally run.
+
 `journal-shape.js` (#32) is the one module both import doors and the storage
 adapter depend on - see 2.9. It was made a separate module rather than an
 addition to `schema.js` precisely to protect that leaf status: judging a
