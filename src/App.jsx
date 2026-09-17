@@ -157,7 +157,23 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
   const vid = slot[blockOf(week)];
   const v = prog.V[vid];
   const unit = v.unit || "kg";
-  const sets = setsFor(nSets, week);
+  /* #55 : deux comptes, et les confondre est le bug. `prescribed` est ce que
+     le programme demande — c'est lui que la ligne de prescription annonce, et
+     il ne bouge pas parce qu'on a ajouté une série. `sets` est ce que la
+     grille rend.
+
+     Le `rows.length` du max n'est pas une précaution : sans lui, une série
+     ajoutée existerait dans le journal (`onSet` fait croître le tableau
+     jusqu'à l'index reçu) et **disparaîtrait de l'écran** à la réouverture de
+     la séance — le pire des deux mondes. Il porte aussi, seul, la réouverture :
+     `extra` est un état d'écran et ne survit pas au démontage, ce qui est
+     voulu — une ligne ajoutée puis laissée vide n'a rien été.
+
+     Rien de tout cela ne se stocke. Le bouton ne crée pas de ligne : il agrandit
+     la grille, et la ligne naît au premier caractère tapé, comme les autres. */
+  const prescribed = setsFor(nSets, week);
+  const [extra, setExtra] = useState(0);
+  const sets = Math.max(prescribed + extra, rows.length);
   const plan = useMemo(() => planned(prog, state, slotId, week, si, date), [prog, state, slotId, week, si, date]);
   const last = useMemo(() => lastEntry(prog, state, vid, date, si), [prog, state, vid, date, si]);
   const [open, setOpen] = useState(false);
@@ -224,7 +240,7 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
             <ChevronRight size={15} className="inline text-ink-faint ml-1 mb-0.5" />
           </button>
           <div className="text-sm text-ink-muted mt-0.5">
-            {sets} × {repLabel}{v.side ? " par côté" : ""}, RIR {phase.rir}
+            {prescribed} × {repLabel}{v.side ? " par côté" : ""}, RIR {phase.rir}
             {failOk && <span className="ml-2 inline-flex items-center gap-1 text-badge"><Zap size={13} />dernière série à l'échec OK</span>}
             {amrap && <span className="ml-2 text-badge">S12 : dernière série AMRAP</span>}
           </div>
@@ -273,6 +289,22 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
           ];
         })}
       </div>
+      {/* #55 : « un jour je suis chaud, je veux ajouter une série ». Retirer une
+          série marchait déjà — une ligne sans répétitions n'a pas eu lieu
+          (normalizeSets, #23) — seul l'ajout manquait.
+
+          Visible seulement quand tout le prescrit est rempli (`nextIdx === -1`,
+          la logique de #42). On décide d'ajouter une série **après** avoir fait
+          les autres, jamais avant : plus tôt, le bouton ne pourrait produire
+          qu'une rangée de champs vides de plus. Il se limite ainsi tout seul,
+          sans plafond arbitraire — la troisième s'ajoute, il faut juste avoir
+          rempli la deuxième. */}
+      {nextIdx === -1 && (
+        <button onClick={() => setExtra((n) => n + 1)}
+          className="mt-2 text-sm text-ink-muted inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-focus rounded">
+          + une série
+        </button>
+      )}
       <LoadPickerOverlay picker={picker.picker} />
     </div>
   );
