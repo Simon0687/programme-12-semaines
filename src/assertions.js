@@ -314,3 +314,171 @@ export function targetsFor({ frequency, duration, level = "intermediaire", prior
         + `même réduit au minimum méthodologique, ce format en demande ${needed}.`,
   };
 }
+
+/* ---------- Les six assertions (§7) ----------
+
+   Libellés lisibles pour les messages. Un signalement doit pouvoir être
+   collé à une IA sans retouche (#19) : il nomme donc le muscle et le schéma
+   en toutes lettres, jamais leur clé de registre, et ne renvoie à aucun
+   fichier ni à aucune fonction. */
+const MUSCLE_LABELS = {
+  dos: "Dos",
+  pectoraux: "Pectoraux",
+  quadriceps: "Quadriceps",
+  ischios_fessiers: "Ischios/fessiers",
+  deltoide_ant: "Deltoïde antérieur",
+  deltoide_lat: "Deltoïde latéral",
+  deltoide_post: "Deltoïde postérieur",
+  biceps: "Biceps",
+  triceps: "Triceps",
+  mollets: "Mollets",
+  abdominaux: "Abdominaux",
+};
+
+const PATTERN_LABELS = {
+  poussee_horizontale: "poussée horizontale",
+  poussee_verticale: "poussée verticale",
+  tirage_vertical: "tirage vertical",
+  tirage_horizontal: "tirage horizontal",
+  dominante_genou: "dominante genou",
+  charniere_hanche: "charnière de hanche",
+  extension_hanche: "extension de hanche",
+  mollets: "mollets",
+  abdominaux: "abdominaux",
+  iso_pectoraux: "isolation pectoraux",
+  iso_deltoide_lateral: "isolation deltoïde latéral",
+  iso_deltoide_posterieur: "isolation deltoïde postérieur",
+  iso_biceps: "isolation biceps",
+  iso_triceps: "isolation triceps",
+  iso_quadriceps: "isolation quadriceps",
+  iso_ischios: "isolation ischios",
+};
+
+/* Reprise de src/display.js, qui est un module de vue : l'importer ferait
+   dépendre une feuille de l'affichage (§2 de docs/ARCHITECTURE.md). Sept
+   mots recopiés valent mieux qu'une dépendance à l'envers. */
+const DAY_NAMES = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
+
+const sessionLabel = (session) => session.name || session.id || "une séance sans nom";
+
+/* La semaine est circulaire : entre le samedi et le lundi suivant il y a
+   48 h, pas 120. Sans ça, l'assertion 4 laisserait passer exactement les
+   programmes de fin de semaine qu'elle est censée attraper. */
+const hoursBetween = (a, b) => {
+  const d = Math.abs(a - b);
+  return Math.min(d, 7 - d) * 24;
+};
+
+/* Assertion 3 — aucun pattern dupliqué dans une même séance (règle B.2).
+   Les lignes sans `pattern` sont ignorées : les quatre entrées hors
+   taxonomie n'ont rien à dupliquer. */
+function assertPatterns(week) {
+  const findings = [];
+  for (const session of week.sessions) {
+    const byPattern = new Map();
+    for (const row of session.rows) {
+      if (!row.entry.pattern) continue;
+      if (!byPattern.has(row.entry.pattern)) byPattern.set(row.entry.pattern, []);
+      byPattern.get(row.entry.pattern).push(row);
+    }
+    for (const [pattern, rows] of byPattern) {
+      if (rows.length < 2) continue;
+      const names = rows.map((r) => r.entry.name).join(", ");
+      findings.push({
+        code: "duplicate-pattern",
+        sessionId: session.id,
+        pattern,
+        message: `« ${sessionLabel(session)} » enchaîne ${rows.length} exercices du même schéma moteur `
+          + `(${PATTERN_LABELS[pattern] || pattern}) : ${names}. `
+          + `La règle veut un seul exercice par schéma et par séance.`,
+      });
+    }
+  }
+  return findings;
+}
+
+/* Assertion 4 — au moins 48 h entre deux sollicitations primaires d'un gros
+   groupe. « Primaire » vaut PRIMARY, le seuil du palier plein
+   (decisions-spec.md Q3). Les séances sans `day` lisible sont sautées :
+   elles n'ont pas de place dans la semaine, donc pas d'écart à mesurer. */
+function assertRecovery(week) {
+  const findings = [];
+  for (const m of LARGE_GROUPS) {
+    const placed = week.sessions.filter(
+      (s) => s.day != null && s.rows.some((row) => (row.entry.muscles ? row.entry.muscles[m] ?? 0 : 0) >= PRIMARY),
+    );
+    for (let i = 0; i < placed.length; i += 1) {
+      for (let j = i + 1; j < placed.length; j += 1) {
+        const gap = hoursBetween(placed[i].day, placed[j].day);
+        if (gap >= 48) continue;
+        findings.push({
+          code: "insufficient-recovery",
+          muscle: m,
+          sessionId: placed[i].id,
+          partnerId: placed[j].id,
+          message: `${MUSCLE_LABELS[m]} : « ${sessionLabel(placed[i])} » (${DAY_NAMES[placed[i].day - 1]}) et `
+            + `« ${sessionLabel(placed[j])} » (${DAY_NAMES[placed[j].day - 1]}) sollicitent ce groupe à titre `
+            + `principal à ${gap} h d'intervalle ; un gros groupe demande au moins 48 h.`,
+        });
+      }
+    }
+  }
+  return findings;
+}
+
+/* Les assertions qui ne lisent que le programme. Celles qui exigent une
+   intention déclarée les rejoindront à mesure. */
+const ASSERTIONS = [assertPatterns, assertRecovery];
+
+/* Deux findings qui désignent le même problème n'en font qu'un, marqué
+   « both ». Sans cette fusion, les deux programmes livrés doublent chacun
+   de leurs signalements : leurs variantes b1 et b2 ont le même profil
+   musculaire, donc les mêmes avis. Un avis affiché deux fois se lit comme
+   deux problèmes.
+
+   La clé porte sur l'*identité* du problème — séance, muscle, schéma — et
+   surtout pas sur le message. Le cas qui l'impose est le seul vrai doublon
+   du dépôt : « Haut A » enchaîne deux poussées horizontales dans les deux
+   blocs, mais la deuxième est un développé incliné haltères en bloc 1 et
+   une presse inclinée machine en bloc 2. Deux phrases différentes, un seul
+   problème. Le message retenu est celui du premier bloc, avec ses
+   variantes à lui : un exemple vaut mieux qu'une énumération. */
+function mergeBlocks(perBlock) {
+  const seen = new Map();
+  for (const { block, findings } of perBlock) {
+    for (const finding of findings) {
+      const key = [finding.code, finding.sessionId, finding.partnerId, finding.muscle, finding.pattern].join("|");
+      if (seen.has(key)) seen.get(key).block = "both";
+      else seen.set(key, { ...finding, block });
+    }
+  }
+  return [...seen.values()];
+}
+
+/* Le verdict. Jamais d'exception, quelle que soit l'entrée — c'est la même
+   promesse que les portes d'import (§2.4), tenue de la même façon : par des
+   gardes de structure, pas par un try/catch qui rassurerait sans vérifier.
+
+   `ok` dit « aucun avis à donner », pas « programme valide » : un programme
+   qui échoue aux six se charge et s'exécute quand même. */
+export function assess(program, targets) {
+  const perBlock = [];
+  for (const block of ["b1", "b2"]) {
+    const week = resolveWeek(program, block);
+    if (week) perBlock.push({ block, findings: ASSERTIONS.flatMap((fn) => fn(week, targets)) });
+  }
+
+  if (perBlock.length === 0) {
+    return {
+      ok: false,
+      findings: [{
+        code: "unreadable-program",
+        message: "Ce programme n'a pas pu être lu comme une semaine d'entraînement : "
+          + "sa structure de séances, de créneaux ou d'exercices est incomplète.",
+      }],
+    };
+  }
+
+  const findings = mergeBlocks(perBlock);
+  return { ok: findings.length === 0, findings };
+}

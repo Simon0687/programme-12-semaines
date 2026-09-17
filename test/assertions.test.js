@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   VOLUME, PRIMARY, LARGE_GROUPS, LEVELS,
   contribution, resolveWeek, weeklyVolume, stimulationFrequency, hasUnmodelledRows,
-  targetsFor,
+  targetsFor, assess,
 } from "../src/assertions.js";
 import { EXERCISES, MUSCLE_GROUPS, UNSELECTABLE_IDS } from "../src/registry.js";
 import { DEFAULT_DEFINITION } from "../src/default-program.js";
@@ -363,5 +363,127 @@ describe("targetsFor : les 20 combinaisons fréquence x durée (§7)", () => {
       const lengths = DURATIONS.map((duration) => targetsFor({ frequency, duration }).cascade.length);
       assert.deepEqual(lengths, [...lengths].sort((a, b) => b - a), `fréquence ${frequency} : ${lengths}`);
     }
+  });
+});
+
+describe("assess : la forme du verdict", () => {
+  const codes = (verdict) => verdict.findings.map((f) => f.code);
+
+  test("un programme illisible rend un verdict, jamais un jeté", () => {
+    for (const bad of [null, 42, "programme", [], {}, { SLOTS: {} }]) {
+      const verdict = assess(bad);
+      assert.equal(verdict.ok, false);
+      assert.deepEqual(codes(verdict), ["unreadable-program"]);
+    }
+  });
+
+  test("aucun message ne renvoie au code source", () => {
+    for (const program of [BUNDLED, LEGACY]) {
+      for (const f of assess(program).findings) {
+        assert.doesNotMatch(f.message, /\.js|src\/|function|undefined|null/, f.message);
+      }
+    }
+  });
+
+  test("chaque finding porte un code et le bloc où il a été vu", () => {
+    for (const f of assess(LEGACY).findings) {
+      assert.equal(typeof f.code, "string");
+      assert.ok(["b1", "b2", "both"].includes(f.block), f.block);
+    }
+  });
+
+  test("un avis vrai des deux blocs n'est donné qu'une fois", () => {
+    const verdict = assess(LEGACY);
+    const dup = verdict.findings.filter((f) => f.code === "duplicate-pattern");
+    assert.equal(dup.length, 1, "un seul, pas un par bloc");
+    assert.equal(dup[0].block, "both");
+  });
+
+  test("un avis propre à un bloc garde son bloc", () => {
+    const program = structuredClone(BUNDLED);
+    program.SLOTS.pulldown.b2 = "dc"; // b2 seul : deux poussées horizontales en Upper A
+    const verdict = assess(program);
+    const dup = verdict.findings.filter((f) => f.code === "duplicate-pattern");
+    assert.equal(dup.length, 1);
+    assert.equal(dup[0].block, "b2");
+  });
+});
+
+describe("assertion 3 — aucun schéma moteur dupliqué dans une séance", () => {
+  test("le bundle n'en duplique aucun", () => {
+    assert.deepEqual(assess(BUNDLED).findings.filter((f) => f.code === "duplicate-pattern"), []);
+  });
+
+  /* Le vrai signalement du dépôt, et le meilleur argument pour « il
+     conseille, il ne bloque jamais » : couché + incliné dans la même
+     séance est un choix standard et assumé. Si ce test devient vert sans
+     que le programme change, l'assertion a cessé de fonctionner. */
+  test("le programme hérité en duplique un : Haut A enchaîne deux poussées horizontales", () => {
+    const dup = assess(LEGACY).findings.filter((f) => f.code === "duplicate-pattern");
+    assert.equal(dup.length, 1);
+    assert.equal(dup[0].sessionId, "hautA");
+    assert.equal(dup[0].pattern, "poussee_horizontale");
+    assert.match(dup[0].message, /Haut A/);
+    assert.match(dup[0].message, /poussée horizontale/);
+    assert.match(dup[0].message, /Développé couché barre/);
+  });
+
+  test("les lignes hors taxonomie ne se dupliquent pas entre elles", () => {
+    const program = structuredClone(BUNDLED);
+    program.CORE.coreB.ex = [["pallof", 1], ["pallof", 1]];
+    const dup = assess(program).findings.filter((f) => f.code === "duplicate-pattern");
+    assert.deepEqual(dup, [], "pallof n'a pas de pattern : rien à dupliquer");
+  });
+});
+
+describe("assertion 4 — 48 h entre deux sollicitations primaires d'un gros groupe", () => {
+  test("les deux programmes livrés espacent correctement", () => {
+    for (const program of [BUNDLED, LEGACY]) {
+      assert.deepEqual(assess(program).findings.filter((f) => f.code === "insufficient-recovery"), []);
+    }
+  });
+
+  test("deux séances de dos à un jour d'écart sont signalées", () => {
+    const program = structuredClone(BUNDLED);
+    program.SESSIONS[2].day = 2; // Upper B passe du jeudi au mardi, au lendemain d'Upper A
+    const found = assess(program).findings.filter((f) => f.code === "insufficient-recovery");
+    assert.ok(found.some((f) => f.muscle === "dos"), found.map((f) => f.muscle).join(", "));
+    assert.match(found[0].message, /24 h d'intervalle/);
+    assert.match(found[0].message, /au moins 48 h/);
+  });
+
+  test("la semaine est circulaire : dimanche et lundi sont à 24 h", () => {
+    const program = structuredClone(BUNDLED);
+    program.SESSIONS[2].day = 7; // Upper B le dimanche, Upper A le lundi
+    const found = assess(program).findings.filter((f) => f.code === "insufficient-recovery");
+    assert.ok(found.some((f) => f.muscle === "pectoraux"));
+    assert.match(found.find((f) => f.muscle === "pectoraux").message, /24 h/);
+  });
+
+  test("48 h pile ne se signale pas", () => {
+    const program = structuredClone(BUNDLED);
+    program.SESSIONS[2].day = 3; // Upper A lundi, Upper B mercredi
+    assert.deepEqual(assess(program).findings.filter((f) => f.code === "insufficient-recovery"), []);
+  });
+
+  test("une contribution sous le seuil primaire ne compte pas comme sollicitation", () => {
+    /* Hack squat apporte 0,35 aux ischios : deux jours de suite, ce n'est
+       pas deux sollicitations primaires. */
+    const program = structuredClone(BUNDLED);
+    program.SESSIONS = program.SESSIONS.filter((s) => s.id.startsWith("lower"));
+    program.SESSIONS[0].day = 1;
+    program.SESSIONS[1].day = 2;
+    program.SESSIONS[1].ex = [["quad2", 3]]; // presse seule : 0,35 ischios, 0,65 quadriceps
+    const found = assess(program).findings.filter((f) => f.code === "insufficient-recovery");
+    assert.ok(found.some((f) => f.muscle === "quadriceps"), "les quadriceps, eux, sont primaires des deux côtés");
+    assert.ok(!found.some((f) => f.muscle === "ischios_fessiers"), "pas les ischios");
+  });
+
+  test("une séance sans jour lisible est sautée au lieu de tout perdre", () => {
+    const program = structuredClone(BUNDLED);
+    program.SESSIONS[2].day = null;
+    const verdict = assess(program);
+    assert.notEqual(verdict.findings[0]?.code, "unreadable-program");
+    assert.deepEqual(verdict.findings.filter((f) => f.code === "insufficient-recovery"), []);
   });
 });
