@@ -75,10 +75,11 @@ export function getKeySlots(prog) {
     .map(([id]) => id);
 }
 
-/* Jours (0 = dimanche … 6 = samedi) qui ont une note cardio mais aucune
-   séance. Un jour avec à la fois une séance et une note cardio (ex. mercredi :
-   Haut B + rameur après) n'en fait pas partie : la note y complète la séance,
-   elle ne la remplace pas.
+/* Jours qui ont une note cardio mais aucune séance, dans la seule convention
+   que porte encore le format depuis #39 : un décalage de 1 à 7 depuis
+   startDate, le même que `session.day`. Un jour avec à la fois une séance et
+   une note cardio (ex. mercredi : Haut B + rameur après) n'en fait pas partie :
+   la note y complète la séance, elle ne la remplace pas.
 
    #41 : plus aucun appelant dans src/. Son unique consommateur était l'effet
    qui devinait la séance à ouvrir — il servait à basculer directement sur

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  setSummary, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, adviceSummary,
+  setSummary, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, weekdayName, adviceSummary,
 } from "../src/display.js";
 import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS, PATTERNS } from "../src/registry.js";
 import { fmt } from "../src/progression.js";
@@ -379,6 +379,18 @@ test("dayName lit un décalage de 1 à 7, pas un getDay()", () => {
   assert.equal(dayName(7), "dimanche", "le dimanche affichait « undefined » avant #36");
   assert.equal(dayName(0), "", "0 n'est pas un jour de séance : rien, jamais « dimanche »");
   assert.equal(dayName(8), "");
+});
+
+test("weekdayName lit une date du calendrier, là où dayName lit un décalage (#39)", () => {
+  /* Les deux fonctions rendent des chaînes de la même liste et répondent à
+     deux questions différentes. Sur un départ le lundi elles s'accordent, ce
+     qui est exactement ce qui a permis à la confusion de #39 de vivre — la
+     paire du mercredi est ce qui les sépare. */
+  assert.equal(weekdayName(new Date(2026, 0, 5)), "lundi");
+  assert.equal(weekdayName(new Date(2026, 2, 4)), "mercredi");
+  assert.equal(weekdayName(new Date(2026, 9, 25)), "dimanche", "getDay() rend 0 ; la liste commence à lundi");
+  assert.equal(dayName(1), "lundi");
+  assert.notEqual(weekdayName(new Date(2026, 2, 4)), dayName(1), "un mercredi de départ n'est pas « lundi »");
 });
 
 /* ---------- adviceSummary (#57) ----------

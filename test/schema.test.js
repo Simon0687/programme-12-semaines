@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   SCHEMA_VERSION, LEGACY_PROGRAM_ID, applyChain, migrate, versionOf,
-  weekKey, genId, dateForSlot, findLog, writeLog,
+  weekKey, genId, dateForSlot, slotForDate, findLog, writeLog,
 } from "../src/schema.js";
 import { testCtx } from "./helpers/migration-ctx.js";
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
@@ -26,6 +26,71 @@ test("dateForSlot : startDate + 7×(semaine-1) + (jour-1) (#16)", () => {
   assert.equal(dateForSlot("2026-01-05", 2, 1), "2026-01-12"); // semaine 2, lundi
   assert.equal(dateForSlot("2026-01-05", 7, 1), "2026-02-16"); // semaine 7 (décharge), lundi
   assert.equal(dateForSlot("2026-01-05", 12, 6), "2026-03-28"); // semaine 12, samedi
+});
+
+/* ---------- slotForDate, l'inverse de dateForSlot (#39) ----------
+
+   `day` se lisait sous deux conventions : un décalage depuis startDate dans
+   dateForSlot, un Date#getDay() dans App.jsx. Elles ne coïncidaient que sur un
+   départ le lundi, et seulement de 1 à 6. Ces cas épinglent celle qui reste. */
+
+test("slotForDate : aller-retour avec dateForSlot sur tout un cycle", () => {
+  /* La propriété qui définit la fonction : quelle que soit la semaine et le
+     jour, dateForSlot puis slotForDate rendent le couple de départ. Un départ
+     un mercredi, pour que la coïncidence avec getDay() ne puisse pas sauver
+     un test. */
+  for (const start of ["2026-01-05", "2026-03-04", "2026-10-25"]) {
+    for (let w = 1; w <= 12; w++) {
+      for (let d = 1; d <= 7; d++) {
+        assert.deepEqual(slotForDate(start, dateForSlot(start, w, d)), { week: w, day: d }, `${start} S${w} J${d}`);
+      }
+    }
+  }
+});
+
+test("slotForDate : un programme qui part un mercredi tombe juste", () => {
+  /* 2026-03-04 est un mercredi. Le jour 1 du cycle est ce mercredi, pas lundi :
+     c'est le cas nominal de #19 — on installe l'appli un mercredi et on
+     commence dans la foulée — et c'est celui que getDay() décalait de deux
+     jours sur toute la durée du cycle. */
+  assert.deepEqual(slotForDate("2026-03-04", "2026-03-04"), { week: 1, day: 1 });
+  assert.deepEqual(slotForDate("2026-03-04", "2026-03-09"), { week: 1, day: 6 });
+  /* La semaine du cycle bascule au mardi suivant, pas au lundi : elle compte
+     depuis startDate. Sous getDay(), le 10 mars aurait rendu 2 — le jour 2 de
+     la semaine 1 — soit la séance du jeudi annoncée un mardi. */
+  assert.deepEqual(slotForDate("2026-03-04", "2026-03-10"), { week: 1, day: 7 });
+  assert.deepEqual(slotForDate("2026-03-04", "2026-03-11"), { week: 2, day: 1 });
+});
+
+test("slotForDate : le dimanche est le jour 7, jamais 0", () => {
+  /* Le trou de #39 : `day: 0` datait la séance la veille du départ du cycle, et
+     `day: 7` la datait juste mais n'était jamais annoncé comme le jour même,
+     getDay() ne rendant pas 7. */
+  assert.deepEqual(slotForDate("2026-01-05", "2026-01-11"), { week: 1, day: 7 });
+  assert.equal(dateForSlot("2026-01-05", 1, 7), "2026-01-11");
+});
+
+test("slotForDate : avant le départ, rien — pas un jour négatif", () => {
+  assert.equal(slotForDate("2026-01-05", "2026-01-04"), null);
+  assert.equal(slotForDate("2026-01-05", "2025-12-01"), null);
+});
+
+test("slotForDate : la semaine n'est pas plafonnée, c'est l'appelant qui décide", () => {
+  /* App.jsx en a besoin des deux façons : ramener la navigation sur la dernière
+     semaine, et éteindre la pastille « aujourd'hui ». Plafonner ici lui
+     retirerait le moyen de distinguer les deux. */
+  assert.deepEqual(slotForDate("2026-01-05", "2026-03-30"), { week: 13, day: 1 });
+});
+
+test("slotForDate : un changement d'heure ne décale pas le jour", () => {
+  /* Le calcul passe par Date.UTC. Une soustraction de dates locales rend 89,96
+     jours sur un cycle qui traverse le passage à l'heure d'été (2026-03-29 en
+     France), et Math.floor en fait un jour de moins pour tout le reste du
+     cycle. */
+  assert.deepEqual(slotForDate("2026-03-02", "2026-03-30"), { week: 5, day: 1 });
+  assert.deepEqual(slotForDate("2026-03-02", "2026-05-25"), { week: 13, day: 1 });
+  /* Et dans l'autre sens, le retour à l'heure d'hiver (2026-10-25). */
+  assert.deepEqual(slotForDate("2026-10-05", "2026-10-26"), { week: 4, day: 1 });
 });
 
 test("findLog / writeLog : crée au premier écrit, réutilise le même id ensuite (#16)", () => {

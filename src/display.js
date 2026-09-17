@@ -233,17 +233,33 @@ export const PATTERN_LABELS = {
   iso_ischios: "Isolation ischios",
 };
 
-/* ---------- Jour d'une séance ----------
-   `session.day` est un décalage de 1 à 7 depuis startDate (dateForSlot,
-   src/schema.js:76), et startDate est un lundi : 1 se lit donc lundi, et 7
-   dimanche. La liste commence à lundi et `dayName` fait le −1, plutôt
-   qu'un tableau troué en tête : c'est ce qui empêche de la confondre avec
-   Date#getDay() (0 = dimanche), la confusion que #33 a laissée ouverte et
-   qui affichait « undefined » sur une séance du dimanche — jusqu'ici
-   inatteignable, puisque aucun écran ne demandait de jour (#36). */
+/* ---------- Jours : deux questions, deux fonctions (#39) ----------
+
+   `session.day` est un **décalage de 1 à 7 depuis startDate** (dateForSlot,
+   src/schema.js), pas un jour de la semaine. Les deux se ressemblent tant
+   que startDate tombe un lundi, où 1 se lit lundi et 7 dimanche, et c'est
+   exactement ce qui a permis à la confusion de #39 de vivre : App.jsx
+   comparait un décalage à un `Date#getDay()` (0 = dimanche), qui coïncidait
+   sur les deux programmes livrés.
+
+   D'où deux fonctions plutôt qu'une, et un nom qui dit laquelle on demande :
+
+   - `dayName(day)` nomme un **décalage de cycle**. La liste commence à lundi
+     et la fonction fait le −1, plutôt que de porter un tableau troué en tête
+     — c'est ce qui empêche de la passer à un getDay() par accident.
+   - `weekdayName(date)` nomme le **jour de semaine réel** d'une date du
+     calendrier. Elle sert là où la question porte vraiment sur le calendrier
+     — « le programme commence mercredi 4 mars » — et jamais sur un
+     `session.day`. Le +6 % 7 ramène getDay() sur la même liste, sans en
+     créer une seconde à tenir en accord.
+
+   Un jour hors plage rend la chaîne vide et non « undefined » : le rendu de
+   #36 tombait dessus sur une séance du dimanche. */
 export const DAY_NAMES = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
 
 export const dayName = (day) => DAY_NAMES[day - 1] || "";
+
+export const weekdayName = (date) => DAY_NAMES[(date.getDay() + 6) % 7];
 
 const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const joinLabels = (keys, table) =>

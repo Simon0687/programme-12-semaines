@@ -42,8 +42,21 @@ describe("getKeySlots", () => {
 });
 
 describe("getCardioDayNotes", () => {
-  test("programme hérité : exactement les jours 0 et 4 (note cardio sans séance)", () => {
-    assert.deepEqual(getCardioDayNotes(prog), [0, 4]);
+  test("programme hérité : exactement les jours 4 et 7 (note cardio sans séance)", () => {
+    /* Jeudi et dimanche. Le dimanche était indexé 0 — un Date#getDay() — avant
+       que #39 ne ramène CARDIO_DAY_NOTES sur la convention de `session.day`,
+       un décalage de 1 à 7 depuis startDate. Les jours nommés ne changent pas,
+       leur clé si. */
+    assert.deepEqual(getCardioDayNotes(prog), [4, 7]);
+  });
+
+  test("aucune clé de note cardio hors de la plage 1-7 (#39)", () => {
+    /* Le 0 de l'ancienne convention rendait le dimanche indistinguable de « la
+       veille du départ », que dateForSlot place hors du cycle. Une clé hors
+       plage est le symptôme du retour de la seconde convention. */
+    for (const k of Object.keys(prog.CARDIO_DAY_NOTES).map(Number)) {
+      assert.ok(k >= 1 && k <= 7, `clé ${k} hors de la plage 1-7`);
+    }
   });
 
   test("un jour avec séance ET note cardio n'est pas compté (mercredi : Haut B + rameur)", () => {

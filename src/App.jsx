@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Download, Upload, Zap, X } from "lucide-react";
-import { SCHEMA_VERSION, emptyJournal, weekKey, dateForSlot, findLog, writeLog, withVersion } from "./schema.js";
+import { SCHEMA_VERSION, emptyJournal, weekKey, dateForSlot, slotForDate, findLog, writeLog, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport, IMPORT_MESSAGES } from "./import.js";
 import { listBackups, readDroppedBackup, backupPreImportOnce, readPreImportBackup } from "./backup.js";
 import { createStore, loadJournal, saveJournal } from "./storage.js";
@@ -14,7 +14,7 @@ import { assess, targetsFor } from "./assertions.js";
 import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind, workingSets, loadDrops, loadText } from "./progression.js";
-import { setSummary, dayName, adviceSummary } from "./display.js";
+import { setSummary, dayName, weekdayName, adviceSummary } from "./display.js";
 import { EXERCISE_IDS } from "./registry.js";
 import ExerciseSheet from "./ExerciseSheet.jsx";
 import ProgramEditor from "./ProgramEditor.jsx";
@@ -294,9 +294,25 @@ export default function Programme() {
 
   const START = parseLocalDate(definition.startDate);
   const today = startOfDay(new Date());
-  const dayIdx = Math.floor((today - START) / 86400000);
-  const curWeek = Math.min(definition.weeks, Math.max(1, Math.floor(dayIdx / 7) + 1));
-  const weekday = today.getDay();
+  /* #39 : « où en est-on du cycle ? » se demande à startDate, jamais au
+     calendrier. slotForDate rend le décalage de 1 à 7 qu'est `session.day`
+     (schema.js) ; l'ancien `today.getDay()` rendait un index de jour de
+     semaine JS, qui ne coïncide avec lui que si startDate tombe un lundi.
+
+     `at` est null avant le départ, et sa semaine dépasse la durée du
+     programme une fois le cycle fini : `curWeek` retombe alors sur la
+     dernière semaine — c'est ce qu'on veut pour naviguer — mais `todayDay`
+     s'éteint, parce qu'une pastille « aujourd'hui » sur une séance de S12
+     qu'on a passée depuis trois semaines dit quelque chose de faux.
+
+     Les deux bornes du cycle (cycleNote, plus bas) se lisent sur ce même
+     `at` : avant le départ il est null, après la fin sa semaine dépasse
+     `definition.weeks`. L'ancien `dayIdx` comptait des jours pour répondre
+     à une question de semaines, et le faisait par soustraction de dates
+     locales — 89,96 jours quand le cycle traverse un changement d'heure. */
+  const at = slotForDate(definition.startDate, toIsoDate(today));
+  const curWeek = Math.min(definition.weeks, Math.max(1, at ? at.week : 1));
+  const todayDay = at && at.week <= definition.weeks ? at.day : null;
   const prog = useMemo(() => buildProgram(definition), [definition]);
   const plan = useMemo(() => buildPlan(definition), [definition]);
   /* #57 : les six assertions de #37, sur le programme que l'application
@@ -817,8 +833,8 @@ export default function Programme() {
      parce qu'ils parlent du cycle et non du jour : avant le départ, et après
      les douze semaines. */
   const cycleNote =
-    dayIdx < 0 ? `Le programme commence lundi ${dateLabel(START)}.`
-    : dayIdx >= definition.weeks * 7 ? `Les ${definition.weeks} semaines sont terminées : bilan et programme suivant.`
+    !at ? `Le programme commence ${weekdayName(START)} ${dateLabel(START)}.`
+    : at.week > definition.weeks ? `Les ${definition.weeks} semaines sont terminées : bilan et programme suivant.`
     : null;
 
   const backSession = nav.sessionId ? prog.SESSIONS.find((s) => s.id === nav.sessionId) : null;
@@ -1015,14 +1031,13 @@ export default function Programme() {
                    choisir à la place de l'utilisateur. Seulement sur la semaine
                    en cours : « aujourd'hui » n'a pas de sens en S7 quand on
                    feuillette une semaine passée. */
-                /* #36 : `day` est un décalage de 1 à 7 depuis startDate, un
-                   lundi — donc 7 vaut dimanche, que getDay() numérote 0. Le
-                   dimanche était le seul jour où la pastille ne pouvait pas
-                   s'allumer ; il devient un jour comme les six autres, ce que
-                   l'éditeur rend atteignable en un tap. La contradiction de
-                   fond — un startDate qui ne tomberait pas un lundi — reste
-                   entière, et reste #33. */
-                const isToday = week === curWeek && s.day === (weekday || 7);
+                /* #39 : la contradiction de fond est levée — `todayDay` est
+                   le même décalage depuis startDate que `s.day`, donc la
+                   comparaison porte sur deux grandeurs de même nature. Un
+                   programme qui part un mercredi allume la bonne pastille, et
+                   le dimanche (jour 7) devient un jour comme les six autres.
+                   Hors du cycle `todayDay` vaut null, qui n'égale aucun jour. */
+                const isToday = week === curWeek && s.day === todayDay;
                 return (
                   <button key={s.id} onClick={() => openSession(s.id)} className="w-full py-3 flex items-center justify-between text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
                     <div>

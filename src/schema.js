@@ -80,6 +80,40 @@ export const dateForSlot = (startDateIso, week, day) => {
   return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
 };
 
+/* Inverse de dateForSlot : où tombe une date dans le cycle (#39).
+
+   `day` se lisait sous deux conventions incompatibles. dateForSlot en fait un
+   **décalage de 1 à 7 depuis startDate** — c'est lui qui a écrit chaque date
+   de chaque journal depuis #16. App.jsx, lui, cherchait la séance du jour par
+   `s.day === today.getDay()`, un **index de jour de semaine JS, 0 = dimanche**.
+   Les deux ne coïncidaient que parce que les deux programmes livrés partent un
+   lundi, et seulement pour les jours 1 à 6 : le dimanche valait 0 d'un côté
+   (la veille du départ) et 7 de l'autre (jamais rendu par getDay()).
+
+   La convention qui reste est celle du décalage, sans hésitation possible :
+   changer l'autre réinterpréterait toutes les dates déjà stockées
+   (ARCHITECTURE 2.1). Il n'y a donc plus de lecture de getDay() sur un
+   `session.day` nulle part — la question « quelle séance aujourd'hui ? » se
+   pose désormais à startDate, pas au calendrier.
+
+   Rend `null` avant le départ du cycle. `week` n'est pas plafonné à la durée
+   du programme : l'appelant décide si une 14e semaine se dit « terminé » ou se
+   ramène à la 12e, et les deux réponses sont légitimes.
+
+   Les deux dates passent par Date.UTC plutôt que par une soustraction de dates
+   locales : entre mars et octobre un cycle traverse deux changements d'heure,
+   et (dateB − dateA) / 86400000 y rend 89,96 ou 90,04 jours. Math.floor du
+   premier décale le jour d'un cran, une fois par an, pendant sept mois — le
+   genre de bogue qu'on attribue à autre chose. dateForSlot n'a pas ce problème
+   (elle construit une date par décalage de quantième, ce que Date corrige
+   elle-même) ; son inverse doit être aussi sûre qu'elle. */
+export const slotForDate = (startDateIso, dateIso) => {
+  const utc = (iso) => { const [y, m, d] = String(iso).split("-").map(Number); return Date.UTC(y, m - 1, d); };
+  const n = Math.round((utc(dateIso) - utc(startDateIso)) / 86400000);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return { week: Math.floor(n / 7) + 1, day: (n % 7) + 1 };
+};
+
 /* Recherche/écriture d'un log de séance par (date, slot) au lieu d'une clé
    w{week}_{id} (#16). writeLog crée un id au premier écrit pour un
    (date, slot) donné, puis réutilise ce même id pour les écritures

@@ -15,12 +15,17 @@
                     id "int" = intervalles, masquée quand
                     cardioPlan(w).intervals est null.
    MOB_DAYS[] — libellés des 3 jours de mobilité (cases à cocher).
-   CARDIO_DAY_NOTES[jour] — fragment cardio par jour (0 = dimanche … 6 =
-                    samedi ; jours sans cardio absents). Plus lu par l'appli
-                    depuis #41 : la ligne « Aujourd'hui » qui le portait a
-                    été remplacée par la pastille du même nom sur la liste de
-                    Semaine. Conservé — c'est du format de programme, son
-                    sort appartient à #34.
+   CARDIO_DAY_NOTES[jour] — fragment cardio par jour, indexé comme
+                    `session.day` : un **décalage de 1 à 7 depuis startDate**
+                    (jours sans cardio absents). Il était indexé par
+                    Date#getDay() (0 = dimanche), la seconde convention que
+                    #39 supprime — d'où le 0 devenu 7 pour le dimanche ; les
+                    trois autres clés tombaient déjà juste, les deux
+                    conventions coïncidant de 1 à 6 sur un départ le lundi.
+                    Plus lu par l'appli depuis #41 : la ligne « Aujourd'hui »
+                    qui le portait a été remplacée par la pastille du même nom
+                    sur la liste de Semaine. Conservé — c'est du format de
+                    programme, son sort appartient à #34.
    ========================================================= */
 
 export const cardioPlan = (w) => {
@@ -42,10 +47,10 @@ export const CARDIO_ITEMS = [
 export const MOB_DAYS = ["mardi", "jeudi", "dimanche"];
 
 export const CARDIO_DAY_NOTES = {
-  0: "rameur Z2 + mobilité",
   2: " puis mobilité",
   3: " puis rameur Z2",
   4: "rameur intervalles + mobilité",
+  7: "rameur Z2 + mobilité",
 };
 
 /* Indices post-séance (#22, déplacés ici depuis App.jsx par #33).
