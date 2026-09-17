@@ -134,3 +134,46 @@ D4 ne se décide pas avant que Simon ait repensé l'onglet lui-même.
 **Et il faut le dire franchement : D3 ne peut pas être honnête tant que #34
 n'est pas tranché.** Un compte sous la section cardio compterait les séances de
 Simon sous n'importe quel programme (§3).
+
+---
+
+## 7. Ce qui a été livré (2026-09-17)
+
+Les quatre candidats sont dans `dev`, dans l'ordre que §6 donnait.
+
+| # | État | Où |
+|---|---|---|
+| **D1** | livré | `PLAN_INTRO` dit ce que #36 et #58 ont rendu vrai |
+| **D2** | livré | `buildPlan()` rend un `group` par section ; l'index les range sous **La méthode / Ce programme / Appareil** |
+| **D3** | livré | `buildPlan()` rend un `meta` par section — le compte dérivé |
+| **D4** | livré | le Plan est un index, chaque sujet a sa page |
+
+**#34 est passé avant, et c'était la bonne décision.** Le compte de la ligne
+Cardio se lit aujourd'hui « 3 séances · mercredi, jeudi, dimanche » sur le
+programme de Simon — sous `cardio: "default"`, il aurait écrit la même chose sous
+n'importe quel programme importé. C'est exactement le mensonge que §3 annonçait,
+et il aurait été livré avec D3.
+
+Ce que les mesures de §1 ont donné une fois codées :
+
+- `11 groupes · 7 séries max` sur le programme neutre, **au caractère près la
+  maquette**. Le programme de Simon donne `12 groupes · 10 séries max`.
+- Les trois constantes sont restées constantes, et se voient comme telles. C'est
+  une information — « cette référence ne bouge pas d'un programme à l'autre » —
+  et non un défaut à cacher.
+- La ligne Données rend `Export 12 sept. · stockage persistant`, comme la
+  maquette, depuis `readLastExport()` et l'état de persistance (#15).
+
+Deux écarts avec 1c, tous deux assumés :
+
+- **Le sujet ouvert n'est pas mémorisé.** Un rechargement rouvre l'index. Faire
+  entrer une troisième cible dans `screen-state.js` (#41) aurait demandé de la
+  valider contre le programme actif comme les deux autres, pour un confort que
+  personne n'a demandé.
+- **Le retour n'est pas en ambre.** La maquette le met à l'accent ; C2 du triage
+  du 2026-09-14 dit que l'accent porte déjà trop de sens, et une flèche de retour
+  n'est pas une donnée. Même `text-ink-soft` que la fiche exercice (#17).
+
+Ce que l'accordéon savait faire et que l'index ne sait plus : **ouvrir deux
+sujets à la fois pour les comparer**. §5 l'annonçait. C'est le point à juger à
+l'usage, et le seul qui justifierait de revenir en arrière.
