@@ -46,6 +46,14 @@ const COUNTED = 0.2;
 /* Table des fourchettes de volume hebdomadaire, en séries de travail dures
    (§3 étape 2, reprise du BLOC B.2).
 
+   `freq` : plancher de fréquence de stimulation, la colonne « Fréq. cible »
+   de la même table. C'est la seule colonne que #37 avait laissé tomber, et
+   son absence coûtait cher : l'assertion 2 demandait 1,5 séance à tout le
+   monde là où la table donne 1–2 aux trois deltoïdes. Comme la fréquence se
+   compte en séances entières, « 1,5 » veut dire « 2 », et un petit deltoïde
+   réclamait donc un créneau que le format ne pouvait pas toujours lui
+   donner — à deux séances, jamais (#60).
+
    `direct` : la cible est exprimée en séries **directes** et l'indirect ne
    s'en déduit pas. C'est la règle qui évite de doubler le volume des bras
    sans s'en rendre compte — les presses comptent déjà pour les chefs du
@@ -60,17 +68,17 @@ const COUNTED = 0.2;
    dépassement reviendrait à reprocher au programme d'avoir appliqué la
    règle. Le manque, lui, reste signalé. */
 export const VOLUME = {
-  dos: { min: 6, max: 10, direct: false },
-  pectoraux: { min: 6, max: 10, direct: false },
-  quadriceps: { min: 6, max: 10, direct: false },
-  ischios_fessiers: { min: 6, max: 10, direct: false },
-  deltoide_ant: { min: 2, max: 5, direct: false, coveredIndirectly: true },
-  deltoide_lat: { min: 2, max: 5, direct: true },
-  deltoide_post: { min: 2, max: 3, direct: true },
-  biceps: { min: 3, max: 6, direct: true },
-  triceps: { min: 3, max: 6, direct: true },
-  mollets: { min: 4, max: 8, direct: true },
-  abdominaux: { min: 3, max: 6, direct: true },
+  dos: { min: 6, max: 10, freq: 2, direct: false },
+  pectoraux: { min: 6, max: 10, freq: 2, direct: false },
+  quadriceps: { min: 6, max: 10, freq: 2, direct: false },
+  ischios_fessiers: { min: 6, max: 10, freq: 2, direct: false },
+  deltoide_ant: { min: 2, max: 5, freq: 1, direct: false, coveredIndirectly: true },
+  deltoide_lat: { min: 2, max: 5, freq: 1, direct: true },
+  deltoide_post: { min: 2, max: 3, freq: 1, direct: true },
+  biceps: { min: 3, max: 6, freq: 2, direct: true },
+  triceps: { min: 3, max: 6, freq: 2, direct: true },
+  mollets: { min: 4, max: 8, freq: 2, direct: true },
+  abdominaux: { min: 3, max: 6, freq: 2, direct: true },
 };
 
 /* Les groupes auxquels s'applique l'espacement de 48 h (§3 étape 5). Les
@@ -509,9 +517,19 @@ function assertVolume(week, targets) {
   return findings;
 }
 
-/* Assertion 2 — fréquence de stimulation >= 1,5 par muscle non exclu. Un
-   muscle dont la cible est à zéro a été écarté volontairement (maintien,
-   ou cascade) : lui reprocher de n'être pas stimulé serait signaler la
+/* Plancher de fréquence d'un muscle, en séances par semaine : la colonne
+   « Fréq. cible » de VOLUME, plafonnée à 1,5.
+
+   Le plafond n'est pas une prudence, c'est la lecture littérale du §7 :
+   « fréquence de stimulation >= 1,5×/sem » est plus bas que les 2 que la
+   table demande à huit muscles, et le §7 gagne parce qu'il est écrit en
+   termes de plancher. Pour les trois deltoïdes, à 1–2 dans la table, c'est
+   la table qui est la plus basse des deux. */
+const frequencyFloor = (m) => Math.min(1.5, VOLUME[m].freq);
+
+/* Assertion 2 — fréquence de stimulation au plancher du muscle. Un muscle
+   dont la cible est à zéro a été écarté volontairement (maintien, ou
+   cascade) : lui reprocher de n'être pas stimulé serait signaler la
    décision qu'on vient de prendre. */
 function assertFrequency(week, targets) {
   if (!hasTargets(targets)) return [];
@@ -520,12 +538,14 @@ function assertFrequency(week, targets) {
 
   for (const m of Object.keys(VOLUME)) {
     if (!(targets.volume[m] > 0)) continue;
-    if (frequency[m] >= 1.5 || shortfallHidden(week, m)) continue;
+    const floor = frequencyFloor(m);
+    if (frequency[m] >= floor || shortfallHidden(week, m)) continue;
     findings.push({
       code: "frequency-below-floor",
       muscle: m,
       message: `${MUSCLE_LABELS[m]} : ${frequency[m]} séance par semaine. La fréquence de stimulation `
-        + `demandée est d'au moins 1,5 par semaine, soit deux séances sur trois.`,
+        + `demandée est d'au moins ${fr(floor)} par semaine`
+        + (floor === 1.5 ? ", soit deux séances sur trois." : "."),
     });
   }
   return findings;

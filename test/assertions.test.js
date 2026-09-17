@@ -598,10 +598,34 @@ describe("assertion 1 — volume par muscle dans les fourchettes", () => {
 });
 
 describe("assertion 2 — fréquence de stimulation >= 1,5", () => {
-  test("le bundle touche quatre groupes une seule fois par semaine", () => {
+  test("le bundle touche les deux bras une seule fois par semaine", () => {
     const found = assess(BUNDLED, targetsFor({ frequency: 4, duration: 60 }))
       .findings.filter((f) => f.code === "frequency-below-floor");
-    assert.deepEqual(found.map((f) => f.muscle).sort(), ["biceps", "deltoide_lat", "deltoide_post", "triceps"]);
+    assert.deepEqual(found.map((f) => f.muscle).sort(), ["biceps", "triceps"]);
+  });
+
+  /* Les deux petits deltoïdes sont eux aussi à une séance dans le bundle, et
+     ne sont plus signalés depuis #60 : la table leur demande 1–2, pas 2. Le
+     test le dit sur la donnée plutôt que sur l'absence de finding, sans quoi
+     il passerait aussi le jour où le bundle changerait de forme. */
+  test("une séance suffit aux petits deltoïdes, deux restent dues aux bras", () => {
+    const frequency = stimulationFrequency(weekOf(BUNDLED));
+    for (const m of ["deltoide_lat", "deltoide_post", "biceps", "triceps"]) {
+      assert.equal(frequency[m], 1, m);
+    }
+    const found = assess(BUNDLED, targetsFor({ frequency: 4, duration: 60 }))
+      .findings.filter((f) => f.code === "frequency-below-floor").map((f) => f.muscle);
+    assert.ok(!found.includes("deltoide_lat") && !found.includes("deltoide_post"));
+  });
+
+  /* Le plancher plus bas n'est pas l'absence de plancher : un deltoïde que
+     personne ne travaille reste signalé. */
+  test("un petit deltoïde à zéro séance est signalé malgré son plancher à 1", () => {
+    const program = structuredClone(BUNDLED);
+    for (const s of program.SESSIONS) s.ex = s.ex.filter(([slot]) => slot !== "latraise");
+    const found = assess(program, targetsFor({ frequency: 4, duration: 60 }))
+      .findings.filter((f) => f.code === "frequency-below-floor").map((f) => f.muscle);
+    assert.ok(found.includes("deltoide_lat"), JSON.stringify(found));
   });
 
   test("le programme hérité tient partout", () => {
@@ -766,7 +790,7 @@ describe("les six assertions ensemble", () => {
     const verdict = assess(BUNDLED, targetsFor({ frequency: 4, duration: 60 }));
     assert.equal(verdict.ok, false);
     assert.deepEqual(verdict.findings.map((f) => f.code).sort(), [
-      "frequency-below-floor", "frequency-below-floor", "frequency-below-floor", "frequency-below-floor",
+      "frequency-below-floor", "frequency-below-floor",
       "volume-out-of-range",
     ]);
   });
