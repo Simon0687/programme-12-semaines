@@ -6,9 +6,11 @@
 resolves a program into one week and returns `{ ok, findings }`, never throwing.
 It is pinned by [test/assertions.test.js](../../../test/assertions.test.js) - and
 that test file is its only caller, so nothing in the running app can reach it.
-Both shipped programs produce true findings today (ischios/fessiers at 10,5
-series for the bundled one, a 64-minute session for Simon's), so this surface is
-populated from the first screen, not a rare empty state. Issue:
+Both shipped programs produce findings today, and with no intent declared they
+are not the ones a first reading expects: the bundled program shows the "not
+checked" line alone, and Simon's adds a duplicated horizontal press in « Haut A »
+- the volume and duration findings need targets, which nothing supplies yet. So
+the surface is populated from the first screen, not a rare empty state. Issue:
 [#57](https://github.com/Simon0687/programme-12-semaines/issues/57).
 
 ## Scope

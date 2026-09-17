@@ -129,8 +129,10 @@ exactly as they are. `resolveScreen` keeps `"plan"`
 - **Manual click-through** (`npm run dev`, phone via the LAN URL):
   1. Compose a program, save → lands on Plan, block present, at least « Ce
      programme ne déclare ni cible de volume ni durée de séance… ».
-  2. Load Simon's program file → block shows its three findings (duplicate
-     horizontal press, abs 8 / rear delt 4, `hautC` at ~64 min).
+  2. Load Simon's program file → « 2 points à regarder » : the duplicated
+     horizontal press in « Haut A », plus the not-checked line. Not the volume
+     or duration findings - assertions 1 and 5 need targets, which nothing
+     supplies yet. Verified by running assess() on both bundles.
   3. Load a malformed file → red `role="alert"` line, **no** block.
   4. Switch cycle with the selector → the block follows the active program.
   5. Open and close the disclosure; reload the page → the block is collapsed
