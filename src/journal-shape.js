@@ -202,6 +202,18 @@ export function validateProgram(program) {
     }
 
     if (!Array.isArray(session.ex)) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].ex (tableau attendu)` };
+    /* Au moins un exercice (#36). Une séance vide n'est pas une séance
+       maigre, c'est une séance que l'appli ne sait pas rendre : l'écran
+       Semaine résume chaque ligne par son premier exercice (App.jsx:931),
+       la fiche n'a rien à afficher et le bilan n'a pas d'exercice clé à
+       reprendre. Le refus vit ici parce qu'il vaut pour les deux portes
+       (§2.9) : un fichier importé porte le même trou qu'un brouillon
+       enregistré trop tôt, et l'éditeur n'a aucune règle de forme à lui. */
+    if (session.ex.length === 0) {
+      const named = typeof session.name === "string" && session.name.trim();
+      const who = named ? `La séance « ${named} »` : `program.SESSIONS[${i}]`;
+      return { reason: "invalid-program", message: `${who} ne porte aucun exercice ; une séance doit en porter au moins un.` };
+    }
     for (const [j, e] of session.ex.entries()) {
       if (!isSlotRef(e)) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].ex[${j}] (paire [slot, nombre de séries] attendue, séries entier positif)` };
       if (!(e[0] in SLOTS)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].ex : « ${e[0]} » n'est pas un slot de program.SLOTS.` };

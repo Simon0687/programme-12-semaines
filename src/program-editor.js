@@ -24,9 +24,11 @@
    (ARCHITECTURE §2.9). Ce qu'il fait, c'est ne pas *pouvoir* produire les
    formes que le validateur refuse — ids de séance uniques, aucune
    référence pendante, aucun slot orphelin, aucun exercice hors du
-   registre fermé (§2.5). Le seul état transitoire qu'il laisse passer est
-   la fourchette de reps en cours de frappe : deux champs libres, et c'est
-   le validateur qui tranche à l'enregistrement, avec sa phrase à lui.
+   registre fermé (§2.5). Deux états transitoires lui échappent, et c'est
+   voulu : la fourchette de reps en cours de frappe — deux champs libres —
+   et la séance encore vide, qu'il faut bien pouvoir traverser pour la
+   remplir. Ni l'une ni l'autre ne s'enregistre : c'est le validateur qui
+   tranche au bouton, avec sa phrase à lui.
 
    Aucun import React, aucun accès au stockage : chargeable par
    `node --test` (§2.6), qui est là où se joue la totalité de la logique
@@ -97,10 +99,13 @@ export function nextMonday(today) {
 
 /* ---------- Création et ouverture ---------- */
 
-/* Le plus petit programme que le validateur accepte : une séance, un
-   échauffement, un bloc de gainage, aucun exercice. Volontairement
-   valide dès l'ouverture — un écran neuf dont l'enregistrement serait
-   refusé apprendrait à se méfier du bouton. */
+/* Le squelette d'un écran neuf : une séance, un échauffement, un bloc de
+   gainage, aucun exercice. Il n'est pas enregistrable en l'état et ne
+   cherche pas à l'être — le validateur exige au moins un exercice par
+   séance, sans quoi le cycle écrit n'aurait rien à exécuter et l'écran
+   Semaine rien à résumer. Le bouton refuse donc tant que l'écran est
+   vide, mais il dit pourquoi, avec la phrase que recevrait un fichier
+   importé au même trou (journal-shape.js, SESSIONS[].ex). */
 export function emptyProgram() {
   return {
     SLOTS: {},

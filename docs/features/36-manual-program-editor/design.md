@@ -42,8 +42,19 @@ carrying `startingLoads`, `profile` and `program.volume` / `program.fallback` /
 `program.cardio` through verbatim — editing them is out of scope, losing them would
 not be. A blank program is `emptyProgram()`: one session, an empty `WARM.default`,
 an empty `CORE.default`, `cardio: null` (Q3), `startingLoads: {}`, `startDate` = next
-Monday. It passes `validateDefinition()` as it stands, which is the first test to
-write.
+Monday.
+
+**Corrected 2026-09-17, after the first run on device.** This design had the blank
+program pass `validateDefinition()` as it stands, so that a new screen would never
+meet a refusal. It shipped that way, and saving straight from a blank editor wrote a
+cycle no screen could render: the Semaine tab summarises each session by its first
+exercise, so the row threw *during render*, React unmounted the tree, and the journal
+in memory was lost before the autosave could write it — a white screen, and no
+program after the reload. The blank program was valid only to the validator, never to
+the app. The validator now says the truth instead: **a session carries at least one
+exercise**, refused at both import doors (§2.9), so the blank editor refuses to save
+and shows why. `emptyProgram()` stays the skeleton the screen opens on; it is simply
+not saveable until one exercise is placed.
 
 ```js
 // src/program-editor.js — every mutation is (draft, …) -> a new draft
@@ -172,11 +183,15 @@ that can write into an existing cycle.
 
 ## Tests
 
-- **Unit, `node --test`** (`test/program-editor.test.js`): `emptyProgram()` passes
-  `validateDefinition()`; `draftFrom` → `toDefinition` with no edit is deep-equal on
+- **Unit, `node --test`** (`test/program-editor.test.js`): `emptyProgram()` is
+  refused by `validateProgram()` for its empty session and accepted as soon as one
+  exercise is placed (corrected 2026-09-17, above); `draftFrom` → `toDefinition` with
+  no edit is deep-equal on
   `program`, `startingLoads` and `profile` (the acceptance criterion, asserted with
   `assert.deepStrictEqual` against `public/programs/upper-lower-4j.json`); every
-  mutation applied to that program leaves `validateProgram()` at `null`; two
+  mutation applied to that program leaves `validateProgram()` at `null` once its
+  sessions are filled — `addSession` leaves the one transitory shape the validator
+  refuses, and it closes at the first exercise; two
   sessions added with the same name get two ids; editing a row of a shared slot
   forks it and leaves the other session's row untouched; removing a row prunes the
   slot and never leaves a dangling reference.

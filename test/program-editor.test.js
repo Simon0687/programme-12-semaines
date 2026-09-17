@@ -19,26 +19,49 @@ import bundled from "../public/programs/upper-lower-4j.json" with { type: "json"
    partagés entre blocs, drapeaux key/fail, quatre séances). Les mêmes
    octets que ceux qu'un utilisateur peut charger. */
 const seed = () => draftFrom(bundled);
-const valid = (draft) => assert.equal(validateProgram(draft.program), null);
+
+/* Une séance qu'on vient d'ajouter est vide, et une séance vide est refusée
+   depuis #36 : c'est l'état transitoire que l'éditeur assume, celui qu'il
+   faut bien traverser pour garnir la séance. Les tests ci-dessous portent
+   sur autre chose — ids uniques, jours, ordre, slots orphelins — et
+   garnissent donc les séances vides avant de juger la forme, plutôt que de
+   se taire sur un refus qui ne les concerne pas. Le refus lui-même a ses
+   propres tests, plus haut et dans journal-shape.test.js. */
+const filled = (draft) => draft.program.SESSIONS.reduce((d, s) => (s.ex.length ? d : addRow(d, { session: s.id }, "dc")), draft);
+const valid = (draft) => assert.equal(validateProgram(filled(draft).program), null);
 const rowsOf = (draft, sid) => draft.program.SESSIONS.find((s) => s.id === sid).ex;
 
-describe("emptyProgram / emptyDraft : un écran neuf est déjà enregistrable", () => {
-  test("le programme vide passe validateProgram", () => {
-    assert.equal(validateProgram(emptyProgram()), null);
+describe("emptyProgram / emptyDraft : un écran neuf n'est pas encore enregistrable, et le dit", () => {
+  /* Le contraire de ce que ce bloc affirmait jusqu'au 2026-09-17 : le
+     programme vide était déclaré valide, si bien qu'« enregistrer » depuis
+     un écran neuf écrivait un cycle dont l'écran Semaine ne savait rien
+     faire — il lit le premier exercice de chaque séance, et tombait. La
+     séance vide se refuse plutôt que de se rendre. */
+  test("le programme vide est refusé, et le refus nomme la séance en cause", () => {
+    const bad = validateProgram(emptyProgram());
+    assert.equal(bad.reason, "invalid-program");
+    assert.match(bad.message, /Séance 1.*aucun exercice/);
   });
 
-  test("la définition d'un brouillon neuf passe validateDefinition, une fois son id posé", () => {
-    const draft = withNewId(emptyDraft(new Date(2026, 8, 16)), []);
+  test("un seul exercice suffit à le rendre enregistrable", () => {
+    const draft = withNewId(addRow(emptyDraft(new Date(2026, 8, 16)), { session: "seance" }, "dc"), []);
     assert.equal(validateDefinition(toDefinition(draft)), null);
   });
 
+  test("une séance ajoutée et laissée vide refuse le programme entier", () => {
+    let d = addRow(emptyDraft(new Date(2026, 8, 16)), { session: "seance" }, "dc");
+    d = withNewId(addSession(d), []);
+    assert.match(validateDefinition(toDefinition(d)).message, /Séance 2.*aucun exercice/);
+  });
+
   test("sans id, la définition est refusée — c'est withNewId qui décide du cycle, pas toDefinition", () => {
-    const bad = validateDefinition(toDefinition(emptyDraft(new Date(2026, 8, 16))));
+    const draft = addRow(emptyDraft(new Date(2026, 8, 16)), { session: "seance" }, "dc");
+    const bad = validateDefinition(toDefinition(draft));
     assert.equal(bad.reason, "missing-field");
   });
 
   test("12 semaines et cardio null, sans que l'écran ait à les demander", () => {
-    const def = toDefinition(withNewId(emptyDraft(new Date(2026, 8, 16)), []));
+    const def = toDefinition(withNewId(addRow(emptyDraft(new Date(2026, 8, 16)), { session: "seance" }, "dc"), []));
     assert.equal(def.weeks, 12);
     assert.equal(def.program.cardio, null);
   });
@@ -331,7 +354,9 @@ describe("échauffements et gainage", () => {
   test("ajouter une séance à un programme sans bloc lui en crée un plutôt qu'une référence pendante", () => {
     const bare = { ...seed(), program: { ...seed().program, SESSIONS: [], WARM: {}, CORE: {} } };
     const d = addSession(bare);
-    assert.equal(validateProgram(d.program), null);
+    assert.equal(d.program.SESSIONS[0].warm in d.program.WARM, true);
+    assert.equal(d.program.SESSIONS[0].core in d.program.CORE, true);
+    valid(d);
   });
 });
 
@@ -372,7 +397,7 @@ describe("charges de départ", () => {
   });
 });
 
-describe("toute mutation laisse un programme que le validateur accepte", () => {
+describe("toute mutation laisse un programme que le validateur accepte, la séance vide mise à part", () => {
   const steps = [
     ["addSession", (d) => addSession(d)],
     ["removeSession", (d) => removeSession(d, "upperB")],
@@ -389,16 +414,34 @@ describe("toute mutation laisse un programme que le validateur accepte", () => {
 
   for (const [name, step] of steps) {
     test(name, () => {
-      const d = step(seed());
+      const d = filled(step(seed()));
       assert.equal(validateProgram(d.program), null);
       assert.equal(validateDefinition(toDefinition(withNewId(d, ["upper-lower-4j"]))), null);
     });
   }
 
   test("les onze enchaînées, sur le même brouillon", () => {
-    const d = steps.reduce((acc, [, step]) => step(acc), seed());
+    const d = filled(steps.reduce((acc, [, step]) => step(acc), seed()));
     assert.equal(validateProgram(d.program), null);
     assert.equal(validateDefinition(toDefinition(withNewId(d, ["upper-lower-4j"]))), null);
+  });
+
+  /* L'exception, nommée plutôt que sous-entendue par le helper : addSession
+     est la seule mutation qui laisse une forme refusée, et elle se referme
+     au premier exercice posé. Vider une séance de ses lignes rouvre le même
+     état — removeRow ne le rattrape pas, et c'est voulu : la sortie est
+     d'ajouter un exercice, pas de voir sa suppression refusée. */
+  test("addSession laisse une séance vide, donc un programme refusé jusqu'au premier exercice", () => {
+    const d = addSession(seed());
+    assert.match(validateProgram(d.program).message, /aucun exercice/);
+    assert.equal(validateProgram(addRow(d, { session: d.program.SESSIONS.at(-1).id }, "dc").program), null);
+  });
+
+  test("vider une séance de ses lignes laisse la même forme refusée", () => {
+    let d = seed();
+    const n = d.program.SESSIONS[0].ex.length;
+    for (let i = 0; i < n; i++) d = removeRow(d, { session: "upperA" }, 0);
+    assert.match(validateProgram(d.program).message, /aucun exercice/);
   });
 });
 
