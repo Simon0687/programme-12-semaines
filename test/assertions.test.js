@@ -9,6 +9,7 @@ import {
 import { EXERCISES, MUSCLE_GROUPS, UNSELECTABLE_IDS } from "../src/registry.js";
 import { DEFAULT_DEFINITION } from "../src/default-program.js";
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
+import { buildProgram } from "../src/program.js";
 
 /* Les deux programmes livrés, pas une copie écrite à la main : ce sont ceux
    que l'application charge, donc les seuls dont l'avis ait un sens. */
@@ -807,5 +808,49 @@ describe("les six assertions ensemble", () => {
       assert.doesNotMatch(f.message, /\.js|src\/|function|undefined|NaN/, f.message);
       assert.ok(f.message.length > 20, f.message);
     }
+  });
+});
+
+/* ---------- Le câblage de #57 ----------
+
+   Les tests ci-dessus passent des `program` nus. L'application, elle, n'en
+   tient aucun : elle tient `prog`, le bundle de buildProgram(), et c'est lui
+   qu'un écran pourra donner à assess(). Ce bloc épingle cette entrée-là, parce
+   que tout le design de #57 repose dessus : si le bundle cessait d'être une
+   entrée valide, l'avis se dégraderait en « programme illisible » sur un
+   programme parfaitement lisible, et aucun des tests précédents ne le verrait.
+
+   L'invariant tient en une phrase : le bundle porte SLOTS, SESSIONS et CORE
+   tels quels, donc assess() en tire exactement le verdict du `program` dont il
+   est issu — les clés en plus (V, cardioPlan, CARDIO_ITEMS...) ne le regardent
+   pas. */
+describe("assess accepte le bundle que l'application construit (#57)", () => {
+  const targets = targetsFor({ frequency: 4, duration: 75 });
+
+  test("le programme bundlé : même verdict par le bundle que par le program", () => {
+    assert.deepEqual(assess(buildProgram(DEFAULT_DEFINITION), targets), assess(BUNDLED, targets));
+  });
+
+  test("le programme de Simon : même verdict par le bundle que par le program", () => {
+    assert.deepEqual(assess(buildProgram(LEGACY_DEFINITION), targets), assess(LEGACY, targets));
+  });
+
+  test("une définition d'avant #25, sans program, passe par le repli LEGACY", () => {
+    const beforeV25 = { startingLoads: { dc: 60 }, profile: DEFAULT_DEFINITION.profile };
+    assert.deepEqual(assess(buildProgram(beforeV25), targets), assess(LEGACY, targets));
+  });
+
+  test("aucun des deux bundles n'est illisible", () => {
+    for (const def of [DEFAULT_DEFINITION, LEGACY_DEFINITION]) {
+      const codes = assess(buildProgram(def), targets).findings.map((f) => f.code);
+      assert.ok(!codes.includes("unreadable-program"), codes.join(", "));
+    }
+  });
+
+  test("sans cible, le bundle rend l'avis que l'écran montrera : au moins un point", () => {
+    const verdict = assess(buildProgram(DEFAULT_DEFINITION));
+    assert.equal(verdict.ok, false);
+    assert.ok(verdict.findings.length >= 1);
+    assert.ok(verdict.findings.some((f) => f.code === "no-declared-intent"));
   });
 });
