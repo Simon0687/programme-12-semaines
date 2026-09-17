@@ -54,7 +54,16 @@ import { EXERCISES } from "./registry.js";
 const kg = (n) => String(n).replace(".", ",");                       // 72.5 -> "72,5"
 const sp = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");   // 3150 -> "3 150"
 
-export const PLAN_INTRO = "Référence du programme. Les modifications se font dans le chat, le fichier est régénéré.";
+/* La phrase disait « les modifications se font dans le chat, le fichier est
+   régénéré » : c'était vrai tant que produire un programme voulait dire le
+   faire écrire par un LLM et charger le JSON qu'il rendait. #36 a livré
+   l'éditeur et #58 le moteur (decisions-moteur.md Q1 = B, 2026-09-15), et les
+   deux boutons sont dans cet onglet, sous la section Programme. Un lecteur
+   qui suivait l'ancienne consigne cherchait un chat qui n'existe pas.
+   Relevé par la revue Claude Design du 2026-09-17, qui recopiait fidèlement
+   la ligne dans sa maquette (docs/reviews/2026-09-17-plan-drill-in-triage.md
+   §4). */
+export const PLAN_INTRO = "Référence du programme. Pour en changer : compose ou génère un programme depuis la section Programme, ci-dessous.";
 
 /* Ancres du cycle : les exercices clés que le bloc 2 ne fait pas tourner
    (b1 === b2). Dérivé plutôt qu'écrit en dur — c'est une propriété du
