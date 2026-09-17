@@ -134,7 +134,10 @@ export default function GenerateProgram({ today, onBack, onAccept }) {
         ))}
       </Question>
 
-      <Question label="Avec quel matériel ?">
+      <Question
+        label="Avec quel matériel ?"
+        hint="« Poids du corps » suppose une barre de traction, à hauteur réglable si possible : sans elle, rien ne vient entraîner le dos, les biceps ni les triceps."
+      >
         {Object.entries(PRESETS).map(([key, preset]) => (
           <Chip key={key} selected={equipment === key} onClick={() => answer(setEquipment)(key)}>{preset.label}</Chip>
         ))}

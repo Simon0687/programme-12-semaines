@@ -29,7 +29,7 @@ const LABELS = {
   biceps: "Biceps", triceps: "Triceps", mollets: "Mollets", abdominaux: "Abdos",
 };
 
-/* Les 120 combinaisons de la collecte : 5 fréquences x 4 durées x 2 presets x
+/* Les 180 combinaisons de la collecte : 5 fréquences x 4 durées x 3 presets x
    3 niveaux (#58 lot 2). L'objectif n'entre pas dans la matrice : il ne change
    que les répétitions et le repos, que les six assertions ne lisent pas — un
    test à lui seul le dit mieux qu'un facteur 3 sur tout le reste. */
@@ -46,20 +46,44 @@ for (const equipment of Object.keys(PRESETS)) {
 const combo = (c) => `${c.level ?? DEFAULT_LEVEL} ${c.equipment} ${c.frequency}x${c.duration}`;
 
 describe("les vocabulaires de la collecte (#58)", () => {
-  test("cinq fréquences, quatre durées, deux presets", () => {
+  test("cinq fréquences, quatre durées, trois presets", () => {
     assert.deepEqual(FREQUENCIES, [2, 3, 4, 5, 6]);
     assert.deepEqual(DURATIONS, [45, 60, 75, 90]);
-    assert.deepEqual(Object.keys(PRESETS), ["salle-complete", "home-gym"]);
+    assert.deepEqual(Object.keys(PRESETS), ["salle-complete", "home-gym", "poids-du-corps"]);
   });
 
-  /* decisions-spec.md Q1 : le troisième preset n'existe pas tant que le
-     registre ne peut pas le nourrir. Le test dit pourquoi, pas seulement
-     quoi — cinq entrées et aucun bas du corps. */
-  test("pas de preset poids du corps : le registre n'a pas de quoi", () => {
-    const pool = poolFor(["poids_du_corps", "barre_traction", "barres_paralleles"], "avance");
-    assert.ok(pool.length < 6, `${pool.length} entrées sélectionnables`);
-    for (const m of ["quadriceps", "ischios_fessiers"]) {
-      assert.ok(!pool.some((e) => (e.muscles[m] ?? 0) >= 0.5), `aucun exercice primaire pour ${m}`);
+  /* Le test que #59 remplace disait « pas de preset poids du corps : le
+     registre n'a pas de quoi » — cinq entrées, aucun bas du corps. C'est
+     exactement ce qui a changé, et le test le dit maintenant dans le même
+     vocabulaire : ce n'est pas le preset qui a été décidé, c'est le catalogue
+     qui a été rempli. Un débutant est le cas dur, puisque le filtre de niveau
+     lui retire le plus. */
+  test("le preset poids du corps a de quoi, y compris pour un débutant", () => {
+    const gear = PRESETS["poids-du-corps"].gear;
+    for (const level of LEVELS) {
+      const pool = poolFor(gear, level);
+      assert.ok(pool.length >= 11, `${level} : ${pool.length} entrées sélectionnables`);
+      for (const m of ["quadriceps", "ischios_fessiers", "mollets", "dos", "pectoraux", "biceps", "triceps", "abdominaux", "deltoide_post"]) {
+        assert.ok(pool.some((e) => (e.muscles[m] ?? 0) >= 0.5), `${level} : aucun exercice primaire pour ${m}`);
+      }
+    }
+  });
+
+  /* Le seul muscle que le poids du corps ne sert pas, et la raison qu'il
+     faudra contredire pour le servir un jour : le deltoïde latéral se compte
+     en direct seul (VOLUME), donc seul un exercice qui lui donne la moitié de
+     la part compte — et aucun mouvement sans charge externe ne le fait. Le
+     rapport l'annonce à chaque génération, c'est ce qui rend le preset
+     livrable malgré ce trou. */
+  test("le deltoïde latéral reste le trou du poids du corps, et le rapport le dit", () => {
+    const pool = poolFor(PRESETS["poids-du-corps"].gear, "avance");
+    assert.ok(!pool.some((e) => (e.muscles.deltoide_lat ?? 0) >= 0.5));
+    for (const frequency of FREQUENCIES) {
+      for (const level of LEVELS) {
+        const r = gen({ frequency, duration: 75, equipment: "poids-du-corps", level });
+        if (!r.ok) continue;
+        assert.ok(r.report.uncovered.includes("Delt latéraux"), `${level} ${frequency}x75`);
+      }
     }
   });
 
@@ -262,9 +286,13 @@ describe("generate : ce que le moteur dit avoir coupé (#58)", () => {
     assert.equal(volume.abdominaux, 0);
   });
 
-  test("le home gym n'a pas de mollets, et le dit", () => {
+  /* Ce test disait « le home gym n'a pas de mollets, et le dit » : sans
+     machine, aucune entrée ne les servait. Une marche suffit pourtant, et
+     calf_step ne demande rien de plus que le corps (#59) — le home gym en
+     hérite sans que son gear ait bougé. */
+  test("le home gym a maintenant ses mollets, et n'a plus rien à signaler", () => {
     const r = gen({ frequency: 4, duration: 60, equipment: "home-gym" });
-    assert.deepEqual(r.report.uncovered, ["Mollets"]);
+    assert.deepEqual(r.report.uncovered, []);
     assert.deepEqual(r.report.cut, []);
   });
 
@@ -361,7 +389,7 @@ describe("generate : l'objectif ne change que la prescription (§3 étape 6)", (
 });
 
 /* Le test qui mesure le moteur : les six assertions de #37, sur chacune des
-   114 combinaisons générées — 120 moins les six refus de 2 x 45 —, avec les
+   171 combinaisons générées — 180 moins les neuf refus de 2 x 45 —, avec les
    cibles que l'intention déclare.
 
    Le contrat n'est pas « aucun signalement » — ce serait demander au moteur
@@ -369,7 +397,7 @@ describe("generate : l'objectif ne change que la prescription (§3 étape 6)", (
    est plus strict sur ce qui compte : **aucun signalement que le moteur
    n'ait annoncé lui-même**. Un manque connu est dans le rapport, et un
    excès, un schéma dupliqué ou un dépassement de durée n'ont aucune excuse. */
-describe("generate : les six assertions sur les 114 combinaisons (§7)", () => {
+describe("generate : les six assertions sur les 171 combinaisons (§7)", () => {
   const findingsFor = (c) => {
     const r = gen(c);
     if (!r.ok) return null;
