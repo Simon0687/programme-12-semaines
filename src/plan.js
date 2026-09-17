@@ -51,6 +51,7 @@
 
 import { EXERCISES } from "./registry.js";
 import { normalizeCardio, cardioTargets, MODALITIES } from "./cardio.js";
+import { dayName } from "./display.js";
 
 const kg = (n) => String(n).replace(".", ",");                       // 72.5 -> "72,5"
 const sp = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");   // 3150 -> "3 150"
@@ -152,7 +153,13 @@ function cardioSection(spec, baseline) {
     });
   }
 
-  return blocks.length ? { id: "cardio", title: "Cardio et mobilité", blocks } : null;
+  if (!blocks.length) return null;
+  /* Le compte que 1c demande, et celui qui n'était pas dicible avant #34 :
+     sous « default », il aurait compté les séances de Simon sous n'importe
+     quel programme. */
+  const days = c.sessions.map((s) => s.day).sort((a, b) => a - b);
+  const meta = `${c.sessions.length} séance${c.sessions.length > 1 ? "s" : ""} · ${days.map(dayName).join(", ")}`;
+  return { id: "cardio", title: "Cardio et mobilité", group: "programme", meta, blocks };
 }
 export function buildPlan(definition) {
   const program = definition.program || {};
@@ -165,6 +172,8 @@ export function buildPlan(definition) {
     {
       id: "structure",
       title: `Structure des ${definition.weeks} semaines`,
+      group: "methode",
+      meta: "Calibration, bloc 1, décharge, bloc 2, bilan",
       open: true,
       blocks: [
         {
@@ -190,6 +199,8 @@ export function buildPlan(definition) {
     program.volume && program.volume.length ? {
       id: "volume",
       title: "Volume par semaine, et où il se fait",
+      group: "programme",
+      meta: `${program.volume.length} groupes · ${Math.max(...program.volume.map((r) => Number(r[1]) || 0))} séries max`,
       blocks: [
         { t: "table", variant: "volume", rows: program.volume },
         { t: "p", text: "Une « série dure » = une série de travail menée à 1 RIR (ou à l'échec). Les séries d'échauffement ne comptent pas." },
@@ -199,6 +210,8 @@ export function buildPlan(definition) {
     {
       id: "progression",
       title: "Règles de progression",
+      group: "methode",
+      meta: "Double progression · incréments par exercice",
       blocks: [
         { t: "p", text: "Double progression. Quand toutes les séries faites à ta charge de travail atteignent le haut de la fourchette — 8 reps sur du 4–8 —, la charge monte à la séance suivante : barre +2,5 kg haut du corps, +5 kg bas du corps ; haltères +2 kg ; machines et poulies +5 kg ou le plus petit incrément disponible. Si 2 séries ou plus tombent sous le bas de la fourchette, on garde la charge ; si ça se répète, −5 %. L'appli calcule la charge prévue à partir de tes séances validées." },
         /* Rien ici sur le choix de la charge de travail quand une séance en
@@ -225,6 +238,8 @@ export function buildPlan(definition) {
     {
       id: "deload",
       title: "Décharge : déclencheurs et recette",
+      group: "methode",
+      meta: "5 déclencheurs · 2 recettes",
       blocks: [
         { t: "p", text: "Déclencheurs : baisse de performance sur ≥ 2 exercices clés pendant 2 séances de suite malgré sommeil et alimentation corrects ; douleur articulaire ≥ 3/10 qui persiste plus de 48 h ou augmente ; sommeil < 6 h plusieurs nuits ; FC de repos ou HRV dégradées 3 jours ou plus ; RIR ressenti qui dérive." },
         { t: "p", text: "Décharge complète : mêmes exercices, volume −50 %, charges −10 à −20 %, 3–4 RIR, une semaine. Allègement ciblé (une articulation qui se plaint) : on retire uniquement les exercices qui la sollicitent, on garde le reste, on remplace par une variante indolore. Toute douleur nouvelle = arrêt de l'exercice concerné, avis médical si elle persiste." },
@@ -234,6 +249,8 @@ export function buildPlan(definition) {
     program.fallback && program.fallback.length ? {
       id: "fallback",
       title: "Plan de repli (séances manquées)",
+      group: "programme",
+      meta: `${program.fallback.length} cas de figure`,
       blocks: program.fallback.map((text) => ({ t: "p", text })),
     } : null,
 
@@ -242,6 +259,8 @@ export function buildPlan(definition) {
     profile ? {
       id: "nutrition",
       title: "Nutrition",
+      group: "programme",
+      meta: `${sp(profile.startKcal)} kcal · ${profile.macros.p}/${profile.macros.f}/${profile.macros.c} g`,
       blocks: [
         { t: "p", text: `Maintenance estimée ≈ ${sp(profile.maintenanceKcal)} kcal. Départ : ${sp(profile.startKcal)} kcal par jour, 7 jours sur 7. Protéines ${profile.macros.p} g, lipides ${profile.macros.f} g, glucides ${profile.macros.c} g. Quatre repas à 40–50 g de protéines, glucides concentrés autour des séances.` },
         { t: "p", text: "Lecture des deux premières semaines : +0,5 à 1 kg d'eau et de glycogène en S1, on juge la pente entre la moyenne de S2 et celle de S4. Pente +0,2–0,3 kg/sem → maintenance confirmée." },
@@ -255,6 +274,8 @@ export function buildPlan(definition) {
     Object.keys(startingLoads).length ? {
       id: "startloads",
       title: "Charges de départ (S1)",
+      group: "programme",
+      meta: `${Object.keys(startingLoads).length} exercices renseignés`,
       blocks: [{ t: "p", text: startLoadsText(startingLoads) }],
     } : null,
   ];

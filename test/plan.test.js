@@ -6,6 +6,7 @@ import { phaseOf } from "../src/progression.js";
 /* #26 : le plan se vérifie contre le programme hérité — le bundle par défaut
    ne portera plus ni charges de départ ni valeurs personnelles. */
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
+import { DEFAULT_DEFINITION as NEUTRAL } from "../src/default-program.js";
 const { profile: PROFILE, startingLoads: STARTING_LOADS } = LEGACY_DEFINITION;
 const withDef = (over) => ({ ...LEGACY_DEFINITION, ...over });
 
@@ -194,5 +195,52 @@ describe("buildPlan : cardio (#34)", () => {
     const text = sectionOf(def).blocks[0].text;
     assert.doesNotMatch(text, /Cibles/);
     assert.match(text, /La durée progresse d'abord\.$/);
+  });
+});
+
+/* ---------- Groupes et comptes (revue Claude Design, 1c) ----------
+
+   L'idée porteuse de 1c n'est pas la navigation : c'est que chaque ligne de
+   l'index **mesure** le programme actif. Un compte ne peut pas être vague là
+   où un paragraphe le pouvait, et c'est pour ça qu'il ne pouvait pas arriver
+   avant #34 — sous « default », la ligne Cardio aurait compté les séances de
+   Simon sous n'importe quel programme. */
+describe("buildPlan : groupes et comptes", () => {
+  const byId = (def) => Object.fromEntries(buildPlan(def).map((s) => [s.id, s]));
+
+  test("chaque section déclare un groupe connu et un compte non vide", () => {
+    for (const def of [LEGACY_DEFINITION, NEUTRAL]) {
+      for (const s of buildPlan(def)) {
+        assert.ok(["methode", "programme", "appareil"].includes(s.group), `${s.id} : groupe « ${s.group} »`);
+        assert.equal(typeof s.meta, "string", `${s.id} : meta`);
+        assert.ok(s.meta.length > 0, `${s.id} : meta vide`);
+      }
+    }
+  });
+
+  test("le groupe est la ligne que #25 et #26 ont tracée, pas un choix de mise en page", () => {
+    /* Méthode = ce qui vaut pour tout le monde et ne disparaît jamais.
+       Programme = ce qui vient de la donnée, et qui disparaît avec elle. */
+    const L = byId(LEGACY_DEFINITION);
+    for (const id of ["structure", "progression", "deload"]) assert.equal(L[id].group, "methode", id);
+    for (const id of ["volume", "fallback", "cardio", "nutrition", "startloads"]) assert.equal(L[id].group, "programme", id);
+  });
+
+  test("les comptes du programme mesurent ce programme-là", () => {
+    const L = byId(LEGACY_DEFINITION), N = byId(NEUTRAL);
+    assert.equal(N.volume.meta, "11 groupes · 7 séries max");
+    assert.equal(L.volume.meta, "12 groupes · 10 séries max");
+    assert.equal(L.cardio.meta, "3 séances · mercredi, jeudi, dimanche");
+    assert.equal(L.startloads.meta, "6 exercices renseignés");
+  });
+
+  test("les comptes de la méthode sont les mêmes des deux côtés, et c'est normal", () => {
+    /* Une référence a le droit de ne pas bouger. Ce qui compte est que ça se
+       voie : trois lignes constantes sur huit est une information, pas un
+       défaut à cacher. */
+    const L = byId(LEGACY_DEFINITION), N = byId(NEUTRAL);
+    for (const id of ["structure", "progression", "deload"]) {
+      assert.equal(L[id].meta, N[id].meta, id);
+    }
   });
 });

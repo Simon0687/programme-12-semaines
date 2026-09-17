@@ -380,7 +380,13 @@ export default function Programme() {
   const [nav, setNav] = useState(() => resolveScreen(readScreen(SCREEN_STORAGE), prog.SESSIONS.map((s) => s.id), EXERCISE_IDS));
   const screen = nav.screen;
   const goSemaine = () => { setPendingLight(null); setNav({ screen: "semaine", sessionId: null }); };
-  const goPlan = () => setNav({ screen: "plan", sessionId: null });
+  /* Le sujet ouvert dans Plan n'est pas dans `nav` et ne se mémorise pas : un
+     rechargement rouvre l'index, ce qui est la bonne réponse par défaut et
+     évite de faire entrer une troisième cible dans screen-state.js (#41), qui
+     valide les siennes contre le programme actif. Revenir sur Plan par la
+     barre du bas ramène à l'index, comme on l'attend d'un onglet. */
+  const [planTopic, setPlanTopic] = useState(null);
+  const goPlan = () => { setPlanTopic(null); setNav({ screen: "plan", sessionId: null }); };
   /* La question de #43 ne survit pas à un changement d'écran : revenir sur une
      séance ne doit pas rouvrir un panneau qu'on avait quitté sans répondre. */
   const openSession = (id) => { setPendingLight(null); setNav({ screen: "seance", sessionId: id }); };
@@ -886,6 +892,47 @@ export default function Programme() {
 
   if (!loaded) return <div className="min-h-screen bg-surface text-ink-muted flex items-center justify-center">Chargement du journal…</div>;
 
+
+  /* ---------- L'index de l'onglet Plan (revue Claude Design, 1c) ----------
+
+     Le Plan était huit accordéons sur une page, plus deux sections d'écran.
+     Il devient un index : une ligne par sujet, une page par sujet. Le triage
+     du 2026-09-17 dit pourquoi ce n'est pas la navigation qui porte l'idée,
+     mais le **sous-titre** — chaque ligne mesure le programme actif, elle ne
+     l'aguiche pas. « 11 groupes · 7 séries max » ne peut pas être vague là où
+     un paragraphe le pouvait.
+
+     D'où l'ordre dans lequel ces trois choses ont été faites : #34 d'abord,
+     parce qu'un compte sous la ligne Cardio aurait compté les séances de
+     Simon sous n'importe quel programme.
+
+     Le groupement n'est pas une invention de mise en page : c'est la ligne que
+     #25 et #26 ont tracée entre méthode bundlée et donnée de programme, et que
+     l'en-tête de plan.js annote déjà section par section. L'écran l'aplatissait.
+
+     Les deux dernières entrées ne viennent pas de plan.js : elles sont de
+     l'écran (des boutons, des fichiers), pas du contenu. Elles prennent leur
+     place dans le même index parce que le lecteur, lui, ne fait pas la
+     différence. */
+  const planTopics = [
+    ...plan.map((s) => ({ id: s.id, title: s.title, group: s.group, meta: s.meta })),
+    {
+      id: "programme",
+      title: "Programme",
+      group: "programme",
+      /* Le compte qui compte ici est l'avis : `assess()` est déjà calculé (#57),
+         et « 3 points à regarder » est ce qu'on vient vérifier. Le nom du
+         programme n'est pas répété — la carte en tête de l'index le porte. */
+      meta: advice.findings.length ? adviceSummary(advice.findings.length) : "Rien à signaler sur ce programme",
+    },
+    {
+      id: "donnees",
+      title: "Données : sauvegarde et restauration",
+      group: "appareil",
+      meta: `${lastExport ? `Export ${dateLabel(parseLocalDate(lastExport))}` : "Jamais exporté"} · ${persisted === true ? "stockage persistant" : persisted === false ? "stockage non persistant" : "persistance inconnue"}`,
+    },
+  ];
+  const planPage = planTopics.find((t) => t.id === planTopic) || null;
   return (
     <div className="min-h-screen bg-surface text-ink" style={{ fontVariantNumeric: "tabular-nums" }}>
       <div className="max-w-md mx-auto pb-24">
@@ -1141,95 +1188,117 @@ export default function Programme() {
         )}
 
         {screen === "plan" && (
-          <div className="px-4">
-            <p className="text-sm text-ink-soft mt-3">{PLAN_INTRO}</p>
-            <PlanContent plan={plan} />
-            <Section title="Programme">
-              <p>{definition.name} — départ {dateLabel(START)}</p>
-              <div className="flex gap-2 flex-wrap">
-                <Btn small onClick={() => fileInputRef.current.click()}>Charger un programme</Btn>
-                {/* #36 : « Partir du programme actif » et non « Modifier » —
-                    tant que l'édition en place n'existe pas (étape 8), ce
-                    bouton compose un nouveau cycle à partir de celui-ci, et un
-                    nouveau cycle repart sur la calibration. */}
-                <Btn small onClick={() => openEditor(emptyDraft(today))}>Composer un programme</Btn>
-                <Btn small onClick={() => openEditor(draftFrom(definition))}>Partir du programme actif</Btn>
-                {/* #58 : la troisième porte. Elle n'installe rien — elle
-                    remplit le brouillon que les deux autres ouvrent vide ou
-                    depuis l'actif, et l'enregistrement reste le même geste. */}
-                <Btn small onClick={() => setNav({ screen: "generateur", sessionId: null })}>Générer un programme</Btn>
-              </div>
-              <input ref={fileInputRef} type="file" accept="application/json" onChange={handleProgramFile} className="hidden" />
-              {programError && <p role="alert" className="text-sm text-alert">{programError}</p>}
-              {Object.keys(journal.programs).length > 1 && (
-                <div className="flex gap-2 flex-wrap">
-                  {Object.entries(journal.programs).map(([id, p]) => (
-                    <Btn key={id} small primary={id === journal.activeProgramId} disabled={unusable.has(id)}
-                      onClick={() => setJournal((j) => ({ ...j, activeProgramId: id }))}>
-                      {(p.definition && p.definition.name) || id}
-                    </Btn>
-                  ))}
-                </div>
-              )}
-              {unusable.size > 0 && (
-                <p className="text-xs text-ink-muted">
-                  {unusable.size === 1 ? "Un cycle enregistré n'est pas exécutable" : `${unusable.size} cycles enregistrés ne sont pas exécutables`} par cette version : ils restent dans le journal et dans l'export, mais ne peuvent pas être activés.
-                </p>
-              )}
-              {/* En dernier dans la section, après le sélecteur de cycle et la
-                  note des cycles inexécutables : un avis sur le programme actif
-                  se lit une fois qu'on sait de quel programme on parle. */}
-              <ProgramAdvice findings={advice.findings} />
-            </Section>
-            <Section title="Données : sauvegarde et restauration">
-              <p>{storageOk ? "Le journal est enregistré automatiquement sur cet appareil." : "Stockage automatique indisponible ici."} Avant une mise à jour du fichier, télécharge le journal et garde le fichier : il se réimporte ci-dessous.</p>
-              <div className="flex gap-2 flex-wrap">
-                <Btn small onClick={exportJournal}><Download size={14} />Télécharger le journal</Btn>
-                <Btn small onClick={() => journalInputRef.current.click()}><Upload size={14} />Importer un fichier</Btn>
-              </div>
-              <input ref={journalInputRef} type="file" accept="application/json" onChange={handleJournalFile} className="hidden" />
-              {/* #15 : la date est affichée, pas seulement enregistrée. Sur le
-                  chemin « ancre », l'app ne peut pas savoir si le fichier a
-                  atterri (decisions-spec.md Q2) — la montrer est ce qui rend
-                  une valeur optimiste vérifiable. */}
-              <p className="text-xs text-ink-muted">{lastExport ? `Dernier export : ${dateLabel(parseLocalDate(lastExport))}.` : "Aucun export enregistré sur cet appareil."}</p>
-              {/* #15 : dire ce que le navigateur a répondu, en clair. Un
-                  stockage « éligible à l'éviction » est la raison d'être de
-                  tout ce panneau — la nommer vaut mieux que la sous-entendre. */}
-              <p className="text-xs text-ink-muted">
-                {persisted === true
-                  ? "Le navigateur a marqué ce stockage comme persistant : il ne sera pas vidé pour faire de la place."
-                  : persisted === false
-                    ? "Le navigateur n'a pas accordé de stockage persistant : il peut vider ces données pour faire de la place. Le fichier reste la vraie sauvegarde."
-                    : "Ce navigateur ne dit pas si le stockage est persistant."}
-              </p>
-              {exportStatus && <p className="text-xs text-ink-soft">{exportStatus}</p>}
-              {importError && <p role="alert" className="text-sm text-alert">{importError}</p>}
-              {pendingImport && (
-                <div className="rounded-md border border-rule bg-surface-raised p-3 space-y-2">
-                  <p className="text-sm text-ink">{pendingImport.name}</p>
-                  <p className="text-sm text-ink-muted">Remplacera le journal de cet appareil. Une copie de l'actuel est enregistrée avant, et reste téléchargeable ci-dessous.</p>
+          planPage ? (
+            <PlanPage title={planPage.title} onBack={() => setPlanTopic(null)}>
+              {planPage.id === "programme" ? (
+                <>
+                  <p>{definition.name} — départ {dateLabel(START)}</p>
                   <div className="flex gap-2 flex-wrap">
-                    <Btn small primary onClick={() => { const p = pendingImport; setPendingImport(null); importData(p.res); }}>Remplacer le journal</Btn>
-                    <Btn small onClick={() => setPendingImport(null)}>Annuler</Btn>
+                    <Btn small onClick={() => fileInputRef.current.click()}>Charger un programme</Btn>
+                    {/* #36 : « Partir du programme actif » et non « Modifier » —
+                        tant que l'édition en place n'existe pas (étape 8), ce
+                        bouton compose un nouveau cycle à partir de celui-ci, et un
+                        nouveau cycle repart sur la calibration. */}
+                    <Btn small onClick={() => openEditor(emptyDraft(today))}>Composer un programme</Btn>
+                    <Btn small onClick={() => openEditor(draftFrom(definition))}>Partir du programme actif</Btn>
+                    {/* #58 : la troisième porte. Elle n'installe rien — elle
+                        remplit le brouillon que les deux autres ouvrent vide ou
+                        depuis l'actif, et l'enregistrement reste le même geste. */}
+                    <Btn small onClick={() => setNav({ screen: "generateur", sessionId: null })}>Générer un programme</Btn>
                   </div>
-                </div>
+                  <input ref={fileInputRef} type="file" accept="application/json" onChange={handleProgramFile} className="hidden" />
+                  {programError && <p role="alert" className="text-sm text-alert">{programError}</p>}
+                  {Object.keys(journal.programs).length > 1 && (
+                    <div className="flex gap-2 flex-wrap">
+                      {Object.entries(journal.programs).map(([id, p]) => (
+                        <Btn key={id} small primary={id === journal.activeProgramId} disabled={unusable.has(id)}
+                          onClick={() => setJournal((j) => ({ ...j, activeProgramId: id }))}>
+                          {(p.definition && p.definition.name) || id}
+                        </Btn>
+                      ))}
+                    </div>
+                  )}
+                  {unusable.size > 0 && (
+                    <p className="text-xs text-ink-muted">
+                      {unusable.size === 1 ? "Un cycle enregistré n'est pas exécutable" : `${unusable.size} cycles enregistrés ne sont pas exécutables`} par cette version : ils restent dans le journal et dans l'export, mais ne peuvent pas être activés.
+                    </p>
+                  )}
+                  {/* En dernier dans la section, après le sélecteur de cycle et la
+                      note des cycles inexécutables : un avis sur le programme actif
+                      se lit une fois qu'on sait de quel programme on parle. */}
+                  <ProgramAdvice findings={advice.findings} />
+                </>
+              ) : planPage.id === "donnees" ? (
+                <>
+                  <p>{storageOk ? "Le journal est enregistré automatiquement sur cet appareil." : "Stockage automatique indisponible ici."} Avant une mise à jour du fichier, télécharge le journal et garde le fichier : il se réimporte ci-dessous.</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <Btn small onClick={exportJournal}><Download size={14} />Télécharger le journal</Btn>
+                    <Btn small onClick={() => journalInputRef.current.click()}><Upload size={14} />Importer un fichier</Btn>
+                  </div>
+                  <input ref={journalInputRef} type="file" accept="application/json" onChange={handleJournalFile} className="hidden" />
+                  {/* #15 : la date est affichée, pas seulement enregistrée. Sur le
+                      chemin « ancre », l'app ne peut pas savoir si le fichier a
+                      atterri (decisions-spec.md Q2) — la montrer est ce qui rend
+                      une valeur optimiste vérifiable. */}
+                  <p className="text-xs text-ink-muted">{lastExport ? `Dernier export : ${dateLabel(parseLocalDate(lastExport))}.` : "Aucun export enregistré sur cet appareil."}</p>
+                  {/* #15 : dire ce que le navigateur a répondu, en clair. Un
+                      stockage « éligible à l'éviction » est la raison d'être de
+                      tout ce panneau — la nommer vaut mieux que la sous-entendre. */}
+                  <p className="text-xs text-ink-muted">
+                    {persisted === true
+                      ? "Le navigateur a marqué ce stockage comme persistant : il ne sera pas vidé pour faire de la place."
+                      : persisted === false
+                        ? "Le navigateur n'a pas accordé de stockage persistant : il peut vider ces données pour faire de la place. Le fichier reste la vraie sauvegarde."
+                        : "Ce navigateur ne dit pas si le stockage est persistant."}
+                  </p>
+                  {exportStatus && <p className="text-xs text-ink-soft">{exportStatus}</p>}
+                  {importError && <p role="alert" className="text-sm text-alert">{importError}</p>}
+                  {pendingImport && (
+                    <div className="rounded-md border border-rule bg-surface-raised p-3 space-y-2">
+                      <p className="text-sm text-ink">{pendingImport.name}</p>
+                      <p className="text-sm text-ink-muted">Remplacera le journal de cet appareil. Une copie de l'actuel est enregistrée avant, et reste téléchargeable ci-dessous.</p>
+                      <div className="flex gap-2 flex-wrap">
+                        <Btn small primary onClick={() => { const p = pendingImport; setPendingImport(null); importData(p.res); }}>Remplacer le journal</Btn>
+                        <Btn small onClick={() => setPendingImport(null)}>Annuler</Btn>
+                      </div>
+                    </div>
+                  )}
+                  {(backups.length > 0 || droppedBackup || preImportBackup) && (
+                    <div className="flex gap-2 flex-wrap">
+                      {backups.map((b) => (
+                        <Btn key={b.from} small onClick={() => downloadBackup(`prog12-journal-v${b.from}-avant-migration.json`, b.value)}><Download size={14} />Sauvegarde d'avant-migration (v{b.from})</Btn>
+                      ))}
+                      {/* #32 : le journal tel qu'il était avant que des séances
+                          illisibles n'en soient écartées. Comme les autres
+                          sauvegardes, elle n'est jamais restaurée toute seule :
+                          on la sort du téléphone, on la relit, on décide. */}
+                      {droppedBackup && <Btn small onClick={() => downloadBackup("prog12-journal-avant-lignes-ecartees.json", droppedBackup)}><Download size={14} />Journal d'avant les séances écartées</Btn>}
+                      {preImportBackup && <Btn small onClick={() => downloadBackup("prog12-journal-avant-import.json", preImportBackup)}><Download size={14} />Journal d'avant le premier import</Btn>}
+                    </div>
+                  )}
+                </>
+              ) : (
+                (plan.find((s) => s.id === planPage.id) || { blocks: [] }).blocks.map((b, i) => <Block key={i} block={b} />)
               )}
-              {(backups.length > 0 || droppedBackup || preImportBackup) && (
-                <div className="flex gap-2 flex-wrap">
-                  {backups.map((b) => (
-                    <Btn key={b.from} small onClick={() => downloadBackup(`prog12-journal-v${b.from}-avant-migration.json`, b.value)}><Download size={14} />Sauvegarde d'avant-migration (v{b.from})</Btn>
-                  ))}
-                  {/* #32 : le journal tel qu'il était avant que des séances
-                      illisibles n'en soient écartées. Comme les autres
-                      sauvegardes, elle n'est jamais restaurée toute seule :
-                      on la sort du téléphone, on la relit, on décide. */}
-                  {droppedBackup && <Btn small onClick={() => downloadBackup("prog12-journal-avant-lignes-ecartees.json", droppedBackup)}><Download size={14} />Journal d'avant les séances écartées</Btn>}
-                  {preImportBackup && <Btn small onClick={() => downloadBackup("prog12-journal-avant-import.json", preImportBackup)}><Download size={14} />Journal d'avant le premier import</Btn>}
+            </PlanPage>
+          ) : (
+            <div className="px-4">
+              <p className="text-sm text-ink-soft mt-3">{PLAN_INTRO}</p>
+              {/* De quel programme cette référence parle, dit une fois en haut
+                  plutôt que sous-entendu par chaque ligne. C'est la question
+                  que #34 a passé une issue entière à rendre répondable : avant
+                  lui, l'écran décrivait parfois un autre programme que celui
+                  qui tourne. */}
+              <div className="mt-3 rounded-md border border-rule bg-surface-raised px-3 py-2.5 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{definition.name}</div>
+                  <div className="text-sm text-ink-muted">Semaine {week} sur {definition.weeks} · {phase.label}</div>
                 </div>
-              )}
-            </Section>
-          </div>
+                <span className="shrink-0 text-xs text-ink-muted border border-rule rounded-full px-2 py-0.5">actif</span>
+              </div>
+              <PlanIndex topics={planTopics} onOpen={setPlanTopic} />
+            </div>
+          )
         )}
 
         {toast && <div className="fixed left-1/2 -translate-x-1/2 bottom-20 bg-accent text-ink-inverse px-4 py-2 rounded-md text-sm font-medium shadow-none">{toast}</div>}
@@ -1283,12 +1352,71 @@ function Block({ block }) {
     );
   return null;
 }
-function PlanContent({ plan }) {
-  return plan.map((s) => (
-    <Section key={s.id} title={s.title} open={s.open}>
-      {s.blocks.map((b, i) => <Block key={i} block={b} />)}
-    </Section>
-  ));
+/* ---------- Le Plan comme index (revue Claude Design, 1c) ----------
+
+   Remplace l'accordéon de huit sections. Ce que l'accordéon savait faire et
+   que ceci ne sait plus : ouvrir deux sujets à la fois pour les comparer.
+   Ce qu'il ne savait pas faire : dire ce qu'il y a dedans sans l'ouvrir.
+
+   Les intertitres sont la taxonomie que le code portait déjà sans la montrer
+   — plan.js annote chaque section « toujours (méthode) » ou « tirée de la
+   donnée ». Une règle qui vaut pour tout le monde et un fait sur le programme
+   chargé ne se lisaient pas différemment ; maintenant si.
+
+   Le sous-titre est un **compte**, pas une accroche : il dit la taille ou la
+   forme de ce qu'il y a derrière. Sur les trois sujets de méthode c'est une
+   constante — une référence a le droit de ne pas bouger — et ça se voit, ce
+   qui est une information de plus et non un défaut à cacher. */
+const PLAN_GROUPS = [
+  ["methode", "La méthode"],
+  ["programme", "Ce programme"],
+  ["appareil", "Appareil"],
+];
+
+function PlanIndex({ topics, onOpen }) {
+  return (
+    <div className="pb-4">
+      {PLAN_GROUPS.map(([group, label]) => {
+        const rows = topics.filter((t) => t.group === group);
+        if (!rows.length) return null;
+        return (
+          <div key={group} className="mt-5">
+            <div className="text-xs uppercase tracking-wider text-ink-muted">{label}</div>
+            <div className="mt-1">
+              {rows.map((t) => (
+                <button key={t.id} onClick={() => onOpen(t.id)}
+                  className="w-full flex items-center gap-3 py-3.5 text-left border-b border-rule focus:outline-none focus:ring-2 focus:ring-focus rounded">
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-ink">{t.title}</span>
+                    {t.meta && <span className="block text-sm text-ink-muted mt-0.5">{t.meta}</span>}
+                  </span>
+                  <ChevronRight size={16} className="text-ink-faint shrink-0" />
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* Même en-tête que la fiche exercice (#17) : bouton de retour collant, titre
+   en dessous. Le retour est en `text-ink-soft` et non en ambre — l'accent
+   porte déjà trop de sens (triage du 2026-09-14, C2), et une flèche de retour
+   n'est pas une donnée. */
+function PlanPage({ title, onBack, children }) {
+  return (
+    <>
+      <div className="sticky top-0 z-10 bg-surface border-b border-rule px-4 pt-1 pb-2">
+        <button onClick={onBack} className="h-11 -ml-2 px-2 inline-flex items-center gap-1 text-sm text-ink-soft focus:outline-none focus:ring-2 focus:ring-focus rounded">
+          <ChevronLeft size={18} />Plan
+        </button>
+        <div className="text-xl font-semibold leading-tight">{title}</div>
+      </div>
+      <div className="px-4 pt-3 pb-6 text-sm text-ink-soft leading-relaxed space-y-2">{children}</div>
+    </>
+  );
 }
 
 function CardioView({ prog, week, cardio, ca, setCardio, toggleMob, compact }) {
