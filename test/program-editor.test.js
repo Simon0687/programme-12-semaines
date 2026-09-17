@@ -115,6 +115,18 @@ describe("aller-retour : ouvrir puis enregistrer sans rien toucher", () => {
   test("un programme sans profile n'en invente pas un (la clé reste absente)", () => {
     assert.equal("profile" in toDefinition(seed()), false);
   });
+
+  /* #58 : l'intention déclarée d'un programme généré traverse l'éditeur comme
+     `profile`. La perdre en rouvrant le cycle rendrait muettes trois des six
+     assertions, sans que rien à l'écran ne l'explique. */
+  test("l'intention déclarée traverse, et ne s'invente pas", () => {
+    const intent = {
+      frequency: 4, duration: 60, level: "intermediaire",
+      objective: "hypertrophie", priorities: [], equipment: "salle-complete",
+    };
+    assert.deepEqual(toDefinition(draftFrom({ ...bundled, intent })).intent, intent);
+    assert.equal("intent" in toDefinition(seed()), false);
+  });
 });
 
 describe("isDirty : ce que le garde-fou de sortie interroge", () => {
