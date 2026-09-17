@@ -128,7 +128,7 @@ const snapshot = (d) => JSON.stringify({ name: d.name, startDate: d.startDate, p
 export const isDirty = (draft) => snapshot(draft) !== draft.seed;
 
 export function emptyDraft(today) {
-  return sealed({ id: null, name: "Nouveau programme", startDate: nextMonday(today), program: emptyProgram(), startingLoads: {}, profile: undefined });
+  return sealed({ id: null, name: "Nouveau programme", startDate: nextMonday(today), program: emptyProgram(), startingLoads: {}, profile: undefined, intent: undefined });
 }
 
 /* Ouvrir une définition existante. Le repli sur LEGACY_DEFINITION est
@@ -145,6 +145,11 @@ export function draftFrom(definition) {
     program: structuredClone(definition.program ?? LEGACY_DEFINITION.program),
     startingLoads: structuredClone(definition.startingLoads ?? {}),
     profile: definition.profile,
+    /* #58 : l'intention déclarée traverse l'éditeur sans y être modifiable.
+       Sans cette ligne, « Partir du programme actif » sur un programme généré
+       lui retirerait ses cibles, et l'avis de Plan se tairait sur trois
+       assertions sans que rien ne l'explique. */
+    intent: definition.intent,
   });
 }
 
@@ -173,6 +178,7 @@ export function toDefinition(draft) {
     startDate: draft.startDate,
     startingLoads: draft.startingLoads,
     ...(draft.profile !== undefined && { profile: draft.profile }),
+    ...(draft.intent !== undefined && { intent: draft.intent }),
     program: draft.program,
   };
 }

@@ -27,6 +27,7 @@ import { ChevronLeft, ChevronUp, ChevronDown, Plus, X, Search } from "lucide-rea
 import { EXERCISES } from "./registry.js";
 import { filterExercises, FACET_VALUES } from "./exercise-filter.js";
 import { MUSCLE_LABELS, PATTERN_LABELS, EQUIPMENT_LABELS, DAY_NAMES } from "./display.js";
+import { intentSummary } from "./generator.js";
 import {
   addSession, removeSession, moveSession, patchSession,
   addRow, removeRow, moveRow, patchRow,
@@ -256,6 +257,15 @@ export default function ProgramEditor({ draft, onChange, onBack, onSave, error }
           <input type="date" value={draft.startDate} onChange={(e) => onChange({ ...draft, startDate: e.target.value })} className={`mt-1 ${FIELD}`} />
         </Labeled>
       </div>
+      {/* #58 : l'intention déclarée d'un programme généré, en lecture seule.
+          Rien n'y est modifiable — la changer sans régénérer produirait un
+          programme jugé contre une intention qui n'est pas la sienne. Elle
+          est là pour que l'avis de Plan soit lisible : les cibles qu'il
+          oppose au programme sont écrites là où on l'édite. Un programme
+          composé à la main n'en a pas, et la ligne n'apparaît pas. */}
+      {intentSummary(draft.intent) && (
+        <p className="text-xs text-ink-muted mt-2">{intentSummary(draft.intent)}</p>
+      )}
       <p className="text-xs text-ink-faint mt-2">
         Douze semaines, comme tout programme que cette version sait exécuter. L'ordre des séances est celui de cette liste — le jour ne la réordonne pas.
       </p>

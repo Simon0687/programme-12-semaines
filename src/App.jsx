@@ -10,7 +10,7 @@ import { readLastExport, writeLastExport, toIsoDate, isExportStale, journalHasCo
 import { unusableProgramIds, validateDefinition } from "./journal-shape.js";
 /* #57 : journal-shape juge la donnée et peut refuser un fichier ; assertions
    juge l'entraînement et ne fait que conseiller (ARCHITECTURE §2, §2.9). */
-import { assess } from "./assertions.js";
+import { assess, targetsFor } from "./assertions.js";
 import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind, workingSets, loadDrops, loadText } from "./progression.js";
@@ -18,6 +18,7 @@ import { setSummary, dayName, adviceSummary } from "./display.js";
 import { EXERCISE_IDS } from "./registry.js";
 import ExerciseSheet from "./ExerciseSheet.jsx";
 import ProgramEditor from "./ProgramEditor.jsx";
+import GenerateProgram from "./GenerateProgram.jsx";
 import { emptyDraft, draftFrom, withNewId, toDefinition, isDirty } from "./program-editor.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { useLoadPicker, LoadPickerOverlay, PICKER_FIELD_STYLE } from "./LoadPicker.jsx";
@@ -300,12 +301,18 @@ export default function Programme() {
   const plan = useMemo(() => buildPlan(definition), [definition]);
   /* #57 : les six assertions de #37, sur le programme que l'application
      exécute réellement — `prog` et non `definition.program`, ce qui donne
-     gratuitement le repli LEGACY d'une définition d'avant #25. Aucune cible
-     n'est passée : rien ne collecte d'intention aujourd'hui (decisions-spec.md
-     Q1), donc trois assertions se taisent et assess() le dit lui-même dans un
-     dernier finding. Mémoïsé sur `prog`, lui-même mémoïsé sur `definition` :
-     ça ne rejoue ni à la saisie d'une série ni au changement de semaine. */
-  const advice = useMemo(() => assess(prog), [prog]);
+     gratuitement le repli LEGACY d'une définition d'avant #25.
+
+     #58 : les cibles viennent de l'intention déclarée du cycle. Un programme
+     composé à la main ou chargé depuis un fichier n'en porte pas ;
+     `targetsFor({})` rend alors `null` et les trois assertions qui en
+     dépendent se taisent, en le disant — c'est le comportement de #57, obtenu
+     sans branche. Mémoïsé sur `definition` : ça ne rejoue ni à la saisie d'une
+     série ni au changement de semaine. */
+  const advice = useMemo(
+    () => assess(prog, targetsFor(definition.intent ?? {})),
+    [prog, definition],
+  );
 
   const [loaded, setLoaded] = useState(false);
   const [storageOk, setStorageOk] = useState(true);
@@ -956,6 +963,12 @@ export default function Programme() {
           <ExerciseSheet journal={journal} exerciseId={nav.exerciseId} backLabel={backLabel} onBack={closeExercise} />
         )}
 
+        {/* #58 : la collecte ne possède rien de stocké et ne passe la main
+            qu'à l'éditeur — c'est lui, et lui seul, qui écrit. */}
+        {screen === "generateur" && (
+          <GenerateProgram today={today} onBack={goPlan} onAccept={(def) => openEditor(draftFrom(def))} />
+        )}
+
         {screen === "editeur" && editor && (
           <>
             <ProgramEditor draft={editor} onChange={setEditor} onBack={() => askLeave(goPlan)} onSave={saveDraft} error={editorError} />
@@ -1087,6 +1100,10 @@ export default function Programme() {
                     nouveau cycle repart sur la calibration. */}
                 <Btn small onClick={() => openEditor(emptyDraft(today))}>Composer un programme</Btn>
                 <Btn small onClick={() => openEditor(draftFrom(definition))}>Partir du programme actif</Btn>
+                {/* #58 : la troisième porte. Elle n'installe rien — elle
+                    remplit le brouillon que les deux autres ouvrent vide ou
+                    depuis l'actif, et l'enregistrement reste le même geste. */}
+                <Btn small onClick={() => setNav({ screen: "generateur", sessionId: null })}>Générer un programme</Btn>
               </div>
               <input ref={fileInputRef} type="file" accept="application/json" onChange={handleProgramFile} className="hidden" />
               {programError && <p role="alert" className="text-sm text-alert">{programError}</p>}

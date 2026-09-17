@@ -329,6 +329,18 @@ describe("targetsFor : la cible de volume et le plafond temporel (§3 étapes 2-
     assert.equal(targetsFor({ frequency: "quatre", duration: 60 }), null);
     assert.equal(targetsFor({ frequency: 4, duration: 10 }), null, "10 min, c'est l'échauffement seul");
   });
+
+  /* #58 : un niveau inconnu était la seule entrée fausse qui rendait un
+     résultat au lieu de null — des cibles de débutant, sans le dire. */
+  test("niveau hors vocabulaire -> null, et non des cibles de débutant", () => {
+    assert.equal(targetsFor({ frequency: 4, duration: 60, level: "zzz" }), null);
+    assert.equal(targetsFor({ frequency: 4, duration: 60, level: null }), null);
+    assert.equal(targetsFor({ frequency: 4, duration: 60, level: 2 }), null);
+    assert.equal(
+      targetsFor({ frequency: 4, duration: 60, level: undefined }).volume.dos, 7,
+      "absent reste un intermédiaire",
+    );
+  });
 });
 
 describe("targetsFor : les 20 combinaisons fréquence x durée (§7)", () => {

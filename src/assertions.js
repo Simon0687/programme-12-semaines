@@ -276,9 +276,20 @@ export function targetsFor({ frequency, duration, level = "intermediaire", prior
   if (!Number.isFinite(frequency) || frequency <= 0) return null;
   if (!Number.isFinite(duration) || duration <= 10) return null;
 
+  /* Un niveau hors vocabulaire est traité comme une intention absente, et non
+     comme un débutant. `LEVEL_BONUS[level] ?? 0` rendait les deux
+     indiscernables : une intention portant `level: "zzz"` produisait des
+     cibles à 6 là où une intention sans niveau en produit 7, et l'avis se
+     calculait contre ces chiffres-là sans rien dire. C'est le mode d'échec
+     que tout l'épic combat — un résultat cohérent et faux — et il n'a pas sa
+     place dans le module qui est censé l'attraper (#58, decisions-spec.md Q3).
+     `level` vaut "intermediaire" quand il est absent : seule une valeur
+     explicitement inconnue arrive ici. */
+  if (!(level in LEVEL_BONUS)) return null;
+
   const capPerSession = Math.floor((duration - 10) / 3);
   const capPerWeek = capPerSession * frequency;
-  const bonus = LEVEL_BONUS[level] ?? 0;
+  const bonus = LEVEL_BONUS[level];
   const ctx = {
     capPerWeek,
     priorities: Array.isArray(priorities) ? priorities : [],
