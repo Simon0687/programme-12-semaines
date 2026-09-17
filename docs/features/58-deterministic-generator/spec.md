@@ -92,10 +92,20 @@ that is the intended use, not a regression.
 - [ ] **Given** the three answers 4 / 60 / salle complète, **when** I generate,
       **then** the editor opens on a 4-session Upper/Lower draft and nothing has
       been stored.
-- [ ] **Given** any of the 19 feasible frequency × duration combinations (all but
+- [x] **Given** any of the 19 feasible frequency × duration combinations (all but
       2 × 45), for each of the two equipment presets, **when** the generated
-      program is passed to `assess(prog, targetsFor(intent))`, **then** it returns
-      `ok: true` - no finding on any of the six assertions.
+      program is passed to `assess(prog, targetsFor(intent))`, **then** **no
+      finding appears that the engine's own report has not already announced**.
+      *Amended on 2026-09-17, after measuring.* The original wording asked for
+      `ok: true` on all 38; that is not reachable, and the reason is in the
+      method rather than in the engine - see « Measured, not assumed » below.
+      17 of the 38 are clean; the other 21 carry only shortfalls the collection
+      screen names before the editor opens.
+- [x] **Given** any generated program, **then** it never carries a volume
+      *above* a range, a duplicated pattern, a session under 48 h from another
+      on the same large group, a session over its duration budget, or a theme
+      naming a muscle it does not train. These have no excuse and are asserted
+      directly, on all 38.
 - [ ] **Given** a frequency of 2 or 3, **then** the split is full body; 4 gives
       Upper/Lower; 6 gives Push/Pull/Legs ×2 (§3 step 1).
 - [ ] **Given** equipment « Home gym », **then** no selected exercise requires an
@@ -181,6 +191,29 @@ a guard so that it returns `null` like the others.
 - **Week 7, a reopened session** - out of reach. The engine never writes to the
   journal (invariant 2.2).
 
+## Measured, not assumed (2026-09-17)
+
+Three numbers came out of running the code rather than reading the method, and
+two of them changed this spec.
+
+- **The shipped bundled program fails five assertions** once targets are given
+  to it - ischios at 10,5 for a range that stops at 10, and four muscles trained
+  once a week. It is the worked example of §5, so the engine could not simply
+  reproduce it.
+- **The method reasons in sets and never in slots.** A session holds at most six
+  exercises, and a small group is only stimulated by an exercise of its own -
+  presses do not count for triceps. At two sessions that is twelve slots for
+  eleven muscles wanting two each: the set budget fits, the slot budget cannot.
+  The engine therefore plans slots before selecting, and declares what it could
+  not fit.
+- **Assertion 2 is stricter than the table it comes from.** §7 asks for a
+  stimulation frequency ≥ 1,5 for every muscle; the « Fréq. cible » column of §3
+  step 2 says 1–2 for the three deltoids. #37 implemented §7. The consequence is
+  that at two sessions no program can satisfy it for everyone. That is a
+  contradiction in the method document - the fifth, after the four listed in
+  `decisions.md` of #25 - and it belongs in its own issue, not in this one:
+  fixing it here would weaken a shipped assertion on the two shipped programs.
+
 ## Out of scope / follow-ups
 
 - **Lot 2:** the level and objective screens, replacing two named constants by
@@ -194,6 +227,11 @@ a guard so that it returns `null` like the others.
   bodyweight-only entries, no lower body at all. Adding squat, fente, hip thrust
   and mollets debout au poids du corps to `src/registry.js` is what revives it,
   and that is #25's territory - its own issue.
+- **A calf exercise reachable without a machine.** The home gym preset's single
+  hole. Same issue as the one above, most likely.
+- **The per-muscle stimulation floor** of the point above: make assertion 2 read
+  the « Fréq. cible » column instead of a flat 1,5. Its own issue, because it
+  changes what #57's advice says about the two shipped programs.
 - The dynamic placement of §3 step 5 (recovery-driven rather than fixed days)
   belongs with the continuous timeline, not here.
 
