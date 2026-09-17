@@ -305,3 +305,132 @@ describe("validateProgram : indice post-séance (#33)", () => {
     }
   });
 });
+
+/* ---------- La structure de conditionnement (#34) ----------
+
+   Le champ acceptait deux valeurs et rien d'autre ; il accepte désormais une
+   structure, et ce qui la rend sûre est la fermeture que #25 a posée sur les
+   exercices. Ces cas tiennent les deux bouts : ce qui doit continuer de
+   passer, et ce qui doit être refusé **à l'import** plutôt que rendu. */
+describe("validateProgram : cardio (#34)", () => {
+  const withCardio = (cardio) => prog((p) => { p.cardio = cardio; });
+  const ok = { sessions: [{ id: "z2", modality: "rameur", kind: "z2", day: 3 }] };
+
+  test("les deux anciennes valeurs restent valides", () => {
+    assert.equal(validateProgram(withCardio("default")), null);
+    assert.equal(validateProgram(withCardio(null)), null);
+    assert.equal(validateProgram(prog((p) => { delete p.cardio; })), null, "un fichier d'avant #34 n'a pas le champ");
+  });
+
+  test("une structure complète passe, mobilité comprise", () => {
+    assert.equal(validateProgram(withCardio({ ...ok, mobility: { days: [2, 4, 7] } })), null);
+  });
+
+  test("une modalité inventée est refusée, et la liste des modalités est dite", () => {
+    const bad = validateProgram(withCardio({ sessions: [{ id: "z2", modality: "trottinette", kind: "z2", day: 3 }] }));
+    assert.equal(bad.reason, "unknown-cardio-rule");
+    assert.match(bad.message, /trottinette/);
+    assert.match(bad.message, /rameur/, "le message nomme ce qui est attendu, sans renvoyer au code");
+  });
+
+  test("un genre inventé est refusé", () => {
+    const bad = validateProgram(withCardio({ sessions: [{ id: "x", modality: "rameur", kind: "fartlek", day: 3 }] }));
+    assert.equal(bad.reason, "unknown-cardio-rule");
+    assert.match(bad.message, /fartlek/);
+  });
+
+  test("une ancre pendante est refusée à l'import, pas rendue telle quelle", () => {
+    /* « après Haut B » sous un programme qui n'a pas de Haut B : c'est le cas
+       que la spec demandait de refuser, et c'est pour ça que l'ancre est un
+       identifiant de séance et non du texte libre. */
+    const bad = validateProgram(withCardio({ sessions: [{ id: "z2", modality: "rameur", kind: "z2", day: 3, anchor: "seanceQuiNexistePas" }] }));
+    assert.equal(bad.reason, "invalid-program");
+    assert.match(bad.message, /anchor/);
+  });
+
+  test("une ancre qui désigne une vraie séance passe", () => {
+    const p = prog((x) => { x.cardio = { sessions: [{ id: "z2", modality: "rameur", kind: "z2", day: 3, anchor: x.SESSIONS[0].id }] }; });
+    assert.equal(validateProgram(p), null);
+  });
+
+  test("un jour hors de 1-7 est refusé, sous les deux bouts de la plage", () => {
+    /* La même plage que `SESSIONS[].day` : depuis #39 il n'y a plus qu'une
+       convention, un décalage depuis startDate, et 0 n'en fait pas partie. */
+    for (const day of [0, 8, 3.5, "mercredi", undefined]) {
+      const bad = validateProgram(withCardio({ sessions: [{ id: "z2", modality: "rameur", kind: "z2", day }] }));
+      assert.ok(bad, `day ${JSON.stringify(day)} accepté à tort`);
+    }
+    for (const d of [0, 8]) {
+      assert.ok(validateProgram(withCardio({ ...ok, mobility: { days: [d] } })), `mobility.days ${d} accepté à tort`);
+    }
+  });
+
+  test("deux séances du même genre ne peuvent pas être sur deux appareils", () => {
+    /* `cardioPlan(w).z2` est une phrase unique : deux modalités en Z2
+       n'auraient pas de prescription à partager. Dit ici plutôt que deviné à
+       la résolution. */
+    const bad = validateProgram(withCardio({
+      sessions: [
+        { id: "a", modality: "rameur", kind: "z2", day: 3 },
+        { id: "b", modality: "course", kind: "z2", day: 7 },
+      ],
+    }));
+    assert.equal(bad.reason, "invalid-program");
+    assert.match(bad.message, /modalité/);
+  });
+
+  test("deux genres différents peuvent l'être", () => {
+    assert.equal(validateProgram(withCardio({
+      sessions: [
+        { id: "a", modality: "rameur", kind: "z2", day: 3 },
+        { id: "b", modality: "course", kind: "intervals", day: 5 },
+      ],
+    })), null);
+  });
+
+  test("un identifiant en double est refusé", () => {
+    const bad = validateProgram(withCardio({
+      sessions: [
+        { id: "z2", modality: "rameur", kind: "z2", day: 3 },
+        { id: "z2", modality: "rameur", kind: "z2", day: 7 },
+      ],
+    }));
+    assert.ok(bad);
+    assert.match(bad.message, /unique/);
+  });
+
+  test("une forme qui n'est ni objet ni valeur connue ne lève pas, elle rend un verdict", () => {
+    for (const value of [42, true, [], "maison", { sessions: "trois" }]) {
+      const bad = validateProgram(withCardio(value));
+      assert.ok(bad, `cardio ${JSON.stringify(value)} accepté à tort`);
+      assert.equal(typeof bad.message, "string");
+    }
+  });
+});
+
+describe("validateDefinition : cardioBaseline (#34)", () => {
+  test("absent, vide, ou partiel : tous valides", () => {
+    assert.equal(validateDefinition({ ...BASE, cardioBaseline: undefined }), null);
+    assert.equal(validateDefinition({ ...BASE, cardioBaseline: {} }), null);
+    assert.equal(validateDefinition({ ...BASE, cardioBaseline: { hr: [130, 140] } }), null);
+  });
+
+  test("une cible inconnue est refusée, et la liste est dite", () => {
+    const bad = validateDefinition({ ...BASE, cardioBaseline: { vo2max: [50, 55] } });
+    assert.equal(bad.reason, "invalid-field");
+    assert.match(bad.message, /vo2max/);
+    assert.match(bad.message, /power/);
+  });
+
+  test("une cible doit porter deux nombres, borne basse puis haute", () => {
+    for (const v of [110, "105-115", [105], ["a", "b"], null]) {
+      const bad = validateDefinition({ ...BASE, cardioBaseline: { power: v } });
+      assert.ok(bad, `power ${JSON.stringify(v)} accepté à tort`);
+    }
+  });
+
+  test("le fichier de Simon, qui en porte un, passe le validateur", () => {
+    assert.equal(validateDefinition(BASE), null);
+    assert.ok(BASE.cardioBaseline, "haut-bas-5j.json porte ses cibles depuis #34");
+  });
+});

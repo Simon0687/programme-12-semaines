@@ -14,7 +14,7 @@ import { assess, targetsFor } from "./assertions.js";
 import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind, workingSets, loadDrops, loadText, normalizeSets } from "./progression.js";
-import { setSummary, dayName, weekdayName, adviceSummary, unitColumns } from "./display.js";
+import { setSummary, dayName, weekdayName, adviceSummary, unitColumns, cardioWhen, mobilityDayNames } from "./display.js";
 import { traitsOf } from "./units.js";
 import { EXERCISE_IDS } from "./registry.js";
 import ExerciseSheet from "./ExerciseSheet.jsx";
@@ -1297,9 +1297,13 @@ function CardioView({ prog, week, cardio, ca, setCardio, toggleMob, compact }) {
       {!compact && <div className="text-xl font-semibold pb-1">Cardio et mobilité, semaine {week}</div>}
       <div className="divide-y divide-rule border-y border-rule">
         {hasCardioItems(prog) && prog.CARDIO_ITEMS.map((it) => {
-          const plan = it.id === "int" ? cardio.intervals : cardio.z2;
+          /* #34 : le genre, plus l'identifiant. `it.id === "int"` était
+             l'identifiant d'une séance du programme de Simon, en dur dans la
+             vue : un programme qui appelait ses intervalles autrement voyait
+             sa prescription Z2 affichée sous eux. */
+          const plan = it.kind === "intervals" ? cardio.intervals : cardio.z2;
           const d = ca[it.id] || {};
-          if (it.id === "int" && !plan) return (
+          if (it.kind === "intervals" && !plan) return (
             <div key={it.id} className="py-3 text-sm text-ink-muted">Pas d'intervalles cette semaine (calibration, décharge ou bilan) : Z2 uniquement.</div>
           );
           return (
@@ -1307,7 +1311,7 @@ function CardioView({ prog, week, cardio, ca, setCardio, toggleMob, compact }) {
               <label className="flex items-start gap-3">
                 <input type="checkbox" checked={!!d.done} onChange={(e) => setCardio(it.id, "done", e.target.checked)} className="mt-1 h-5 w-5 accent-accent" />
                 <div>
-                  <div className="font-medium">{it.label} <span className="text-ink-muted font-normal text-sm">{it.when}</span></div>
+                  <div className="font-medium">{it.label} <span className="text-ink-muted font-normal text-sm">{cardioWhen(it, prog.SESSIONS)}</span></div>
                   <div className="text-sm text-ink-muted">{plan}</div>
                 </div>
               </label>
@@ -1321,11 +1325,15 @@ function CardioView({ prog, week, cardio, ca, setCardio, toggleMob, compact }) {
         })}
         {hasMobilityDays(prog) && (
           <div className="py-3">
-            <div className="font-medium">Mobilité, 3 fois par semaine</div>
+            {/* #34 : le « 3 » était écrit en dur, comme les trois jours. Les deux
+                viennent de MOB_DAYS, qui porte des décalages de 1 à 7 (#39) — les
+                cases restent indexées par **position**, donc les coches déjà
+                enregistrées restent en face du même jour. */}
+            <div className="font-medium">Mobilité, {prog.MOB_DAYS.length} fois par semaine</div>
             <div className="text-sm text-ink-muted">{cardio.mob}</div>
             <div className="flex gap-4 mt-2">
-              {prog.MOB_DAYS.map((d, i) => (
-                <label key={d} className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={!!(ca.mob && ca.mob[i])} onChange={() => toggleMob(i)} className="h-5 w-5 accent-accent" />{d}</label>
+              {mobilityDayNames(prog.MOB_DAYS).map((name, i) => (
+                <label key={name} className="inline-flex items-center gap-2 text-sm"><input type="checkbox" checked={!!(ca.mob && ca.mob[i])} onChange={() => toggleMob(i)} className="h-5 w-5 accent-accent" />{name}</label>
               ))}
             </div>
           </div>

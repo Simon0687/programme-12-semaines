@@ -4,8 +4,9 @@ Source : [`spec.md`](spec.md)
 Portée : **choix produit uniquement** — ce que `program.cardio` a le droit
 d'exprimer. Le découpage en modules, la forme des écrans et celle des tests
 appartiennent au tour `design.md`.
-Statut : **en attente de la réponse de Simon.** Les recommandations ci-dessous
-sont argumentées et prêtes à être appliquées.
+Statut : **répondu le 2026-09-17.** Simon valide **l'option 3** pour Q1 ; Q2 et
+Q3 suivent les recommandations. Le tour de conception est
+[`design.md`](design.md), et le code est dans `dev`.
 
 ---
 
@@ -201,4 +202,7 @@ avant que Q1 ne soit tranchée.** C'est l'ordre : #34, puis D3, puis D4.
 | Q2 | Le format encode-t-il des numéros de semaine ? | **Non, A** — la courbe ne descend pas dans le format ; #14 garde un seul chantier |
 | Q3 | Le moteur génère-t-il du cardio ? | **Non, A** — une sixième question de collecte se décide à part |
 
-**Décision de Simon.** _(à remplir)_
+**Décision de Simon (2026-09-17).** **Q1 = option 3.** Q2 et Q3 sont prises
+avec elle : la courbe ne descend pas dans le format, et le moteur continue
+d'émettre `cardio: null` jusqu'à ce que générer du conditionnement se décide
+pour lui-même.

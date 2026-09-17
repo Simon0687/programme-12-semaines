@@ -105,6 +105,10 @@ No journal *record* changes shape: cardio check marks stay under
 
 ## Open questions
 
+**None.** Answered in [`decisions-spec.md`](decisions-spec.md) on 2026-09-17:
+option 3, and the two questions it carries with it. What follows is the record
+of what was open, and of the dependency that unblocked it.
+
 **This issue is deliberately not decided here.** Its answer depends on a product
 decision Simon opened on 2026-09-12 - whether program *generation* moves into the
 app or stays with an external LLM (the branch `docs/generation/README.md` §4

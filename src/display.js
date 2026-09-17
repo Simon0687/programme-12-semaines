@@ -296,6 +296,30 @@ export const dayName = (day) => DAY_NAMES[day - 1] || "";
 
 export const weekdayName = (date) => DAY_NAMES[(date.getDay() + 6) % 7];
 
+/* ---------- Quand se fait une séance de cardio (#34) ----------
+
+   « mercredi, après Haut B (ou le soir) » était écrit en dur dans
+   `CARDIO_ITEMS`, et suivait donc le programme de Simon sous n'importe quel
+   programme. Les trois morceaux viennent maintenant de la donnée : le jour
+   est un décalage de 1 à 7 (#39), l'ancre est l'**identifiant** d'une séance
+   du programme — que le validateur vérifie, donc jamais une référence
+   pendante — et la note est libre.
+
+   La composition vit ici et non dans `cardio.js` pour la raison habituelle :
+   nommer un jour demande DAY_NAMES, et un module de méthode que `program.js`
+   importe n'a pas à porter de vocabulaire d'écran. */
+export function cardioWhen(item, sessions) {
+  const anchor = item.anchor && (sessions || []).find((s) => s.id === item.anchor);
+  return `${dayName(item.day)}${anchor ? `, après ${anchor.name}` : ""}${item.note ? ` (${item.note})` : ""}`;
+}
+
+/* Les jours de mobilité se stockent comme des décalages et s'affichent comme
+   des jours. Les cases à cocher restent indexées par **position** dans la
+   liste (`ca.mob[i]`, src/App.jsx), donc l'ordre croissant que rend
+   `resolveCardio` est ce qui garde les coches de Simon en face des bons
+   jours — mardi, jeudi, dimanche, dans cet ordre, comme avant #34. */
+export const mobilityDayNames = (days) => (days || []).map(dayName);
+
 const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const joinLabels = (keys, table) =>
   (Array.isArray(keys) ? keys : []).map((k) => table[k] || k).join(", ");

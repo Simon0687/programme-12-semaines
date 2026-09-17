@@ -32,7 +32,7 @@
 
 import { EXERCISE_IDS } from "./registry.js";
 import { DEFINITION_FORMAT_VERSION, parseLocalDate } from "./definition.js";
-import { AFTER_KINDS } from "./cardio.js";
+import { AFTER_KINDS, MODALITY_IDS, CARDIO_KINDS, BASELINE_KEYS } from "./cardio.js";
 
 const isNum = (x) => typeof x === "number" && Number.isFinite(x);
 const isObj = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -230,10 +230,102 @@ export function validateProgram(program) {
     }
   }
 
-  if (program.cardio !== undefined && program.cardio !== "default" && program.cardio !== null) {
-    return { reason: "unknown-cardio-rule", message: `program.cardio : « ${program.cardio} » n'est pas une règle cardio connue (attendu "default" ou null).` };
+  const badCardio = validateCardio(program.cardio, SESSIONS);
+  if (badCardio) return badCardio;
+
+  return null;
+}
+
+/* ---------- La structure de conditionnement (#34) ----------
+
+   Le champ acceptait `"default"` ou `null` et rien de plus ; il accepte
+   désormais une structure. Ce qui la rend vérifiable est la fermeture que
+   #25 a posée sur les exercices : une modalité et un genre se choisissent
+   dans un catalogue, ils ne s'inventent pas. Un programme généré ou importé
+   ne peut donc pas décrire un conditionnement que l'appli ne saurait pas
+   rendre — c'était le risque que la spec nommait.
+
+   `anchor` est l'identifiant d'une séance du programme, jamais du texte : la
+   spec demandait qu'une référence pendante soit refusée à l'import plutôt
+   que rendue telle quelle, et « après Haut B » sous un programme qui n'a pas
+   de Haut B est exactement ça.
+
+   Une seule modalité par genre, parce que `cardioPlan(w).z2` est une phrase
+   unique : deux modalités en Z2 n'auraient pas de prescription à partager.
+   La contrainte est dite ici plutôt que devinée à la résolution.
+
+   Les messages nomment le champ fautif et énoncent la contrainte, sans
+   référence au code — la règle de #19, qui vaut toujours sans IA au bout du
+   fil : elle a simplement pour lecteur une personne. */
+function validateCardio(cardio, SESSIONS) {
+  if (cardio === undefined || cardio === "default" || cardio === null) return null;
+  if (typeof cardio === "string") {
+    return { reason: "unknown-cardio-rule", message: `program.cardio : « ${cardio} » n'est pas une règle cardio connue (attendu un objet, "default" ou null).` };
+  }
+  if (!isObj(cardio)) {
+    return { reason: "invalid-program", message: "Champ invalide : program.cardio (objet, « default » ou null attendu)" };
+  }
+  if (!Array.isArray(cardio.sessions)) {
+    return { reason: "invalid-program", message: "Champ invalide : program.cardio.sessions (tableau attendu)" };
   }
 
+  const ids = new Set();
+  const sessionIds = new Set((SESSIONS || []).map((s) => s.id));
+  const modalityByKind = {};
+  for (const [i, x] of cardio.sessions.entries()) {
+    const at = `program.cardio.sessions[${i}]`;
+    if (!isObj(x)) return { reason: "invalid-program", message: `Champ invalide : ${at} (objet attendu)` };
+    if (typeof x.id !== "string" || x.id === "") return { reason: "invalid-program", message: `Champ invalide : ${at}.id (chaîne non vide attendue)` };
+    if (ids.has(x.id)) return { reason: "invalid-program", message: `${at}.id : « ${x.id} » apparaît deux fois ; chaque séance de cardio a un identifiant unique.` };
+    ids.add(x.id);
+    if (!MODALITY_IDS.has(x.modality)) {
+      return { reason: "unknown-cardio-rule", message: `${at}.modality : « ${x.modality} » n'est pas une modalité connue (attendu : ${[...MODALITY_IDS].join(", ")}).` };
+    }
+    if (!CARDIO_KINDS.includes(x.kind)) {
+      return { reason: "unknown-cardio-rule", message: `${at}.kind : « ${x.kind} » n'est pas un genre connu (attendu : ${CARDIO_KINDS.join(", ")}).` };
+    }
+    if (!Number.isInteger(x.day) || x.day < 1 || x.day > 7) {
+      return { reason: "invalid-program", message: `Champ invalide : ${at}.day (entier de 1 à 7 attendu, décalage depuis startDate)` };
+    }
+    if (x.anchor != null && !sessionIds.has(x.anchor)) {
+      return { reason: "invalid-program", message: `${at}.anchor : « ${x.anchor} » n'est pas une séance de program.SESSIONS.` };
+    }
+    if (x.note != null && typeof x.note !== "string") {
+      return { reason: "invalid-program", message: `Champ invalide : ${at}.note (chaîne attendue)` };
+    }
+    if (modalityByKind[x.kind] && modalityByKind[x.kind] !== x.modality) {
+      return { reason: "invalid-program", message: `${at} : les séances de genre « ${x.kind} » partagent toutes la même modalité (« ${modalityByKind[x.kind]} » plus haut, « ${x.modality} » ici).` };
+    }
+    modalityByKind[x.kind] = x.modality;
+  }
+
+  if (cardio.mobility != null) {
+    if (!isObj(cardio.mobility)) return { reason: "invalid-program", message: "Champ invalide : program.cardio.mobility (objet attendu)" };
+    if (!Array.isArray(cardio.mobility.days)) return { reason: "invalid-program", message: "Champ invalide : program.cardio.mobility.days (tableau attendu)" };
+    for (const [i, d] of cardio.mobility.days.entries()) {
+      if (!Number.isInteger(d) || d < 1 || d > 7) {
+        return { reason: "invalid-program", message: `Champ invalide : program.cardio.mobility.days[${i}] (entier de 1 à 7 attendu, décalage depuis startDate)` };
+      }
+    }
+  }
+
+  return null;
+}
+
+/* Les nombres de la personne, pas ceux du programme. Même forme de contrôle
+   que `startingLoads`, et même raison d'être : deux bornes, des nombres, et
+   une clé qui appartient au vocabulaire. */
+function validateCardioBaseline(baseline) {
+  if (baseline == null) return null;
+  if (!isObj(baseline)) return { reason: "invalid-field", message: "Champ invalide : cardioBaseline (objet attendu)" };
+  for (const [k, v] of Object.entries(baseline)) {
+    if (!BASELINE_KEYS.includes(k)) {
+      return { reason: "invalid-field", message: `cardioBaseline : « ${k} » n'est pas une cible connue (attendu : ${BASELINE_KEYS.join(", ")}).` };
+    }
+    if (!Array.isArray(v) || v.length < 2 || !v.slice(0, 2).every(isNum)) {
+      return { reason: "invalid-field", message: `Champ invalide : cardioBaseline.${k} (deux nombres attendus, borne basse puis borne haute)` };
+    }
+  }
   return null;
 }
 
@@ -344,6 +436,12 @@ export function validateDefinition(definition) {
     if (!isNum(load)) return { reason: "invalid-field", message: `Charge de départ invalide pour ${vid} (nombre attendu)` };
     if (!EXERCISE_IDS.has(vid)) return { reason: "unknown-exercise", message: `startingLoads : « ${vid} » n'est pas un exercice du registre.` };
   }
+
+  /* #34 : les cibles de cardio sont à `startingLoads` ce que les watts sont
+     aux kilos — la calibration d'une personne, pas la méthode. D'où leur
+     place ici, sur la définition, et non dans `program`. */
+  const badBaseline = validateCardioBaseline(definition.cardioBaseline);
+  if (badBaseline) return badBaseline;
 
   return null;
 }

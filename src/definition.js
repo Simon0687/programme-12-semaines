@@ -25,6 +25,17 @@
                         l'ignore et exécute le programme sans rien perdre ;
                         bumper le format le lui ferait refuser tout entier,
                         pour un champ qui ne nourrit qu'un avis.
+                        **2 -> 3 avec #34**, et pour la raison exactement
+                        inverse : `program.cardio` peut désormais porter une
+                        structure, et une version antérieure de l'appli ne
+                        l'ignorerait pas — elle testait `cardio === null`,
+                        donc elle prendrait un objet pour « default » et
+                        afficherait le rameur de Simon sous le programme d'un
+                        autre. Refuser le fichier est le bon comportement ;
+                        le laisser passer serait silencieusement faux.
+                        `cardioBaseline` arrive au même moment, en frère de
+                        startingLoads : les cibles chiffrées d'une personne
+                        (watts, FC) sont sa calibration, pas la méthode.
    DEFAULT_DEFINITION   le cycle fourni avec l'appli, sous la même forme
                         qu'un fichier chargé — buildProgram()/buildPlan()
                         ne distinguent pas les deux. Vit dans
@@ -40,7 +51,7 @@
                         pas seulement celle du profil par défaut.
    ========================================================= */
 
-export const DEFINITION_FORMAT_VERSION = 2;
+export const DEFINITION_FORMAT_VERSION = 3;
 
 export { DEFAULT_DEFINITION } from "./default-program.js";
 

@@ -141,3 +141,58 @@ describe("buildPlan : sections pilotées par la définition (#26)", () => {
     assert.doesNotMatch(text, /élévations latérales/i); // ni clé, ni fixe
   });
 });
+
+/* ---------- La section cardio, dérivée (#34) ----------
+
+   Trois paragraphes écrits en dur décrivaient le rameur de Simon sous tout
+   programme qui demandait du cardio. Le premier test est l'invariant : sa
+   section ne bouge pas d'un caractère. Les suivants montrent qu'elle bouge
+   pour les autres. */
+describe("buildPlan : cardio (#34)", () => {
+  const sectionOf = (def) => buildPlan(def).filter(Boolean).find((s) => s.id === "cardio");
+
+  test("le programme de Simon rend exactement les trois paragraphes d'avant #34", () => {
+    assert.deepEqual(sectionOf(LEGACY_DEFINITION).blocks.map((b) => b.text), [
+      "Rameur Z2 deux fois par semaine : 35 min en S1–S2, +5 min toutes les deux semaines jusqu'à 60 min en S12, 30 min faciles en S7. Cibles ~105–115 W, 130–138 bpm, cadence 18–20, drag factor 110–120. La durée progresse d'abord, la puissance ensuite.",
+      "Intervalles (optionnel, S2–S6 et S8–S11) : 4 × 4 min en Z4 puis 5 × 4 min en bloc 2, 3 min de récupération, cadence 24–28 pour limiter la charge lombaire. Toujours à 48 h d'une séance jambes. C'est la première chose qu'on retire si un déclencheur de décharge s'allume.",
+      "Mobilité 10–15 min, 3 fois par semaine : McGill Big 3 en pyramide descendante, 90/90 et couch stretch, thoracique, épaules. Échauffement spécifique avant chaque séance (voir la séance).",
+    ]);
+  });
+
+  test("cardio: null — la section reste absente", () => {
+    assert.equal(sectionOf({ ...LEGACY_DEFINITION, program: { ...LEGACY_DEFINITION.program, cardio: null } }), undefined);
+  });
+
+  test("un autre programme décrit son conditionnement, pas celui de Simon", () => {
+    const def = {
+      ...LEGACY_DEFINITION,
+      cardioBaseline: { hr: [125, 135] },
+      program: {
+        ...LEGACY_DEFINITION.program,
+        cardio: { sessions: [{ id: "m", modality: "marche", kind: "z2", day: 2 }], mobility: { days: [5, 7] } },
+      },
+    };
+    const texts = sectionOf(def).blocks.map((b) => b.text);
+    assert.equal(texts.length, 2, "pas d'intervalles déclarés, pas de paragraphe d'intervalles");
+    assert.match(texts[0], /^Marche inclinée Z2 une fois par semaine/);
+    assert.match(texts[0], /Cibles 125–135 bpm\./);
+    /* Le point qui motivait l'issue : plus un mot du rameur, des watts ni des
+       jours de Simon. */
+    for (const t of texts) {
+      assert.doesNotMatch(t, /[Rr]ameur/);
+      assert.doesNotMatch(t, /105/);
+    }
+    assert.match(texts[1], /2 fois par semaine/);
+  });
+
+  test("sans cibles, la phrase s'arrête au lieu de promettre une puissance", () => {
+    const def = {
+      ...LEGACY_DEFINITION,
+      cardioBaseline: undefined,
+      program: { ...LEGACY_DEFINITION.program, cardio: { sessions: [{ id: "z", modality: "course", kind: "z2", day: 2 }] } },
+    };
+    const text = sectionOf(def).blocks[0].text;
+    assert.doesNotMatch(text, /Cibles/);
+    assert.match(text, /La durée progresse d'abord\.$/);
+  });
+});

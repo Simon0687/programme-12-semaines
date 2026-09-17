@@ -360,6 +360,7 @@
         <div class="k">weeks</div><div class="v"><em>12</em>, et rien d'autre : toute autre valeur est refusée aujourd'hui (#14).</div>
         <div class="k">startDate</div><div class="v">« AAAA-MM-JJ ». <em>Origine de toutes les dates du cycle</em> — voir la jointure 2.</div>
         <div class="k">startingLoads</div><div class="v">Dictionnaire <em>id d'exercice → kg</em>. Injecté dans le registre à la construction du bundle.</div>
+        <div class="k">cardioBaseline</div><div class="v">Optionnel, #34. <em>{ power?, hr?, cadence?, drag? }</em>, chacun une paire <em>[bas, haut]</em>. Le pendant de <code>startingLoads</code> pour le conditionnement : la calibration d'une <em>personne</em> (~105–115 W, 130–138 bpm), pas la méthode et pas la structure du programme. C'est le terme qui manquait, et son absence est ce qui faisait hériter les watts de Simon à tout programme demandant du cardio.</div>
         <div class="k">profile</div><div class="v">Optionnel. Nutrition : <code>maintenanceKcal</code>, <code>startKcal</code>, <code>macros</code>, <code>targetWeightKg</code>. Absent du programme livré.</div>
         <div class="k">program</div><div class="v">Le catalogue du cycle. Détaillé ci-dessous.</div>
       </div>
@@ -372,7 +373,7 @@
         <div class="k">SESSIONS</div><div class="v">Liste ordonnée de <em>{ id, name, sub, day 1–7, warm, core, ex, after? }</em>. <code>ex</code> est une liste de paires <em>[id de créneau, nombre de séries]</em>.</div>
         <div class="k">CORE</div><div class="v">Dictionnaire <em>id → { label, ex }</em>. Le gainage, référencé par nom depuis une séance.</div>
         <div class="k">WARM</div><div class="v">Dictionnaire <em>id → texte</em>. L'échauffement, référencé par nom depuis une séance.</div>
-        <div class="k">cardio</div><div class="v"><code>"default"</code> ou <code>null</code>. <code>null</code> retire la section Cardio de l'onglet Plan.</div>
+        <div class="k">cardio</div><div class="v">Depuis #34 : un objet <em>{ sessions: [{ id, modality, kind, day 1–7, anchor?, note? }], mobility?: { days: [1–7] } }</em>, ou <code>null</code> (aucun conditionnement, la section Cardio disparaît de Plan), ou <code>"default"</code> — alias hérité qui résout la structure et les cibles de Simon, conservé parce que des journaux stockés portent cette chaîne. <code>modality</code> et <code>kind</code> se choisissent dans un catalogue fermé (<code>src/cardio.js</code>) ; <code>anchor</code> est l'<em>id</em> d'une séance de <code>SESSIONS</code>, jamais du texte. <code>day</code> est un décalage depuis <code>startDate</code>, comme <code>SESSIONS[].day</code> (#39).</div>
         <div class="k">volume · fallback</div><div class="v">Optionnels, purement éditoriaux : du texte rendu par l'onglet Plan. Aucun code ne les lit pour calculer quoi que ce soit.</div>
       </div>
     </div>

@@ -50,20 +50,21 @@ describe("getCardioDayNotes", () => {
     assert.deepEqual(getCardioDayNotes(prog), [4, 7]);
   });
 
-  test("aucune clé de note cardio hors de la plage 1-7 (#39)", () => {
+  test("aucun jour de cardio hors de la plage 1-7 (#39, #34)", () => {
     /* Le 0 de l'ancienne convention rendait le dimanche indistinguable de « la
-       veille du départ », que dateForSlot place hors du cycle. Une clé hors
-       plage est le symptôme du retour de la seconde convention. */
-    for (const k of Object.keys(prog.CARDIO_DAY_NOTES).map(Number)) {
-      assert.ok(k >= 1 && k <= 7, `clé ${k} hors de la plage 1-7`);
+       veille du départ », que dateForSlot place hors du cycle. Un jour hors
+       plage est le symptôme du retour de la seconde convention — et depuis #34
+       les jours viennent de la structure du programme, plus d'une table. */
+    for (const d of [...prog.CARDIO_ITEMS.map((it) => it.day), ...prog.MOB_DAYS]) {
+      assert.ok(Number.isInteger(d) && d >= 1 && d <= 7, `jour ${d} hors de la plage 1-7`);
     }
   });
 
-  test("un jour avec séance ET note cardio n'est pas compté (mercredi : Haut B + rameur)", () => {
-    // day 3 (mercredi) porte une séance (hautB) et une note dans CARDIO_DAY_NOTES ;
-    // il ne doit pas apparaître, seuls les jours sans aucune séance comptent.
+  test("un jour avec séance ET cardio n'est pas compté (mercredi : Haut B + rameur)", () => {
+    // Le jour 3 porte une séance (hautB) et une séance de rameur ; il ne doit
+    // pas apparaître, seuls les jours sans aucune séance de force comptent.
     assert.ok(!getCardioDayNotes(prog).includes(3));
-    assert.ok(Object.keys(prog.CARDIO_DAY_NOTES).map(Number).includes(3));
+    assert.ok(prog.CARDIO_ITEMS.some((it) => it.day === 3));
   });
 
   test("aucune note cardio : tableau vide, ne lève pas", () => {
