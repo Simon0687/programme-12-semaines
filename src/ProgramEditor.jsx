@@ -26,7 +26,7 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronUp, ChevronDown, Plus, X, Search } from "lucide-react";
 import { EXERCISES } from "./registry.js";
 import { filterExercises, FACET_VALUES } from "./exercise-filter.js";
-import { MUSCLE_LABELS, PATTERN_LABELS, EQUIPMENT_LABELS, DAY_NAMES } from "./display.js";
+import { MUSCLE_LABELS, PATTERN_LABELS, EQUIPMENT_LABELS, DAY_NAMES, unitLoadLabel } from "./display.js";
 import { intentSummary } from "./generator.js";
 import {
   addSession, removeSession, moveSession, patchSession,
@@ -45,10 +45,8 @@ const SMALL = "h-10 w-full px-2 text-center rounded-md bg-surface-raised border 
    l'enregistrement, avec sa phrase à lui (program-editor.js, en-tête). */
 const numOrBlank = (v) => (v === "" ? "" : Number(v));
 
-/* L'unité dans laquelle se tape une charge de départ, avec les mots que
-   loadText() emploie déjà à l'écran Séance (progression.js:257) : « lest »
-   au poids du corps, « / main » aux haltères. */
-const loadUnit = (v) => (v.unit === "bw" ? "lest kg" : v.perHand ? "kg / main" : "kg");
+/* #23 : le libellé vit dans display.js, avec les autres mots d'interface. */
+const loadUnit = unitLoadLabel;
 
 /* Un échauffement n'a pas de nom dans le format : WARM[clé] est un texte nu,
    et la clé ne sort jamais à l'écran — la séance affiche le texte, sous le
