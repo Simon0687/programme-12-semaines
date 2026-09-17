@@ -81,6 +81,16 @@ export const PRESETS = {
     label: "Home gym",
     gear: ["halteres", "barre_ez", "banc", "banc_incline", "barre_traction", "poids_du_corps"],
   },
+  /* Le troisième preset a manqué le lot 1 de #58, non par choix mais par
+     mesure : le registre n'avait alors que cinq entrées sans matériel, et huit
+     muscles sur onze sans exercice primaire. #59 a rempli le catalogue, et
+     c'est ce qui le fait revenir. Il porte la barre de traction et les barres
+     parallèles : sans elles, le dos et les triceps sont hors de portée, et un
+     preset qui ne sait pas entraîner le dos ne mérite pas son écran. */
+  "poids-du-corps": {
+    label: "Poids du corps",
+    gear: ["poids_du_corps", "barre_traction", "barres_paralleles"],
+  },
 };
 
 /* Ce que `generate()` suppose quand l'appelant se tait. Le niveau et

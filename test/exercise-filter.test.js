@@ -85,7 +85,7 @@ describe("facettes", () => {
   });
 
   test("le pattern est exact, jamais une famille", () => {
-    assert.deepEqual(ids("", { pattern: "mollets" }).sort(), ["calf_press", "calf_seat", "calf_stand"]);
+    assert.deepEqual(ids("", { pattern: "mollets" }).sort(), ["calf_press", "calf_seat", "calf_stand", "calf_step"]);
   });
 
   test("deux facettes se cumulent, et se cumulent avec la recherche", () => {
