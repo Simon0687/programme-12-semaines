@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   VOLUME, PRIMARY, LARGE_GROUPS, LEVELS,
   contribution, resolveWeek, weeklyVolume, stimulationFrequency, hasUnmodelledRows,
-  targetsFor, assess,
+  targetsFor, assess, announcedMuscles,
 } from "../src/assertions.js";
 import { EXERCISES, MUSCLE_GROUPS, UNSELECTABLE_IDS } from "../src/registry.js";
 import { DEFAULT_DEFINITION } from "../src/default-program.js";
@@ -647,5 +647,165 @@ describe("assertion 5 — durée estimée <= durée demandée", () => {
     program.CORE.coreB.ex = [["pallof", 6]]; // Upper A passe de 15 à 20 séries
     const found = assess(program, t).findings.filter((f) => f.code === "duration-over-budget");
     assert.ok(found.some((f) => f.sessionId === "upperA"));
+  });
+});
+
+describe("announcedMuscles : le lexique du thème annoncé", () => {
+  const terms = (sub) => announcedMuscles(sub).map((c) => c.term);
+
+  test("les neuf sous-titres livrés se lisent sans reste utile", () => {
+    assert.deepEqual(terms("Pecs, dos, épaules, triceps"), ["pecs", "dos", "epaules", "triceps"]);
+    assert.deepEqual(terms("Quadriceps, chaîne postérieure, mollets"), ["chaine posterieure", "quadriceps", "mollets"]);
+    assert.deepEqual(terms("Dos, delt postérieurs, biceps"), ["delt posterieur", "dos", "biceps"]);
+    assert.deepEqual(terms("Épaules et bras"), ["epaules", "bras"]);
+  });
+
+  test("les mots qui nomment un exercice sont ignorés en silence", () => {
+    assert.deepEqual(terms("Squat, ischios, mollets"), ["ischios", "mollets"]);
+    assert.deepEqual(terms("Hip thrust, presse, dos sagittal, mollets"), ["dos", "mollets"]);
+  });
+
+  test("une expression est retirée du texte : « delt postérieurs » n'annonce pas les trois faisceaux", () => {
+    const claims = announcedMuscles("Dos, delt postérieurs, biceps");
+    const delt = claims.find((c) => c.term === "delt posterieur");
+    assert.deepEqual(delt.groups, ["deltoide_post"]);
+    assert.ok(!claims.some((c) => c.groups.includes("deltoide_lat")), "pas de « delts » résiduel");
+  });
+
+  test("accents et casse sont indifférents", () => {
+    assert.deepEqual(terms("ÉPAULES"), terms("epaules"));
+    assert.deepEqual(terms("Chaîne Postérieure"), ["chaine posterieure"]);
+  });
+
+  test("un terme parapluie recouvre plusieurs groupes", () => {
+    assert.deepEqual(announcedMuscles("bras")[0].groups, ["biceps", "triceps"]);
+    assert.equal(announcedMuscles("épaules")[0].groups.length, 3);
+  });
+
+  test("un sous-titre sans muscle n'annonce rien", () => {
+    assert.deepEqual(terms(""), []);
+    assert.deepEqual(terms(null), []);
+    assert.deepEqual(terms("Séance du mardi"), []);
+  });
+
+  test("un même mot répété ne compte qu'une fois", () => {
+    assert.deepEqual(terms("Dos, dos et encore dos"), ["dos"]);
+  });
+});
+
+describe("assertion 6 — thème annoncé = muscles travaillés", () => {
+  const themeFindings = (program, targets) =>
+    assess(program, targets).findings.filter((f) => f.code === "theme-mismatch");
+
+  test("les 18 séances x blocs des deux programmes livrés annoncent juste", () => {
+    for (const program of [BUNDLED, LEGACY]) {
+      assert.deepEqual(themeFindings(program), [], "aucun faux signalement sur le livré");
+    }
+  });
+
+  test("l'assertion tourne sans cibles : le thème est dans le programme", () => {
+    const program = structuredClone(LEGACY);
+    /* Haut C annonce « Épaules et bras » : on lui retire tout le travail
+       de bras et on ne garde que les élévations latérales. */
+    program.SESSIONS[3].ex = [["latraise", 3]];
+    const found = themeFindings(program);
+    assert.equal(found.length, 1, "sans aucune cible déclarée");
+    assert.equal(found[0].sessionId, "hautC");
+    assert.equal(found[0].term, "bras");
+    assert.match(found[0].message, /Haut C/);
+    assert.match(found[0].message, /Biceps ou Triceps/);
+  });
+
+  test("le test que FitAI échoue : un titre d'épaules sur une séance de jambes", () => {
+    const program = structuredClone(BUNDLED);
+    program.SESSIONS[1].sub = "Épaules et bras"; // Lower A : quadriceps, ischios, mollets
+    const found = themeFindings(program);
+    assert.deepEqual(found.map((f) => f.term).sort(), ["bras", "epaules"]);
+  });
+
+  test("un muscle travaillé mais non annoncé n'est jamais un signalement", () => {
+    const program = structuredClone(BUNDLED);
+    program.SESSIONS[0].sub = "Pecs"; // Upper A travaille aussi dos, épaules, triceps
+    assert.deepEqual(themeFindings(program), []);
+  });
+
+  test("un terme parapluie est satisfait par un seul de ses groupes", () => {
+    const program = structuredClone(BUNDLED);
+    program.SESSIONS[0].sub = "Épaules"; // Upper A n'a que du deltoïde latéral en direct
+    assert.deepEqual(themeFindings(program), [], "les élévations latérales suffisent");
+  });
+
+  test("un sous-titre absent ne s'évalue pas", () => {
+    const program = structuredClone(BUNDLED);
+    for (const s of program.SESSIONS) delete s.sub;
+    assert.deepEqual(themeFindings(program), []);
+  });
+
+  test("deux thèmes faux dans la même séance font deux signalements", () => {
+    const program = structuredClone(BUNDLED);
+    program.SESSIONS[1].sub = "Pecs et biceps"; // Lower A
+    assert.deepEqual(themeFindings(program).map((f) => f.term).sort(), ["biceps", "pecs"]);
+  });
+});
+
+describe("les six assertions ensemble", () => {
+  test("le verdict complet du bundle, à 4 séances de 60 min", () => {
+    const verdict = assess(BUNDLED, targetsFor({ frequency: 4, duration: 60 }));
+    assert.equal(verdict.ok, false);
+    assert.deepEqual(verdict.findings.map((f) => f.code).sort(), [
+      "frequency-below-floor", "frequency-below-floor", "frequency-below-floor", "frequency-below-floor",
+      "volume-out-of-range",
+    ]);
+  });
+
+  test("le verdict complet du programme hérité, à 5 séances de 60 min", () => {
+    const verdict = assess(LEGACY, targetsFor({ frequency: 5, duration: 60 }));
+    assert.deepEqual(verdict.findings.map((f) => f.code).sort(), [
+      "duplicate-pattern", "duration-over-budget", "volume-out-of-range", "volume-out-of-range",
+    ]);
+  });
+
+  test("un programme sans aucun avis rend ok", () => {
+    /* Un full body 3 jours qui tient les six assertions : chaque muscle
+       stimulé deux fois, chaque volume dans sa fourchette, aucun schéma
+       répété dans une séance, les gros groupes à 48 h, 64 min au plus, et
+       des sous-titres qui ne nomment que ce qui est travaillé. C'est le
+       témoin négatif de tous les tests ci-dessus — sans lui, un module qui
+       signalerait tout et n'importe quoi passerait la suite. */
+    const slot = (b1) => ({ reps: [8, 12], rest: 90, b1, b2: b1 });
+    const program = {
+      SLOTS: {
+        press: slot("dc_db"), pulldown: slot("pd_wide"), row: slot("row_cable"),
+        quad1: slot("hack"), quad2: slot("legpress"), legcurl: slot("lc_lying"),
+        lat: slot("lat_cable"), tri: slot("pushdown"), curl: slot("curl_db"),
+        reardelt: slot("rev_cable"), calf: slot("calf_stand"), abs: slot("crunch"),
+      },
+      SESSIONS: [
+        { id: "fbA", name: "Full body A", sub: "Pecs, dos, ischios, épaules, biceps, mollets",
+          day: 1, warm: "w", core: "c",
+          ex: [["press", 3], ["pulldown", 3], ["legcurl", 3], ["lat", 2], ["curl", 2], ["calf", 3]] },
+        { id: "fbB", name: "Full body B", sub: "Dos, quadriceps, épaules, triceps, mollets",
+          day: 3, warm: "w", core: "none",
+          ex: [["row", 3], ["quad1", 3], ["lat", 2], ["reardelt", 1], ["tri", 2], ["calf", 3]] },
+        { id: "fbC", name: "Full body C", sub: "Pecs, quadriceps, épaules, bras",
+          day: 5, warm: "w", core: "c",
+          ex: [["press", 3], ["quad2", 3], ["reardelt", 2], ["tri", 2], ["curl", 2]] },
+      ],
+      CORE: { c: { label: "Abdos", ex: [["abs", 2]] }, none: { label: "Rien", ex: [] } },
+      WARM: { w: "echauffement" },
+    };
+    const verdict = assess(program, targetsFor({ frequency: 3, duration: 90 }));
+    assert.deepEqual(verdict.findings, []);
+    assert.equal(verdict.ok, true);
+  });
+
+  test("aucun message ne renvoie au code source, sur les six assertions", () => {
+    const program = structuredClone(LEGACY);
+    program.SESSIONS[3].ex = [["latraise", 3]];
+    program.SESSIONS[2].day = 2;
+    for (const f of assess(program, targetsFor({ frequency: 5, duration: 45 })).findings) {
+      assert.doesNotMatch(f.message, /\.js|src\/|function|undefined|NaN/, f.message);
+      assert.ok(f.message.length > 20, f.message);
+    }
   });
 });

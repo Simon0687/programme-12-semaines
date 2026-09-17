@@ -541,11 +541,100 @@ function assertDuration(week, targets) {
   return findings;
 }
 
+/* ---------- Assertion 6 — le thème annoncé contre les muscles travaillés ----
+
+   C'est le test que FitAI échoue : une séance intitulée « Épaules et bras »
+   qui entraîne les ischios. Il ne peut porter que sur le texte *affiché* —
+   `session.sub`, ce que l'en-tête de l'écran Séance imprime — parce que
+   c'est le seul énoncé qu'un humain lit et que rien ne vérifie : le
+   validateur de forme ne regarde jamais ce champ. Un thème que le
+   générateur écrirait lui-même à partir des muscles qu'il vient de choisir
+   comparerait un nombre à lui-même (decisions-spec.md Q5).
+
+   Le lexique est fermé et volontairement incomplet. Un mot inconnu est
+   ignoré en silence : « Squat », « Hip thrust » et « presse » nomment des
+   exercices, pas des muscles, et les inventorier n'apprendrait rien. Un
+   muscle travaillé mais non annoncé n'est jamais un signalement non plus —
+   « Upper A » n'annonce rien et ne ment donc sur rien. */
+const fold = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+/* Les groupes qu'un mot recouvre. Un terme parapluie est satisfait dès
+   qu'*un* de ses groupes est travaillé : « Épaules » ne demande pas les
+   trois faisceaux, des élévations latérales suffisent. */
+const THEME_PHRASES = {
+  "chaine posterieure": ["ischios_fessiers", "dos"],
+  "delt anterieur": ["deltoide_ant"],
+  "delt lateral": ["deltoide_lat"],
+  "delt posterieur": ["deltoide_post"],
+  "deltoide anterieur": ["deltoide_ant"],
+  "deltoide lateral": ["deltoide_lat"],
+  "deltoide posterieur": ["deltoide_post"],
+};
+
+const DELTOIDS = ["deltoide_ant", "deltoide_lat", "deltoide_post"];
+
+const THEME_WORDS = {
+  pecs: ["pectoraux"], pectoraux: ["pectoraux"], pectoral: ["pectoraux"], poitrine: ["pectoraux"],
+  dos: ["dos"], dorsaux: ["dos"],
+  ischios: ["ischios_fessiers"], ischio: ["ischios_fessiers"], fessiers: ["ischios_fessiers"],
+  quadriceps: ["quadriceps"], quads: ["quadriceps"], cuisses: ["quadriceps"],
+  mollets: ["mollets"],
+  biceps: ["biceps"], triceps: ["triceps"], bras: ["biceps", "triceps"],
+  abdos: ["abdominaux"], abdominaux: ["abdominaux"], gainage: ["abdominaux"],
+  epaules: DELTOIDS, deltoides: DELTOIDS, delts: DELTOIDS,
+};
+
+/* Les expressions sont cherchées avant les mots, et retirées du texte au
+   passage : sans ça, « delt postérieurs » laisserait « delts » derrière lui
+   et annoncerait les trois faisceaux au lieu du seul postérieur. Chaque mot
+   de l'expression tolère un pluriel. */
+const phrasePattern = (phrase) => new RegExp(`\\b${phrase.split(" ").map((w) => `${w}s?`).join("\\s+")}\\b`, "g");
+
+export function announcedMuscles(sub) {
+  let text = fold(sub);
+  const claims = new Map();
+
+  for (const [phrase, groups] of Object.entries(THEME_PHRASES)) {
+    if (!phrasePattern(phrase).test(text)) continue;
+    claims.set(phrase, { term: phrase, groups });
+    text = text.replace(phrasePattern(phrase), " ");
+  }
+  for (const word of text.split(/[^a-z0-9]+/).filter(Boolean)) {
+    const groups = THEME_WORDS[word];
+    if (groups && !claims.has(word)) claims.set(word, { term: word, groups });
+  }
+  return [...claims.values()];
+}
+
+function assertTheme(week) {
+  const findings = [];
+  for (const session of week.sessions) {
+    if (!session.sub) continue;
+
+    const worked = new Set();
+    for (const row of session.rows) {
+      for (const m of Object.keys(VOLUME)) if (contribution(row.entry, m) > 0) worked.add(m);
+    }
+
+    for (const { term, groups } of announcedMuscles(session.sub)) {
+      if (groups.some((g) => worked.has(g))) continue;
+      findings.push({
+        code: "theme-mismatch",
+        sessionId: session.id,
+        term,
+        message: `« ${sessionLabel(session)} » annonce « ${term} » dans son sous-titre, mais aucune de ses `
+          + `séries ne travaille ${groups.map((g) => MUSCLE_LABELS[g]).join(" ou ")}.`,
+      });
+    }
+  }
+  return findings;
+}
+
 /* Les demi-séries existent — un composé apporte 0,5 à un gros groupe — et
    « 10.5 séries » se lit mal en français. */
 const fr = (n) => String(n).replace(".", ",");
 
-const ASSERTIONS = [assertVolume, assertFrequency, assertPatterns, assertRecovery, assertDuration];
+const ASSERTIONS = [assertVolume, assertFrequency, assertPatterns, assertRecovery, assertDuration, assertTheme];
 
 /* Deux findings qui désignent le même problème n'en font qu'un, marqué
    « both ». Sans cette fusion, les deux programmes livrés doublent chacun
@@ -564,7 +653,7 @@ function mergeBlocks(perBlock) {
   const seen = new Map();
   for (const { block, findings } of perBlock) {
     for (const finding of findings) {
-      const key = [finding.code, finding.sessionId, finding.partnerId, finding.muscle, finding.pattern].join("|");
+      const key = [finding.code, finding.sessionId, finding.partnerId, finding.muscle, finding.pattern, finding.term].join("|");
       if (seen.has(key)) seen.get(key).block = "both";
       else seen.set(key, { ...finding, block });
     }
