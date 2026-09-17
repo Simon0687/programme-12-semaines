@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  setSummary, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName,
+  setSummary, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, adviceSummary,
 } from "../src/display.js";
 import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS, PATTERNS } from "../src/registry.js";
 
@@ -342,4 +342,27 @@ test("dayName lit un décalage de 1 à 7, pas un getDay()", () => {
   assert.equal(dayName(7), "dimanche", "le dimanche affichait « undefined » avant #36");
   assert.equal(dayName(0), "", "0 n'est pas un jour de séance : rien, jamais « dimanche »");
   assert.equal(dayName(8), "");
+});
+
+/* ---------- adviceSummary (#57) ----------
+
+   La seule phrase que #57 fabrique : tout le reste du bloc d'avis vient mot
+   pour mot de assess(). Elle est testée pour son accord en nombre, qui est
+   la seule chose qu'elle puisse rater. */
+
+test("adviceSummary : au singulier à partir d'un point", () => {
+  assert.equal(adviceSummary(1), "1 point à regarder sur ce programme");
+});
+
+test("adviceSummary : au pluriel à partir de deux", () => {
+  assert.equal(adviceSummary(2), "2 points à regarder sur ce programme");
+  assert.equal(adviceSummary(5), "5 points à regarder sur ce programme");
+});
+
+/* Zéro ne s'affiche pas — le bloc ne rend rien quand assess() ne trouve rien.
+   La règle est pinnée quand même, parce que l'accord français du zéro est
+   singulier et qu'un « 0 points » écrit par erreur signalerait un compte
+   devenu faux ailleurs. */
+test("adviceSummary : zéro reste au singulier", () => {
+  assert.equal(adviceSummary(0), "0 point à regarder sur ce programme");
 });

@@ -70,15 +70,19 @@ generated ids, the filtering of the registry - is a pure function under them, an
 save handler, which keeps the judgment in one place (2.9).
 
 `assertions.js` (#37) sits in the same band, above `registry.js` and below
-nothing at all: no screen calls it yet, and its tests are its only caller. It
-judges a program as *training* - the six acceptance assertions of
+nothing at all. Since #57 exactly one screen calls it: Plan hands `assess()` the
+`prog` bundle - what the app actually executes, LEGACY fallback included - and
+renders its findings verbatim at the end of the Programme section. It judges a
+program as *training* - the six acceptance assertions of
 `docs/generation/moteur-generation-programme.md` §7 - where `journal-shape.js`
 judges it as *data*. The two are deliberately not connected, and 2.9 is why: a
 volume imbalance is an opinion, not malformed data, so it must not reach a
 frontier that rejects. `assess()` therefore never calls `validateProgram()`, and
-no import door calls `assess()`. It defends itself the way #33 taught
-`validateProgram` to - structural guards, never a `try`/`catch` - because the two
-doors being independent means it does run on programs the other one would refuse.
+no import door calls `assess()` - the Plan call of #57 lands after loading, on
+whatever program ended up active, never on the way in. It defends itself the way
+#33 taught `validateProgram` to - structural guards, never a `try`/`catch` -
+because the two doors being independent means it does run on programs the other
+one would refuse.
 
 `journal-shape.js` (#32) is the one module both import doors and the storage
 adapter depend on - see 2.9. It was made a separate module rather than an

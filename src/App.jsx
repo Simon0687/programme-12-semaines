@@ -8,10 +8,13 @@ import { saveFile, readFile } from "./file-io.js";
 import { readScreen, writeScreen, resolveScreen } from "./screen-state.js";
 import { readLastExport, writeLastExport, toIsoDate, isExportStale, journalHasContent, daysBetween } from "./export-state.js";
 import { unusableProgramIds, validateDefinition } from "./journal-shape.js";
+/* #57 : journal-shape juge la donnée et peut refuser un fichier ; assertions
+   juge l'entraînement et ne fait que conseiller (ARCHITECTURE §2, §2.9). */
+import { assess } from "./assertions.js";
 import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
 import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind, workingSets, loadDrops, loadText } from "./progression.js";
-import { setSummary, dayName } from "./display.js";
+import { setSummary, dayName, adviceSummary } from "./display.js";
 import { EXERCISE_IDS } from "./registry.js";
 import ExerciseSheet from "./ExerciseSheet.jsx";
 import ProgramEditor from "./ProgramEditor.jsx";
@@ -97,6 +100,52 @@ function Btn({ children, onClick, primary, small, disabled }) {
         ${primary ? "bg-accent text-ink-inverse" : "bg-surface-raised text-ink border border-rule"}`}>
       {children}
     </button>
+  );
+}
+
+/* ---------- Avis du validateur sur le programme actif (#57) ----------
+
+   `assess()` existe depuis #37 sans qu'aucun écran l'appelle : ses tests
+   étaient son seul appelant. Il est branché ici, à un seul endroit — en fin
+   de la section Programme de Plan, sur le programme **actif**. Un seul site
+   couvre les deux portes qui installent un programme, le fichier chargé et
+   l'enregistrement de l'éditeur, puisque toutes deux finissent par
+   loadProgram() : il n'y a pas deux avis à tenir d'accord.
+
+   Ce composant ne lit jamais `code`, `muscle` ni `block`. Il rend `message`
+   tel quel, dans l'ordre où le module l'a rendu. C'est ce qui tient « les
+   phrases du validateur, non retouchées » par construction plutôt que par
+   discipline — le compte compris, qui inclut la ligne « non vérifié ».
+   Trier les findings ici reviendrait à réapprendre à la vue un vocabulaire
+   qui appartient au moteur.
+
+   Replié par défaut, et distinct de la ligne de refus de parseProgramImport()
+   qui vit dans la même section par trois choses plutôt qu'une : la place (en
+   fin de section, non collée au bouton), le rôle (aucun — un avis n'est pas
+   une alerte : assess() conseille et ne bloque jamais, decisions-moteur.md Q3)
+   et le geste (il faut l'ouvrir). La couleur ne peut pas porter la distinction,
+   `alert` et `notice` étant le même ambre aujourd'hui. Les deux ne sont de
+   toute façon jamais à l'écran ensemble : un fichier refusé n'est pas chargé. */
+function ProgramAdvice({ findings }) {
+  const [open, setOpen] = useState(false);
+  /* Rien à dire : rien du tout — pas un panneau vide annonçant que tout va
+     bien. Branche inatteignable en cliquant tant qu'aucune intention n'est
+     déclarée, assess() ajoutant alors toujours no-declared-intent ; c'est
+     l'écran de collecte d'intention qui la rendra vivante. */
+  if (!findings.length) return null;
+  return (
+    <div className="pt-1">
+      <button onClick={() => setOpen(!open)} aria-expanded={open}
+        className="w-full flex items-center justify-between gap-2 py-2 text-left text-sm text-notice focus:outline-none focus:ring-2 focus:ring-focus rounded">
+        <span>{adviceSummary(findings.length)}</span>
+        <ChevronDown size={16} className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <ul className="text-sm text-ink-soft leading-relaxed">
+          {findings.map((f, i) => <li key={i} className="border-t border-rule py-2">{f.message}</li>)}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -249,6 +298,14 @@ export default function Programme() {
   const weekday = today.getDay();
   const prog = useMemo(() => buildProgram(definition), [definition]);
   const plan = useMemo(() => buildPlan(definition), [definition]);
+  /* #57 : les six assertions de #37, sur le programme que l'application
+     exécute réellement — `prog` et non `definition.program`, ce qui donne
+     gratuitement le repli LEGACY d'une définition d'avant #25. Aucune cible
+     n'est passée : rien ne collecte d'intention aujourd'hui (decisions-spec.md
+     Q1), donc trois assertions se taisent et assess() le dit lui-même dans un
+     dernier finding. Mémoïsé sur `prog`, lui-même mémoïsé sur `definition` :
+     ça ne rejoue ni à la saisie d'une série ni au changement de semaine. */
+  const advice = useMemo(() => assess(prog), [prog]);
 
   const [loaded, setLoaded] = useState(false);
   const [storageOk, setStorageOk] = useState(true);
@@ -712,7 +769,16 @@ export default function Programme() {
     setEditorError("");
     setEditor(null);
     loadProgram(composed, "Programme enregistré.");
-    goSemaine();
+    /* #57 : Plan, et non Semaine. Un programme qu'on vient de composer a plus
+       de chances de demander une seconde passe que d'être exécuté dans la
+       minute, et c'est dans Plan qu'on le rouvre — c'est aussi là que l'avis
+       du validateur l'attend. Inconditionnel, avis ou pas (decisions-spec.md
+       Q4) : un même geste qui finirait sur deux écrans selon le verdict serait
+       une branche de plus à tenir en tête, pour rien.
+       goPlan et non goSemaine laisse `pendingLight` en place, exactement comme
+       l'onglet Plan de la barre du bas : la question de #43 appartient à la
+       séance ouverte, pas à la navigation. */
+    goPlan();
   };
 
   const handleProgramFile = async (e) => {
@@ -1039,6 +1105,10 @@ export default function Programme() {
                   {unusable.size === 1 ? "Un cycle enregistré n'est pas exécutable" : `${unusable.size} cycles enregistrés ne sont pas exécutables`} par cette version : ils restent dans le journal et dans l'export, mais ne peuvent pas être activés.
                 </p>
               )}
+              {/* En dernier dans la section, après le sélecteur de cycle et la
+                  note des cycles inexécutables : un avis sur le programme actif
+                  se lit une fois qu'on sait de quel programme on parle. */}
+              <ProgramAdvice findings={advice.findings} />
             </Section>
             <Section title="Données : sauvegarde et restauration">
               <p>{storageOk ? "Le journal est enregistré automatiquement sur cet appareil." : "Stockage automatique indisponible ici."} Avant une mise à jour du fichier, télécharge le journal et garde le fichier : il se réimporte ci-dessous.</p>

@@ -105,6 +105,21 @@ export function periodLabel(fromIso, toIso) {
    régression qui n’en est pas une. */
 export const KIND_LABELS = { calibration: "calibration", deload: "décharge", allege: "allégée" };
 
+/* ---------- La ligne de tête de l'avis (#57) ----------
+
+   Le bloc d'avis de Plan > Programme s'ouvre sur un compte, et rien d'autre.
+   La phrase vit ici et non dans App.jsx pour la raison d'ARCHITECTURE §2.6 :
+   un texte composé dans un .jsx n'est atteignable par aucun test, et
+   celui-ci porte un accord en nombre — dont la règle française, pluriel à
+   partir de deux, ne se relit pas, elle s'épingle.
+
+   Elle ne dit ni « problèmes » ni « erreurs » : assess() conseille et ne
+   bloque jamais (decisions-moteur.md Q3), et le compte inclut la ligne
+   « non vérifié » que le module ajoute faute d'intention déclarée — la vue,
+   elle, ne lit jamais `code`. « Points à regarder » est ce qui reste vrai
+   des deux. */
+export const adviceSummary = (n) => `${n} point${n > 1 ? "s" : ""} à regarder sur ce programme`;
+
 function isoOfDay(n) {
   return new Date(n * 86400000).toISOString().slice(0, 10);
 }
