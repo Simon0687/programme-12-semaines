@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   FREQUENCIES, DURATIONS, PRESETS, OBJECTIVES,
   DEFAULT_LEVEL, DEFAULT_OBJECTIVE,
-  generate, poolFor,
+  generate, poolFor, intentSummary,
 } from "../src/generator.js";
 import { VOLUME, assess, targetsFor, resolveWeek, weeklyVolume } from "../src/assertions.js";
 import { validateDefinition } from "../src/journal-shape.js";
@@ -161,6 +161,26 @@ describe("generate : la sortie est une définition comme une autre (#58)", () =>
      sur un programme généré lui retirerait ses cibles en silence. */
   test("l'intention survit à l'aller-retour par l'éditeur", () => {
     assert.deepEqual(toDefinition(draftFrom(definition)).intent, definition.intent);
+  });
+});
+
+describe("intentSummary : la ligne en lecture seule de l'éditeur (#58)", () => {
+  test("elle nomme les quatre valeurs de l'intention", () => {
+    const { definition } = gen({ frequency: 4, duration: 60, equipment: "home-gym" });
+    assert.equal(
+      intentSummary(definition.intent),
+      "Généré pour 4 séances de 60 min, hypertrophie, niveau intermédiaire, home gym.",
+    );
+  });
+
+  test("un programme composé à la main n'a rien à montrer", () => {
+    assert.equal(intentSummary(undefined), null);
+    assert.equal(intentSummary({}), null);
+    assert.equal(intentSummary({ frequency: 4 }), null);
+  });
+
+  test("une intention partielle reste descriptible plutôt que muette", () => {
+    assert.equal(intentSummary({ frequency: 3, duration: 45 }), "Généré pour 3 séances de 45 min.");
   });
 });
 

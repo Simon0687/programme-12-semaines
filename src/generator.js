@@ -215,6 +215,27 @@ const MUSCLE_LABELS = {
   biceps: "Biceps", triceps: "Triceps", mollets: "Mollets", abdominaux: "Abdos",
 };
 
+const LEVEL_LABELS = { debutant: "débutant", intermediaire: "intermédiaire", avance: "avancé" };
+const OBJECTIVE_LABELS = { force: "force", hypertrophie: "hypertrophie", endurance: "endurance de force" };
+
+/* La phrase que l'éditeur affiche sous le nom, en lecture seule
+   (decisions-spec.md Q4). Elle vit ici parce que les quatre vocabulaires y
+   sont : un libellé de preset écrit deux fois finirait par diverger.
+
+   Rend `null` — et non une phrase vide — pour un programme composé à la
+   main : il n'a pas d'intention à montrer, et l'écran n'a alors rien à
+   rendre. Les deux nombres suffisent à la reconnaître ; les autres champs
+   s'ajoutent s'ils sont lisibles, pour qu'une intention partielle reste
+   descriptible plutôt que muette. */
+export function intentSummary(intent) {
+  if (!intent || !Number.isFinite(intent.frequency) || !Number.isFinite(intent.duration)) return null;
+  const parts = [`${intent.frequency} séances de ${intent.duration} min`];
+  if (OBJECTIVE_LABELS[intent.objective]) parts.push(OBJECTIVE_LABELS[intent.objective]);
+  if (LEVEL_LABELS[intent.level]) parts.push(`niveau ${LEVEL_LABELS[intent.level]}`);
+  if (PRESETS[intent.equipment]) parts.push(PRESETS[intent.equipment].label.toLowerCase());
+  return `Généré pour ${parts.join(", ")}.`;
+}
+
 /* Le pool : les entrées que le moteur sait poser. Trois filtres, et un
    quatrième par omission — les entrées sans `muscles` (pallof, sideplank,
    abwheel, carry) sortent en testant le champ, jamais en nommant leurs ids,
