@@ -166,6 +166,41 @@ export const JOINT_LABELS = {
 
 export const TYPE_LABELS = { compose: "Composé", isolation: "Isolation" };
 
+/* Les seize patterns du registre, pour les facettes du sélecteur
+   d'exercices (#36). Même raison d'être que MUSCLE_LABELS juste au-dessus :
+   `registry.js` est une feuille de clés, et « charniere_hanche » n'est pas
+   un texte d'interface. */
+export const PATTERN_LABELS = {
+  poussee_horizontale: "Poussée horizontale",
+  poussee_verticale: "Poussée verticale",
+  tirage_vertical: "Tirage vertical",
+  tirage_horizontal: "Tirage horizontal",
+  dominante_genou: "Dominante genou",
+  charniere_hanche: "Charnière de hanche",
+  extension_hanche: "Extension de hanche",
+  mollets: "Mollets",
+  abdominaux: "Abdominaux",
+  iso_pectoraux: "Isolation pectoraux",
+  iso_deltoide_lateral: "Isolation deltoïde latéral",
+  iso_deltoide_posterieur: "Isolation deltoïde postérieur",
+  iso_biceps: "Isolation biceps",
+  iso_triceps: "Isolation triceps",
+  iso_quadriceps: "Isolation quadriceps",
+  iso_ischios: "Isolation ischios",
+};
+
+/* ---------- Jour d'une séance ----------
+   `session.day` est un décalage de 1 à 7 depuis startDate (dateForSlot,
+   src/schema.js:76), et startDate est un lundi : 1 se lit donc lundi, et 7
+   dimanche. La liste commence à lundi et `dayName` fait le −1, plutôt
+   qu'un tableau troué en tête : c'est ce qui empêche de la confondre avec
+   Date#getDay() (0 = dimanche), la confusion que #33 a laissée ouverte et
+   qui affichait « undefined » sur une séance du dimanche — jusqu'ici
+   inatteignable, puisque aucun écran ne demandait de jour (#36). */
+export const DAY_NAMES = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
+
+export const dayName = (day) => DAY_NAMES[day - 1] || "";
+
 const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const joinLabels = (keys, table) =>
   (Array.isArray(keys) ? keys : []).map((k) => table[k] || k).join(", ");

@@ -45,6 +45,8 @@ Module dependencies, as they actually stand - every edge, no others:
 | `plan` | `registry` |
 | `display` | `progression` |
 | `exercise-history` | `progression` |
+| `program-editor` | `registry`, `definition`, `legacy-program` |
+| `exercise-filter` | `registry` |
 | `schema`, `registry`, `progression`, `cardio`, `backup`, `default-program`, `legacy-program`, `file-io`, `export-state`, `bilan`, `screen-state` | nothing |
 
 `progression.js`, `registry.js`, `cardio.js`, `backup.js`, `schema.js` and
@@ -58,6 +60,13 @@ and never the reverse: the engine stays a leaf. That is why `setSummary()` moved
 to `display.js` rather than next to `loadText()` as #23 expected, and why
 `loadText()` did not move at all - `planned()` calls it, so following #23 to the
 letter would have made a leaf of the engine import a view module.
+
+`program-editor.js` and `exercise-filter.js` (#36) are the same shape one level
+further: everything the editor screen decides - the draft mutations, the
+generated ids, the filtering of the registry - is a pure function under them, and
+`ProgramEditor.jsx` only turns the result into markup (2.6). Neither imports
+`journal-shape`: the editor does not validate, it calls the validator from the
+save handler, which keeps the judgment in one place (2.9).
 
 `journal-shape.js` (#32) is the one module both import doors and the storage
 adapter depend on - see 2.9. It was made a separate module rather than an
@@ -219,15 +228,26 @@ untangle.
 
 ### 2.9 Every door into the journal goes through one validator
 
-Three doors accept a journal or a definition: the stored journal (`loadJournal`),
-a pasted journal (`parseJournalImport`), a program file (`parseProgramImport`).
-Since #32 all three call `src/journal-shape.js`, and none of them judges shape on
-its own.
+Four doors accept a journal or a definition: the stored journal (`loadJournal`),
+a pasted journal (`parseJournalImport`), a program file (`parseProgramImport`),
+and since #36 the editor's save (`saveDraft`, `App.jsx`). All four call
+`src/journal-shape.js`, and none of them judges shape on its own.
 
 The rule is not "validate the input" - it is **one callee, so the bar cannot
 drift**. Before #32 only the file door was guarded; the pasted door, which is the
 documented escape hatch from a blocked store (#12), had no validator at all, and
 a definition rejected as a file installed happily inside a pasted journal.
+
+The fourth door is the one that proves the rule was worth writing. The editor
+composes a definition *inside* the app, so nothing about it arrived from a file
+and it would have been easy to argue it needs no check - and just as easy to
+write a second, laxer bar by hand. It calls `validateDefinition()` and shows
+`bad.message`, the same sentence a rejected file gets. What the editor adds is
+upstream: `src/program-editor.js` cannot *produce* most of the shapes the
+validator refuses (ids are generated so two sessions cannot share one, a removed
+row prunes its slot so no dangling reference survives, the picker only offers
+`EXERCISE_IDS`). The validator stays the judge; the draft model just stops
+arguing with it.
 
 Three consequences worth keeping:
 
@@ -243,6 +263,17 @@ Three consequences worth keeping:
   the original bytes are copied to `<key>_backup_dropped` before the filtered
   journal can be rewritten - the same rule as a pre-migration backup (#8): a
   rejection is never a rewrite.
+
+And one fact that the editor rests on, worth stating where the storage rules
+live: **slot ids are invisible to storage.** A log row is `{ date, slot, ex }`
+where `slot` is the *session* id (`writeLog`, `src/schema.js`) and `ex` is keyed
+by *exercise* id (`history`, `src/progression.js`). Nothing stored ever names a
+slot id. That is what makes direct editing of a `program` safe: creating,
+forking or deleting a slot cannot rewrite anything already recorded - so the
+editor forks a slot shared by two sessions before writing to it, and prunes the
+ones nothing references any more, without a migration in sight. Session ids and
+exercise ids are the opposite: they are addresses in the journal, which is why
+the editor generates the first and never invents the second.
 
 ---
 

@@ -20,10 +20,12 @@ does not duplicate it.
 ## Scope
 
 - **In:** an editing surface producing a complete definition (`program`, plus `id`,
-  `name`, `startDate`, `weeks: 12`, `startingLoads`); its own entry point,
+  `name`, `startDate`, `weeks: 12`, `startingLoads` — typed in when the loads are
+  known, left blank for the week-1 calibration to settle); its own entry point,
   reachable without any generation flow; opening an existing `program` for editing;
   saving through the same path as a file import (`loadProgram`, `src/App.jsx:664`),
-  which creates a cycle in `programs`.
+  which creates a cycle in `programs` — or refreshes the active one in place, under
+  the rule below.
 - **Out:** constraint-driven generation (material / focus / days / level → proposal)
   — that is the engine, a later issue. Any new exercise: the registry stays closed
   (#25). Programs of a length other than 12 weeks (#14). Making the Plan tab's
@@ -57,6 +59,18 @@ returns to Plan. One scrollable page:
 - **Échauffements et gainage** — the `WARM` blocks (a label and a free-text
   instruction) and the `CORE` blocks (a label and a list of slots), each referenced
   by name from the sessions.
+- **Charges de départ** — a section at the foot of the editor lists every exercise
+  the program names, once each. Typing a load writes it into `startingLoads`;
+  leaving it blank means the week-1 calibration ramp settles it, which is what the
+  bundled program does since #26. Exercises that carry no load (`time`, `reps`) get
+  no field.
+- **Un cycle déjà commencé.** In this first batch, **every save writes a new cycle**
+  — the editor composes, it does not correct in place, and so it cannot rewrite a
+  stored journal at all (Simon, 2026-09-16: *"le plus simple possible, les règles
+  apparaîtront après"*). The per-session, per-edit rule answered in Q2 — a started
+  session refusing its `day`, its rep ranges and its deletion while everything else
+  stays editable — is the issue that follows this one; its design is written up in
+  decisions-spec.md Q2 and in design.md step 8.
 - **States.** *Empty:* a blank program shows one empty session and the two default
   blocks, with an explicit "aucun exercice" line per session. *Invalid:* a save the
   validator refuses shows the validator's own message — already written as "JSON
@@ -86,9 +100,14 @@ every other tab reads it exactly as it reads an imported program.
       editor's input is a `program` object, not internal editor state.
 - [ ] Given a save that succeeds, then it goes through `loadProgram()` — the same
       path as a file import — so multi-cycle isolation (#6) is unchanged.
-- [ ] Given a cycle that already holds at least one validated session, when a
-      program is saved from the editor, then it is written under a **new id** and
-      the started cycle's definition is left untouched (invariant 2.1).
+- [ ] Given any program saved from the editor, then it is written under a **new id**
+      with empty logs, and no existing cycle's definition is touched (invariant 2.1).
+      Editing a cycle in place is the next issue, not this one.
+- [ ] Given an exercise with a typed starting load, when the cycle is saved, then the
+      load appears in `startingLoads` under that exercise's id; given a blank field,
+      then the key is absent and week 1 runs the calibration ramp.
+- [ ] Given a session placed on Sunday (`day: 7`), then it is accepted and rendered
+      like the other six.
 - [ ] Given a validator rejection, when "Enregistrer" is tapped, then the message
       is shown, the editor keeps its content, and `programs` is not written.
 
@@ -103,20 +122,30 @@ without loss, and a journal saved by this one loads in the previous version (the
 extra cycle is just another entry). Per CONTRIBUTING.md that is "new screen,
 existing journal intact".
 
-If the editor keeps an in-progress draft, the draft must live outside the journal
-(the `sessionStorage` route of `src/screen-state.js`): a draft inside `programs`
-would be an unexecutable cycle carried into every export. See Open question 4.
+**No draft is stored** (Q4, answered 2026-09-16). A half-composed program does not
+survive leaving the editor: nothing is written anywhere until "Enregistrer", and
+leaving with unsaved content asks for a confirmation. The `sessionStorage` route of
+`src/screen-state.js` stays reserved for *which screen is open*, and gains no key
+here — a draft is an unvalidated program, and every read of it would need the
+defensive posture of a stored journal for a value thrown away the same evening. If
+the first real use proves that wrong, adding the key is a follow-up that changes no
+format.
 
 ## Edge cases
 
 - **An already-started cycle.** `loadProgram()` keys on `definition.id` and, for an
-  id already present, replaces the definition while keeping the logs. That is the
-  exact shape of an invariant 2.1 violation here: `history()` reads `rec.ex[vid]`
-  for the slot's *current* variant and matches rows by session id
-  (`src/progression.js:153-163`), so changing a slot's `b1`, its rep range, or a
-  session's id silently re-reads past sessions against a program they were never
-  performed under. #26 pinned the definition per cycle, not per log row — the
-  protection here is the new id, not the pinning.
+  id already present, replaces the definition while keeping the logs. This batch
+  never reaches that branch — it always mints a new id — which is what makes it safe
+  without a single rule; the batch that does reach it is the one where the lock list
+  below becomes the only thing standing between the editor and an invariant 2.1
+  violation. `history()` matches
+  rows by session id and reads `rec.ex[vid]` for the slot's *current* variant
+  (`src/progression.js:153-163`): a changed `b1` simply finds no history and
+  restarts on the calibration ramp, which is the correct reading of "j'ai changé
+  d'exercice"; a changed session `id`, `day`, `startDate` or rep range re-reads or
+  hides rows that were performed under other rules. Only the second family is
+  refused. Session ids are never exposed in either batch: the editor generates them,
+  so that member of the family cannot be reached at all.
 - **Duplicate session ids.** `validateProgram` rejects them
   (`src/journal-shape.js:169`) because `findLog` returns the first match and the
   second session becomes unreachable. The editor must generate ids, never ask for
@@ -150,28 +179,27 @@ would be an unexecutable cycle carried into every export. See Open question 4.
    as 1–7 (a Monday-based offset from `startDate`) while `App.jsx` compares it to
    `today.getDay()` (0 = Sunday). An editor that asks Simon to pick a weekday makes
    that contradiction visible for the first time. Pre-existing, not created here.
-5. **Stale references in the issue body:** `validateProgram()` moved to
+5. **Editing a started cycle in place** (Q2 = B): the rule is decided and designed,
+   and it ships as the issue that follows this one. Until then, an edit to a running
+   program is a new cycle, which restarts every exercise on the calibration ramp
+   unless its loads are typed in.
+6. **The six assertions of #37, shown live while editing** (Q5, answered
+   2026-09-16): a collapsed panel recomputing `assess(program, targets)` on each
+   edit, showing assertions 1–4 — the two that compare against a requested duration
+   and an announced theme have no target to read in a manually composed program.
+   This editor ships with no panel at all; the panel is its own issue, opened once
+   #37 has shipped, and it carries the sub-question of whether the editor should
+   start asking for a target duration and a theme.
+7. **Stale references in the issue body:** `validateProgram()` moved to
    `src/journal-shape.js:129` in #32, and the `weeks !== 12` refusal to
    `src/journal-shape.js:316`; the issue still cites `src/import.js:84` and `:205`.
    No behaviour change, only the cited lines.
 
 ## Open questions
 
-1. **Default content when the editor opens:** blank, or a copy of the active
-   program? Q2 settles that it must be *able* to open an existing `program`; it does
-   not settle the default. Recommendation: offer both from the Plan section
-   ("Composer un programme" / "Partir du programme actif"), which turns the answer
-   into a button rather than a hidden convention.
-2. **Editing a started cycle:** the criteria above forbid overwriting a cycle that
-   holds logs. Is "save always creates a new cycle, even when the current one is
-   empty" acceptable, or should an untouched cycle (zero validated sessions) be
-   editable in place?
-3. **`cardio`:** does a composed program take `null` (no cardio section at all) or
-   `"default"` (the bundled cardio/mobility rule)? `null` is the honest answer for a
-   program composed without thinking about cardio; `"default"` matches what the
-   bundled program did before #26.
-4. **Drafts:** does a half-composed program survive leaving the screen — and for how
-   long: the `sessionStorage` lifetime of #41, or not at all?
-5. **#37 sequencing:** the six assertions advise and never block (Q3, settled). Do
-   they appear live while editing, or only on save? Worth answering only once #37
-   has shipped; this editor can ship before it, showing no assertions.
+None. Q1 (default content) and Q3 (`cardio: null`) were answered 2026-09-15; Q2
+(editing a started cycle — per-session, per-edit rule, **deferred to the next
+issue**), Q4 (no stored draft) and Q5 (assertions panel deferred to its own issue)
+on 2026-09-16, along with the three implementation questions design.md had raised:
+free session order, starting loads typed in when known, Sunday allowed. See
+`decisions-spec.md` for the reasoning and `design.md` for the shape.

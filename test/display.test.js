@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  setSummary, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS,
+  setSummary, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName,
 } from "../src/display.js";
-import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS } from "../src/registry.js";
+import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS, PATTERNS } from "../src/registry.js";
 
 /* ---------- setSummary ----------
 
@@ -328,4 +328,18 @@ test("valueText et deltaText : le chiffre de tête porte son unité et son signe
   assert.equal(deltaText(7.5, "kg"), "+7,5 kg");
   assert.equal(deltaText(-2.5, "kg"), "−2,5 kg");
   assert.equal(deltaText(0, "kg"), "0 kg", "un plateau se dit, il ne se masque pas");
+});
+
+/* ---------- Libellés de facettes et jours (#36) ---------- */
+
+test("PATTERN_LABELS couvre les seize patterns du registre, et rien d'autre", () => {
+  assert.deepEqual(Object.keys(PATTERN_LABELS).sort(), [...PATTERNS].sort());
+});
+
+test("dayName lit un décalage de 1 à 7, pas un getDay()", () => {
+  assert.equal(dayName(1), "lundi");
+  assert.equal(dayName(6), "samedi");
+  assert.equal(dayName(7), "dimanche", "le dimanche affichait « undefined » avant #36");
+  assert.equal(dayName(0), "", "0 n'est pas un jour de séance : rien, jamais « dimanche »");
+  assert.equal(dayName(8), "");
 });

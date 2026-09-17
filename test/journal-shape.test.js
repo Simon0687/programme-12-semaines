@@ -195,6 +195,28 @@ describe("validateProgram : paires [slot, séries] (#33)", () => {
   });
 });
 
+/* Une séance sans exercice (#36). Le trou vient de l'éditeur — un écran
+   neuf enregistré tout de suite — mais un fichier importé peut le porter
+   aussi, et c'est le même refus : l'appli n'a rien à exécuter, et l'écran
+   Semaine résume chaque séance par son premier exercice. */
+describe("validateProgram : une séance porte au moins un exercice (#36)", () => {
+  test("refuse une séance vide, en la nommant", () => {
+    const bad = validateProgram(prog((p) => { p.SESSIONS[0].ex = []; }));
+    assert.equal(bad.reason, "invalid-program");
+    assert.match(bad.message, /aucun exercice/);
+    assert.match(bad.message, new RegExp(BASE.program.SESSIONS[0].name));
+  });
+
+  test("sans nom exploitable, le refus donne l'adresse de la séance", () => {
+    const bad = validateProgram(prog((p) => { p.SESSIONS[1].ex = []; delete p.SESSIONS[1].name; }));
+    assert.ok(bad.message.startsWith("program.SESSIONS[1] ne porte aucun exercice"), bad.message);
+  });
+
+  test("un bloc de gainage vide reste accepté : c'est « pas de gainage », pas un trou", () => {
+    assert.equal(validateProgram(prog((p) => { p.CORE[firstCore()].ex = []; })), null);
+  });
+});
+
 describe("validateProgram : jour de séance (#33)", () => {
   for (const [label, value] of [
     ["absent", undefined],
