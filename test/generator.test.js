@@ -10,7 +10,8 @@ import { VOLUME, assess, targetsFor, resolveWeek, weeklyVolume } from "../src/as
 import { validateDefinition } from "../src/journal-shape.js";
 import { buildProgram } from "../src/program.js";
 import { EXERCISES, UNSELECTABLE_IDS } from "../src/registry.js";
-import { draftFrom, toDefinition } from "../src/program-editor.js";
+import { draftFrom, toDefinition, withNewId } from "../src/program-editor.js";
+import { buildPlan } from "../src/plan.js";
 
 /* Une date fixe : `startDate` est le lundi qui vient, et un test qui lit
    l'horloge change de résultat le lundi. */
@@ -325,6 +326,38 @@ describe("generate : les six assertions sur les 38 combinaisons (§7)", () => {
       if (!r.ok) continue;
       assert.equal(validateDefinition(r.definition), null, `${c.equipment} ${c.frequency}x${c.duration}`);
     }
+  });
+});
+
+/* Le parcours complet, sans écran : générer, ouvrir dans l'éditeur,
+   enregistrer, puis lire l'avis que Plan affichera. C'est le seul test qui
+   dise que la dette de #57 est réellement soldée — « ce programme ne déclare
+   ni cible de volume ni durée de séance » disparaît parce qu'on y a répondu,
+   et reste là pour un programme composé à la main. */
+describe("de la collecte à l'avis de Plan (#58)", () => {
+  const saved = toDefinition(withNewId(draftFrom(
+    gen({ frequency: 4, duration: 60, equipment: "salle-complete" }).definition,
+  ), ["upper-lower-4j"]));
+
+  test("le cycle enregistré passe le validateur et porte un id lisible", () => {
+    assert.equal(validateDefinition(saved), null);
+    assert.equal(saved.id, "upper-lower-4-jours-60-min");
+  });
+
+  test("l'onglet Plan sait le décrire, table de volume comprise", () => {
+    assert.deepEqual(buildPlan(saved).map((s) => s.id), ["structure", "volume", "progression", "deload"]);
+  });
+
+  test("avec son intention, l'avis n'a plus rien à dire", () => {
+    const advice = assess(buildProgram(saved), targetsFor(saved.intent ?? {}));
+    assert.deepEqual(advice.findings, []);
+    assert.equal(advice.ok, true);
+  });
+
+  test("sans intention déclarée, la ligne de #57 est toujours là", () => {
+    const { intent, ...handwritten } = saved;
+    const advice = assess(buildProgram(handwritten), targetsFor(handwritten.intent ?? {}));
+    assert.deepEqual(advice.findings.map((f) => f.code), ["no-declared-intent"]);
   });
 });
 
