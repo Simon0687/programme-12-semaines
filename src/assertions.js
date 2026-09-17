@@ -187,3 +187,130 @@ export function stimulationFrequency(week) {
 export function hasUnmodelledRows(week) {
   return week.sessions.some((session) => session.rows.some((row) => !row.entry.muscles));
 }
+
+/* ---------- Cibles de volume et faisabilité (§3 étapes 2 et 3) ----------
+
+   Les deux vocabulaires ci-dessous décrivent l'*intention* de
+   l'utilisateur, pas les exercices : ils restent donc ici et n'entrent pas
+   dans src/registry.js, dont les vocabulaires fermés (MUSCLE_GROUPS,
+   PATTERNS, EQUIPMENT) ne décrivent que le catalogue. Le jour où les écrans
+   de collecte arrivent (decisions-moteur.md Q4), ils auront un module à eux
+   et ces constantes déménageront d'un bloc. */
+export const LEVELS = ["debutant", "intermediaire", "avance"];
+
+const LEVEL_BONUS = { debutant: 0, intermediaire: 1, avance: 2 };
+
+const clamp = (n, lo, hi) => Math.min(Math.max(n, lo), hi);
+const total = (volume) => Object.values(volume).reduce((a, b) => a + b, 0);
+const half = (n) => Math.round(n * 2) / 2;
+
+/* La cascade de réduction du §3 étape 3, dans son ordre — il est
+   déterministe et c'est tout l'intérêt : deux appels avec les mêmes
+   contraintes rendent la même table.
+
+   L'étape 1 (« groupes en maintien ») n'a aucun champ à lire tant que la
+   collecte des contraintes n'existe pas : elle agit sur un `maintenance`
+   facultatif et ne fait rien par défaut. Une étape qui ne réduit rien n'est
+   pas enregistrée — `cascade` liste ce qui a effectivement coupé, pas ce
+   qu'on a essayé. */
+const CASCADE = [
+  {
+    id: "maintenance",
+    apply: (v, ctx) => { for (const m of ctx.maintenance) if (v[m] != null) v[m] = 0; },
+  },
+  {
+    id: "periphery",
+    apply: (v) => { v.mollets = 0; v.abdominaux = 0; },
+  },
+  {
+    id: "isolation-floor",
+    apply: (v, ctx) => {
+      for (const [m, t] of Object.entries(VOLUME)) {
+        if (t.direct && !ctx.priorities.includes(m)) v[m] = Math.min(v[m], t.min);
+      }
+    },
+  },
+  {
+    id: "delt-ant",
+    apply: (v) => { v.deltoide_ant = 0; },
+  },
+  {
+    id: "large-floor",
+    apply: (v, ctx) => {
+      for (const m of LARGE_GROUPS) if (!ctx.priorities.includes(m)) v[m] = Math.min(v[m], VOLUME[m].min);
+    },
+  },
+  {
+    /* Fréquence 1,5×/sem sur les non-prioritaires : un muscle une séance sur
+       deux, donc trois quarts du volume. Appliquée groupe par groupe et non
+       d'un bloc — l'exemple du §5 n'en descend qu'un seul (« passage de la
+       fréquence des pectoraux à 1,5× ») pour combler un déficit de 1. On
+       s'arrête dès que ça tient. */
+    id: "frequency-1.5",
+    apply: (v, ctx) => {
+      for (const m of Object.keys(VOLUME)) {
+        if (total(v) <= ctx.capPerWeek) return;
+        if (ctx.priorities.includes(m) || v[m] === 0) continue;
+        v[m] = half(v[m] * 0.75);
+      }
+    },
+  },
+];
+
+/* Cible de volume par muscle et test de faisabilité temporelle.
+
+     cible(m) = min(m) + bonus_niveau + (prioritaire ? max − min − bonus : 0)
+     borné à [min(m), max(m)]
+     plafond_séries = floor((durée − 10) / 3)      # 10 min d'échauffement
+
+   Rend `null` sur une entrée qui n'a pas de sens — même convention que
+   resolveWeek : on ne fabrique pas une cible à partir d'une durée qui n'est
+   pas un nombre.
+
+   Attention en relisant l'exemple du §5 : il annonce « 51 séries » là où
+   cette fonction rend 54. Les deux sont justes et ne mesurent pas la même
+   chose — 51 est le total *après* que la couverture indirecte a ramené le
+   deltoïde antérieur à 0 série directe, ce qui est une décision de
+   sélection (étape 4), pas une cible. Le module ne sélectionne pas. */
+export function targetsFor({ frequency, duration, level = "intermediaire", priorities = [], maintenance = [] } = {}) {
+  if (!Number.isFinite(frequency) || frequency <= 0) return null;
+  if (!Number.isFinite(duration) || duration <= 10) return null;
+
+  const capPerSession = Math.floor((duration - 10) / 3);
+  const capPerWeek = capPerSession * frequency;
+  const bonus = LEVEL_BONUS[level] ?? 0;
+  const ctx = {
+    capPerWeek,
+    priorities: Array.isArray(priorities) ? priorities : [],
+    maintenance: Array.isArray(maintenance) ? maintenance : [],
+  };
+
+  const volume = {};
+  for (const [m, t] of Object.entries(VOLUME)) {
+    const priority = ctx.priorities.includes(m) ? t.max - t.min - bonus : 0;
+    volume[m] = clamp(t.min + bonus + priority, t.min, t.max);
+  }
+
+  const cascade = [];
+  for (const step of CASCADE) {
+    if (total(volume) <= capPerWeek) break;
+    const before = total(volume);
+    step.apply(volume, ctx);
+    if (total(volume) < before) cascade.push(step.id);
+  }
+
+  const needed = total(volume);
+  const feasible = needed <= capPerWeek;
+  return {
+    volume, frequency, duration, level,
+    priorities: ctx.priorities,
+    capPerSession, capPerWeek, needed, feasible, cascade,
+    /* Le script de refus complet — le chiffre, ce qui saute, deux
+       alternatives chiffrées — appartient au questionnaire (§6). Ici, les
+       deux nombres qui le fondent. */
+    message: feasible
+      ? null
+      : `${frequency} séances de ${duration} min offrent ${capPerWeek} séries de travail par semaine ; `
+        + `même réduit au minimum méthodologique, ce format en demande ${needed}.`,
+  };
+}

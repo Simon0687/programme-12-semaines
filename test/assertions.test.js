@@ -2,8 +2,9 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  VOLUME, PRIMARY, LARGE_GROUPS,
+  VOLUME, PRIMARY, LARGE_GROUPS, LEVELS,
   contribution, resolveWeek, weeklyVolume, stimulationFrequency, hasUnmodelledRows,
+  targetsFor,
 } from "../src/assertions.js";
 import { EXERCISES, MUSCLE_GROUPS, UNSELECTABLE_IDS } from "../src/registry.js";
 import { DEFAULT_DEFINITION } from "../src/default-program.js";
@@ -226,5 +227,141 @@ describe("hasUnmodelledRows : le trou du registre, pas celui du programme", () =
     const program = structuredClone(BUNDLED);
     for (const session of program.SESSIONS) session.core = "coreA"; // crunch, modélisé
     assert.equal(hasUnmodelledRows(weekOf(program)), false);
+  });
+});
+
+describe("targetsFor : la cible de volume et le plafond temporel (§3 étapes 2-3)", () => {
+  test("le plafond est celui de la table du §3 : 45/60/75/90 -> 11/16/21/26", () => {
+    for (const [duration, cap] of [[45, 11], [60, 16], [75, 21], [90, 26]]) {
+      assert.equal(targetsFor({ frequency: 4, duration }).capPerSession, cap, `${duration} min`);
+    }
+  });
+
+  test("les cibles d'un intermédiaire sans priorité : min + 1, borné au max", () => {
+    const t = targetsFor({ frequency: 4, duration: 60 });
+    assert.deepEqual(t.volume, {
+      dos: 7, pectoraux: 7, quadriceps: 7, ischios_fessiers: 7,
+      deltoide_ant: 3, deltoide_lat: 3, deltoide_post: 3,
+      biceps: 4, triceps: 4, mollets: 5, abdominaux: 4,
+    });
+  });
+
+  test("un débutant reste au plancher, un avancé monte de 2 sans dépasser le max", () => {
+    assert.equal(targetsFor({ frequency: 4, duration: 60, level: "debutant" }).volume.dos, 6);
+    assert.equal(targetsFor({ frequency: 4, duration: 90, level: "avance" }).volume.dos, 8);
+    assert.equal(targetsFor({ frequency: 4, duration: 90, level: "avance" }).volume.deltoide_post, 3, "borné au max");
+  });
+
+  test("une priorité pousse le groupe en haut de fourchette", () => {
+    const t = targetsFor({ frequency: 5, duration: 75, priorities: ["dos"] });
+    assert.equal(t.volume.dos, VOLUME.dos.max);
+    assert.equal(t.volume.pectoraux, 7, "les autres ne bougent pas");
+  });
+
+  test("LEVELS est le vocabulaire fermé des niveaux, et chacun a un bonus", () => {
+    for (const level of LEVELS) {
+      assert.notEqual(targetsFor({ frequency: 4, duration: 60, level }), null);
+    }
+  });
+
+  /* Les trois points de contrôle du §5 et du §6 du questionnaire — les seuls
+     nombres du dépôt calculés indépendamment de ce code. */
+  test("§5 : 4 x 60 min tient dans le plafond, sans aucune réduction", () => {
+    const t = targetsFor({ frequency: 4, duration: 60 });
+    assert.equal(t.capPerWeek, 64);
+    assert.equal(t.needed, 54);
+    assert.equal(t.feasible, true);
+    assert.deepEqual(t.cascade, []);
+    /* Le §5 annonce « 51 séries réelles » : c'est 54 moins les 3 séries de
+       deltoïde antérieur que la couverture indirecte rend inutiles à la
+       sélection (étape 4). Une cible et une prescription, pas le même
+       nombre — ce module ne sélectionne pas. */
+    assert.equal(t.needed - t.volume.deltoide_ant, 51);
+  });
+
+  test("§5 : 3 x 45 min passe au ras, par la cascade complète", () => {
+    const t = targetsFor({ frequency: 3, duration: 45 });
+    assert.equal(t.capPerWeek, 33);
+    assert.equal(t.feasible, true);
+    assert.deepEqual(t.cascade, ["periphery", "isolation-floor", "delt-ant", "large-floor", "frequency-1.5"]);
+    assert.equal(t.volume.mollets, 0, "les mollets sautent");
+    assert.equal(t.volume.abdominaux, 0, "les abdos sautent");
+    assert.equal(t.volume.deltoide_ant, 0, "couvert par les presses");
+    assert.ok(t.needed <= 33);
+  });
+
+  test("§6 : 2 x 45 min est refusé, 2 x 75 min tient — les deux chiffres du script", () => {
+    const refused = targetsFor({ frequency: 2, duration: 45 });
+    assert.equal(refused.capPerWeek, 22);
+    assert.equal(refused.feasible, false);
+    assert.match(refused.message, /22 séries/);
+    assert.match(refused.message, /demande \d+/);
+
+    const holds = targetsFor({ frequency: 2, duration: 75 });
+    assert.equal(holds.capPerWeek, 42);
+    assert.equal(holds.feasible, true);
+  });
+
+  test("une étape qui ne coupe rien n'est pas enregistrée", () => {
+    const t = targetsFor({ frequency: 3, duration: 45, maintenance: [] });
+    assert.ok(!t.cascade.includes("maintenance"), "rien à mettre en maintien");
+  });
+
+  test("un groupe en maintien tombe à zéro et l'étape est enregistrée", () => {
+    const t = targetsFor({ frequency: 3, duration: 45, maintenance: ["mollets"] });
+    assert.equal(t.cascade[0], "maintenance");
+    assert.equal(t.volume.mollets, 0);
+  });
+
+  test("une priorité traverse la cascade intacte, y compris l'étape 1,5x", () => {
+    const t = targetsFor({ frequency: 3, duration: 45, priorities: ["dos"] });
+    assert.equal(t.volume.dos, VOLUME.dos.max, "le groupe prioritaire garde sa cible");
+    /* Les autres ne s'arrêtent pas au plancher : la dernière étape descend
+       sous le minimum, c'est ce que veut dire « une séance sur deux ». */
+    assert.ok(t.volume.pectoraux < VOLUME.pectoraux.min, `pectoraux = ${t.volume.pectoraux}`);
+    assert.ok(t.cascade.includes("frequency-1.5"));
+  });
+
+  test("entrée absurde -> null, comme resolveWeek", () => {
+    assert.equal(targetsFor(), null);
+    assert.equal(targetsFor({ frequency: 4 }), null);
+    assert.equal(targetsFor({ frequency: "quatre", duration: 60 }), null);
+    assert.equal(targetsFor({ frequency: 4, duration: 10 }), null, "10 min, c'est l'échauffement seul");
+  });
+});
+
+describe("targetsFor : les 20 combinaisons fréquence x durée (§7)", () => {
+  const FREQUENCIES = [2, 3, 4, 5, 6];
+  const DURATIONS = [45, 60, 75, 90];
+
+  test("les 20 rendent une table complète et un verdict de faisabilité", () => {
+    for (const frequency of FREQUENCIES) {
+      for (const duration of DURATIONS) {
+        const t = targetsFor({ frequency, duration });
+        const label = `${frequency} x ${duration} min`;
+        assert.notEqual(t, null, label);
+        assert.deepEqual(Object.keys(t.volume).sort(), [...MUSCLE_GROUPS].sort(), label);
+        assert.equal(typeof t.feasible, "boolean", label);
+        if (t.feasible) assert.ok(t.needed <= t.capPerWeek, `${label} : ${t.needed} > ${t.capPerWeek}`);
+        else assert.ok(t.message.length > 0, label);
+      }
+    }
+  });
+
+  test("une seule combinaison est infaisable : 2 séances de 45 min", () => {
+    const infeasible = [];
+    for (const frequency of FREQUENCIES) {
+      for (const duration of DURATIONS) {
+        if (!targetsFor({ frequency, duration }).feasible) infeasible.push(`${frequency}x${duration}`);
+      }
+    }
+    assert.deepEqual(infeasible, ["2x45"]);
+  });
+
+  test("plus de budget ne demande jamais plus de réductions", () => {
+    for (const frequency of FREQUENCIES) {
+      const lengths = DURATIONS.map((duration) => targetsFor({ frequency, duration }).cascade.length);
+      assert.deepEqual(lengths, [...lengths].sort((a, b) => b - a), `fréquence ${frequency} : ${lengths}`);
+    }
   });
 });
