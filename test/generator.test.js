@@ -2,8 +2,8 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  FREQUENCIES, DURATIONS, PRESETS, OBJECTIVES,
-  DEFAULT_LEVEL, DEFAULT_OBJECTIVE,
+  FREQUENCIES, DURATIONS, PRESETS, LEVELS, OBJECTIVES,
+  LEVEL_LABELS, OBJECTIVE_LABELS, DEFAULT_LEVEL, DEFAULT_OBJECTIVE,
   generate, poolFor, intentSummary,
 } from "../src/generator.js";
 import { VOLUME, assess, targetsFor, resolveWeek, weeklyVolume } from "../src/assertions.js";
@@ -29,13 +29,21 @@ const LABELS = {
   biceps: "Biceps", triceps: "Triceps", mollets: "Mollets", abdominaux: "Abdos",
 };
 
-/* Les 40 combinaisons de la collecte : 5 fréquences x 4 durées x 2 presets. */
+/* Les 120 combinaisons de la collecte : 5 fréquences x 4 durées x 2 presets x
+   3 niveaux (#58 lot 2). L'objectif n'entre pas dans la matrice : il ne change
+   que les répétitions et le repos, que les six assertions ne lisent pas — un
+   test à lui seul le dit mieux qu'un facteur 3 sur tout le reste. */
 const COMBINATIONS = [];
 for (const equipment of Object.keys(PRESETS)) {
-  for (const frequency of FREQUENCIES) {
-    for (const duration of DURATIONS) COMBINATIONS.push({ frequency, duration, equipment });
+  for (const level of LEVELS) {
+    for (const frequency of FREQUENCIES) {
+      for (const duration of DURATIONS) COMBINATIONS.push({ frequency, duration, equipment, level });
+    }
   }
 }
+
+/* De quoi retrouver la combinaison fautive dans un message d'échec. */
+const combo = (c) => `${c.level ?? DEFAULT_LEVEL} ${c.equipment} ${c.frequency}x${c.duration}`;
 
 describe("les vocabulaires de la collecte (#58)", () => {
   test("cinq fréquences, quatre durées, deux presets", () => {
@@ -55,9 +63,22 @@ describe("les vocabulaires de la collecte (#58)", () => {
     }
   });
 
-  test("les trois objectifs ont une ligne de prescription, la v1 en utilise une", () => {
+  /* Depuis le lot 2, les cinq vocabulaires sont collectés : les deux
+     constantes ne servent plus qu'aux appels qui ne déclarent rien. */
+  test("trois niveaux, trois objectifs, et une valeur supposée pour l'appel muet", () => {
+    assert.deepEqual(LEVELS, ["debutant", "intermediaire", "avance"]);
     assert.deepEqual(OBJECTIVES, ["force", "hypertrophie", "endurance"]);
+    assert.ok(LEVELS.includes(DEFAULT_LEVEL));
     assert.ok(OBJECTIVES.includes(DEFAULT_OBJECTIVE));
+  });
+
+  /* L'écran n'écrit aucun libellé : il lit ces deux tables. Un vocabulaire
+     qui grandirait sans son libellé rendrait une chip vide. */
+  test("chaque niveau et chaque objectif a son libellé affichable", () => {
+    for (const l of LEVELS) assert.equal(typeof LEVEL_LABELS[l], "string", l);
+    for (const o of OBJECTIVES) assert.equal(typeof OBJECTIVE_LABELS[o], "string", o);
+    assert.equal(LEVEL_LABELS.intermediaire, "Intermédiaire");
+    assert.equal(OBJECTIVE_LABELS.endurance, "Endurance de force");
   });
 });
 
@@ -180,19 +201,34 @@ describe("intentSummary : la ligne en lecture seule de l'éditeur (#58)", () => 
     assert.equal(intentSummary({ frequency: 4 }), null);
   });
 
+  /* Les libellés des chips, minusculés dans la phrase : une seule table, deux
+     rendus. Le test tient les deux bouts pour qu'un renommage se voie ici. */
+  test("elle reprend les libellés affichés par les chips", () => {
+    assert.equal(
+      intentSummary({
+        frequency: 3, duration: 75, level: "avance",
+        objective: "endurance", equipment: "salle-complete",
+      }),
+      "Généré pour 3 séances de 75 min, endurance de force, niveau avancé, salle complète.",
+    );
+  });
+
   test("une intention partielle reste descriptible plutôt que muette", () => {
     assert.equal(intentSummary({ frequency: 3, duration: 45 }), "Généré pour 3 séances de 45 min.");
   });
 });
 
 describe("generate : le refus chiffré (§3 étape 3)", () => {
-  test("2 séances de 45 min est la seule combinaison refusée", () => {
+  /* Le niveau ne rachète pas un format trop court : un débutant demande une
+     série de moins par muscle, et 2 x 45 reste refusé pour lui aussi. */
+  test("2 séances de 45 min est la seule combinaison refusée, à tous les niveaux", () => {
     const refused = COMBINATIONS.filter((c) => !gen(c).ok);
     assert.deepEqual(
-      refused.map((c) => `${c.frequency}x${c.duration}`),
-      ["2x45", "2x45"],
-      "une par preset, et aucune autre",
+      [...new Set(refused.map((c) => `${c.frequency}x${c.duration}`))],
+      ["2x45"],
+      "aucun autre format refusé",
     );
+    assert.equal(refused.length, Object.keys(PRESETS).length * LEVELS.length);
   });
 
   test("le refus nomme les deux nombres et ne rend aucun programme", () => {
@@ -258,15 +294,55 @@ describe("generate : ce que le moteur dit avoir coupé (#58)", () => {
   });
 });
 
+/* L'objectif, collecté depuis le lot 2. Ce test est la raison pour laquelle
+   la matrice ne le prend pas comme facteur : il ne touche qu'à `SLOTS[].reps`
+   et `SLOTS[].rest`. Si un jour il déborde — une sélection qui privilégierait
+   les composés en force, par exemple —, c'est ici que ça casse, et la matrice
+   devra alors l'absorber. */
+describe("generate : l'objectif ne change que la prescription (§3 étape 6)", () => {
+  const base = { frequency: 4, duration: 60, equipment: "salle-complete", level: "intermediaire" };
+
+  /* Tout sauf les répétitions et le repos : même split, mêmes exercices,
+     mêmes séries, même nom. */
+  const skeleton = (objective) => {
+    const { program } = gen({ ...base, objective }).definition;
+    return {
+      ...program,
+      SLOTS: Object.fromEntries(Object.entries(program.SLOTS)
+        .map(([id, { reps, rest, ...kept }]) => [id, kept])),
+    };
+  };
+
+  test("les trois objectifs rendent le même squelette", () => {
+    assert.deepEqual(skeleton("force"), skeleton("hypertrophie"));
+    assert.deepEqual(skeleton("endurance"), skeleton("hypertrophie"));
+  });
+
+  test("et trois prescriptions différentes sur l'ancre de séance", () => {
+    const anchor = (objective) => Object.values(gen({ ...base, objective }).definition.program.SLOTS)
+      .find((s) => s.key);
+    assert.deepEqual(anchor("force").reps, [3, 6]);
+    assert.deepEqual(anchor("hypertrophie").reps, [5, 10]);
+    assert.deepEqual(anchor("endurance").reps, [12, 15]);
+    assert.deepEqual([anchor("force").rest, anchor("hypertrophie").rest, anchor("endurance").rest],
+      [210, 150, 90]);
+  });
+
+  test("l'intention porte l'objectif déclaré, pas la constante", () => {
+    assert.equal(gen({ ...base, objective: "force" }).definition.intent.objective, "force");
+  });
+});
+
 /* Le test qui mesure le moteur : les six assertions de #37, sur chacune des
-   38 combinaisons générées, avec les cibles que l'intention déclare.
+   114 combinaisons générées — 120 moins les six refus de 2 x 45 —, avec les
+   cibles que l'intention déclare.
 
    Le contrat n'est pas « aucun signalement » — ce serait demander au moteur
    de fabriquer du volume qu'un format de 2 séances ne peut pas porter. Il
    est plus strict sur ce qui compte : **aucun signalement que le moteur
    n'ait annoncé lui-même**. Un manque connu est dans le rapport, et un
    excès, un schéma dupliqué ou un dépassement de durée n'ont aucune excuse. */
-describe("generate : les six assertions sur les 38 combinaisons (§7)", () => {
+describe("generate : les six assertions sur les 114 combinaisons (§7)", () => {
   const findingsFor = (c) => {
     const r = gen(c);
     if (!r.ok) return null;
@@ -282,7 +358,7 @@ describe("generate : les six assertions sur les 38 combinaisons (§7)", () => {
       const surprises = out.findings.filter((f) => !(f.muscle && known.has(LABELS[f.muscle])));
       assert.deepEqual(
         surprises.map((f) => `${f.code}:${f.muscle || f.sessionId}`), [],
-        `${c.equipment} ${c.frequency}x${c.duration}`,
+        combo(c),
       );
     }
   });
@@ -291,7 +367,7 @@ describe("generate : les six assertions sur les 38 combinaisons (§7)", () => {
     for (const c of COMBINATIONS) {
       const out = findingsFor(c);
       if (!out) continue;
-      const label = `${c.equipment} ${c.frequency}x${c.duration}`;
+      const label = combo(c);
       assert.ok(!out.findings.some((f) => f.code === "duplicate-pattern"), label);
       assert.ok(!out.findings.some((f) => f.code === "recovery-too-close"), label);
       assert.ok(!out.findings.some((f) => f.code === "duration-over-budget"), label);
@@ -311,7 +387,7 @@ describe("generate : les six assertions sur les 38 combinaisons (§7)", () => {
       if (!r.ok) continue;
       const prog = buildProgram(r.definition);
       const b2 = resolveWeek(prog, "b2");
-      assert.ok(b2, `${c.equipment} ${c.frequency}x${c.duration} : bloc 2 illisible`);
+      assert.ok(b2, `${combo(c)} : bloc 2 illisible`);
       const volume = weeklyVolume(b2);
       for (const [m, range] of Object.entries(VOLUME)) {
         if (range.coveredIndirectly) continue;
@@ -324,7 +400,7 @@ describe("generate : les six assertions sur les 38 combinaisons (§7)", () => {
     for (const c of COMBINATIONS) {
       const r = gen(c);
       if (!r.ok) continue;
-      assert.equal(validateDefinition(r.definition), null, `${c.equipment} ${c.frequency}x${c.duration}`);
+      assert.equal(validateDefinition(r.definition), null, combo(c));
     }
   });
 });

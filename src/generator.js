@@ -60,9 +60,12 @@ import { nextMonday } from "./program-editor.js";
 /* ---------- Les vocabulaires de la collecte ----------
 
    `LEVELS` vit dans assertions.js, parce que c'est `targetsFor()` qui le lit.
-   Les trois autres n'ont pas d'autre lecteur que ce module et l'écran qui
-   l'alimente. */
+   Il est réexporté ici pour que l'écran de collecte n'ait qu'une porte à
+   pousser : les cinq vocabulaires qu'il affiche sortent du même module, et
+   aucun n'est réécrit dans du JSX. Les trois autres n'ont pas d'autre lecteur
+   que ce module et l'écran qui l'alimente. */
 
+export { LEVELS };
 export const FREQUENCIES = [2, 3, 4, 5, 6];
 export const DURATIONS = [45, 60, 75, 90];
 export const OBJECTIVES = ["force", "hypertrophie", "endurance"];
@@ -80,8 +83,12 @@ export const PRESETS = {
   },
 };
 
-/* Les constantes de la v1. Le lot 2 remplace ces trois lignes par des chips
-   et ne touche à rien d'autre : la signature les prend déjà. */
+/* Ce que `generate()` suppose quand l'appelant se tait. Le niveau et
+   l'objectif sont collectés depuis le lot 2 : ces deux-là ne servent plus
+   qu'aux appels qui ne déclarent rien, et l'intention écrite dans la
+   définition dit alors ce qui a été supposé au lieu de le taire.
+   `DEFAULT_PRIORITIES` reste, elle, la constante de la v1 — le lot 3 lui
+   donnera son écran. */
 export const DEFAULT_LEVEL = "intermediaire";
 export const DEFAULT_OBJECTIVE = "hypertrophie";
 export const DEFAULT_PRIORITIES = [];
@@ -190,9 +197,11 @@ const SUB_TERMS = [
 
 /* ---------- Étape 6 — la prescription ----------
 
-   Trois lignes, dont une seule est atteignable en v1 : l'objectif n'est pas
-   collecté (`DEFAULT_OBJECTIVE`). Les deux autres sont écrites maintenant
-   parce que le lot 2 est alors un écran, pas une table. */
+   Trois lignes, et depuis le lot 2 les trois sont atteignables : l'objectif
+   est collecté. Il ne change que les répétitions et le repos — ni le split,
+   ni la sélection, ni le nombre de séries — donc rien de ce que les six
+   assertions mesurent : l'assertion 5 estime la durée à 3 min par série,
+   forfaitairement, et ne lit pas le `rest` des créneaux. */
 const PRESCRIPTION = {
   force: { compose: [3, 6], isolation: [6, 10], restCompose: 210, restIsolation: 120 },
   hypertrophie: { compose: [5, 10], isolation: [8, 12], restCompose: 150, restIsolation: 90 },
@@ -215,8 +224,12 @@ const MUSCLE_LABELS = {
   biceps: "Biceps", triceps: "Triceps", mollets: "Mollets", abdominaux: "Abdos",
 };
 
-const LEVEL_LABELS = { debutant: "débutant", intermediaire: "intermédiaire", avance: "avancé" };
-const OBJECTIVE_LABELS = { force: "force", hypertrophie: "hypertrophie", endurance: "endurance de force" };
+/* Les libellés affichés : les chips de la collecte et la phrase de l'éditeur
+   les lisent tous les deux ici. Capitalisés à la source et minusculés dans la
+   phrase, comme `PRESETS[...].label` — un libellé écrit une seconde fois dans
+   du JSX finit par diverger, et c'est l'écran qui aurait tort. */
+export const LEVEL_LABELS = { debutant: "Débutant", intermediaire: "Intermédiaire", avance: "Avancé" };
+export const OBJECTIVE_LABELS = { force: "Force", hypertrophie: "Hypertrophie", endurance: "Endurance de force" };
 
 /* La phrase que l'éditeur affiche sous le nom, en lecture seule
    (decisions-spec.md Q4). Elle vit ici parce que les quatre vocabulaires y
@@ -230,8 +243,8 @@ const OBJECTIVE_LABELS = { force: "force", hypertrophie: "hypertrophie", enduran
 export function intentSummary(intent) {
   if (!intent || !Number.isFinite(intent.frequency) || !Number.isFinite(intent.duration)) return null;
   const parts = [`${intent.frequency} séances de ${intent.duration} min`];
-  if (OBJECTIVE_LABELS[intent.objective]) parts.push(OBJECTIVE_LABELS[intent.objective]);
-  if (LEVEL_LABELS[intent.level]) parts.push(`niveau ${LEVEL_LABELS[intent.level]}`);
+  if (OBJECTIVE_LABELS[intent.objective]) parts.push(OBJECTIVE_LABELS[intent.objective].toLowerCase());
+  if (LEVEL_LABELS[intent.level]) parts.push(`niveau ${LEVEL_LABELS[intent.level].toLowerCase()}`);
   if (PRESETS[intent.equipment]) parts.push(PRESETS[intent.equipment].label.toLowerCase());
   return `Généré pour ${parts.join(", ")}.`;
 }

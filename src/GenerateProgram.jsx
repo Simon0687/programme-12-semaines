@@ -1,5 +1,5 @@
 /* =========================================================
-   Écran de collecte — trois réponses, puis une proposition (#58)
+   Écran de collecte — cinq réponses, puis une proposition (#58)
 
    Comme ProgramEditor.jsx, ce fichier n'émet que du balisage : les
    vocabulaires, le moteur et les phrases du rapport viennent de
@@ -21,7 +21,10 @@
 
 import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
-import { FREQUENCIES, DURATIONS, PRESETS, generate } from "./generator.js";
+import {
+  FREQUENCIES, DURATIONS, PRESETS, LEVELS, OBJECTIVES,
+  LEVEL_LABELS, OBJECTIVE_LABELS, generate,
+} from "./generator.js";
 
 function Chip({ selected, onClick, children }) {
   return (
@@ -33,10 +36,15 @@ function Chip({ selected, onClick, children }) {
   );
 }
 
-function Question({ label, children }) {
+/* `hint` ne décrit pas la question, il dit ce que la réponse change dans le
+   programme. Deux des cinq en ont besoin : « intermédiaire » et
+   « hypertrophie » ne veulent rien dire tant qu'on ne sait pas sur quoi ils
+   agissent, et les supposer sans le dire était exactement le défaut du lot 1. */
+function Question({ label, hint, children }) {
   return (
     <div className="mt-5">
       <p className="text-sm text-ink-muted">{label}</p>
+      {hint && <p className="text-xs text-ink-soft mt-0.5">{hint}</p>}
       <div className="flex gap-2 flex-wrap mt-2">{children}</div>
     </div>
   );
@@ -70,6 +78,13 @@ export default function GenerateProgram({ today, onBack, onAccept }) {
   const [frequency, setFrequency] = useState(null);
   const [duration, setDuration] = useState(null);
   const [equipment, setEquipment] = useState(null);
+  /* Aucune valeur par défaut, et c'est le point du lot 2 : un niveau
+     présélectionné serait une réponse que personne n'a donnée, recopiée
+     ensuite dans `intent` et relue par l'avis de Plan comme une déclaration.
+     Le moteur garde ses constantes pour les appels muets — un écran, lui,
+     peut demander. */
+  const [level, setLevel] = useState(null);
+  const [objective, setObjective] = useState(null);
   const [result, setResult] = useState(null);
 
   /* Changer une réponse jette la proposition : la garder à l'écran sous des
@@ -77,7 +92,7 @@ export default function GenerateProgram({ today, onBack, onAccept }) {
      endroit de l'appli où ce qui est affiché ne décrit pas l'état. */
   const answer = (set) => (v) => { set(v); setResult(null); };
 
-  const complete = frequency !== null && duration !== null && equipment !== null;
+  const complete = [frequency, duration, equipment, level, objective].every((v) => v !== null);
 
   /* Rien à signaler : la proposition part directement dans l'éditeur, sans
      faire lire un écran vide pour le plaisir d'un clic de plus. La décision
@@ -85,7 +100,7 @@ export default function GenerateProgram({ today, onBack, onAccept }) {
      le parent depuis le corps du composant serait une mise à jour d'état en
      plein rendu. */
   const run = () => {
-    const r = generate({ frequency, duration, equipment }, today);
+    const r = generate({ frequency, duration, equipment, level, objective }, today);
     if (r.ok && !r.report.cut.length && !r.report.uncovered.length) { onAccept(r.definition); return; }
     setResult(r);
   };
@@ -102,7 +117,7 @@ export default function GenerateProgram({ today, onBack, onAccept }) {
       </div>
 
       <p className="text-sm text-ink-soft mt-3">
-        Trois réponses suffisent : le reste — le découpage des séances, les exercices, les séries et les
+        Cinq réponses suffisent : le reste — le découpage des séances, les exercices, les séries et les
         répétitions — se calcule. La proposition s'ouvre ensuite dans l'éditeur, et rien n'est enregistré
         tant que tu ne l'as pas validée.
       </p>
@@ -122,6 +137,24 @@ export default function GenerateProgram({ today, onBack, onAccept }) {
       <Question label="Avec quel matériel ?">
         {Object.entries(PRESETS).map(([key, preset]) => (
           <Chip key={key} selected={equipment === key} onClick={() => answer(setEquipment)(key)}>{preset.label}</Chip>
+        ))}
+      </Question>
+
+      <Question
+        label="Quel niveau ?"
+        hint="Une série de plus par muscle à chaque cran, dans la limite de la fourchette, et les barres libres qui s'ouvrent : squat et tractions à partir d'intermédiaire, soulevé de terre conventionnel en avancé."
+      >
+        {LEVELS.map((key) => (
+          <Chip key={key} selected={level === key} onClick={() => answer(setLevel)(key)}>{LEVEL_LABELS[key]}</Chip>
+        ))}
+      </Question>
+
+      <Question
+        label="Quel objectif ?"
+        hint="Il fixe les répétitions et le repos. Ni le découpage des séances, ni le choix des exercices, ni le nombre de séries n'en dépendent."
+      >
+        {OBJECTIVES.map((key) => (
+          <Chip key={key} selected={objective === key} onClick={() => answer(setObjective)(key)}>{OBJECTIVE_LABELS[key]}</Chip>
         ))}
       </Question>
 
