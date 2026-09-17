@@ -169,6 +169,14 @@ alone.
 6. `docs(architecture): the app proposes a program (#58)` - non-goal n°3,
    `definition.js`'s header, and `decisions-moteur.md`'s « Comment appliquer »
    item 3 ticked off.
+7. `feat(generator): the level and the objective are declared, not assumed (#58)` -
+   **lot 2, added on 2026-09-17, after lot 1 was merged into `dev`.** Two more
+   chip rows in `GenerateProgram.jsx`, `LEVEL_LABELS` / `OBJECTIVE_LABELS` /
+   `LEVELS` exported from `generator.js` so no libellé is written twice, and the
+   acceptance matrix widened from 38 to 114 generated combinations. No caller
+   changed and no stored shape moved - step 6's three-row prescription table was
+   already right, so this really was a screen and not a table. What it measured
+   is recorded in the spec's « Lot 2 » section.
 
 ## Tests
 
