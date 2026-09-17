@@ -278,6 +278,33 @@ describe("generate : ce que le moteur dit avoir coupé (#58)", () => {
     }
   });
 
+  /* #60 : un créneau rendu, et un muscle couvert de plus. Les deux petits
+     deltoïdes ne réclament plus deux séances, ce qui libère de la place dans
+     un full body — en salle complète, à 3 x 75, les mollets la prennent. */
+  test("les deltoïdes rendent le créneau que les mollets attendaient (#60)", () => {
+    for (const duration of [75, 90]) {
+      const r = gen({ frequency: 3, duration, equipment: "salle-complete" });
+      assert.deepEqual(r.report.uncovered, [], `3 x ${duration}`);
+    }
+  });
+
+  /* Ce que le plancher ne répare pas, et qu'il ne faut pas croire réparé :
+     à deux séances, douze créneaux ne suffisent pas à onze muscles. Les deux
+     petits deltoïdes passent après les bras dans PRIORITY et n'ont toujours
+     rien — le rapport l'annonce, et c'est un arbitrage de créneaux, pas un
+     plancher de fréquence. Ce test casse le jour où cet ordre change. */
+  test("à 2 séances, le format laisse encore les petits deltoïdes dehors", () => {
+    for (const duration of [60, 75, 90]) {
+      for (const equipment of Object.keys(PRESETS)) {
+        const r = gen({ frequency: 2, duration, equipment });
+        assert.ok(
+          r.report.uncovered.includes("Delt latéraux"),
+          `2 x ${duration} ${equipment} : ${JSON.stringify(r.report.uncovered)}`,
+        );
+      }
+    }
+  });
+
   test("aucun exercice hors du matériel déclaré", () => {
     for (const c of COMBINATIONS) {
       const r = gen(c);

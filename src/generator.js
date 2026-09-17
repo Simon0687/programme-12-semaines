@@ -307,10 +307,14 @@ function planSlots(split, targets, servable) {
     if (!servable.has(m)) { missing(m); continue; }
     const n = split.sessions.filter((s) => s.focus.includes(m)).length;
     if (!n) continue;
-    /* Deux séances dès que le split en offre deux : c'est le plancher de
-       l'assertion 2. Davantage si quatre séries par exercice n'y suffisent
-       pas — un dos à 7 ne tient pas dans une séance. */
-    const want = Math.min(n, Math.max(n >= 2 ? 2 : 1, Math.ceil(targets.volume[m] / MAX_SETS)));
+    /* Le plancher de l'assertion 2, muscle par muscle : deux séances pour
+       les huit muscles que la table donne à 2, une seule pour les trois
+       deltoïdes qu'elle donne à 1–2 (#60). Demander deux créneaux à un
+       petit deltoïde, c'est en prendre un à quelqu'un qui en a besoin :
+       à deux séances, douze créneaux ne suffisent pas à onze muscles.
+       Davantage si quatre séries par exercice n'y suffisent pas — un dos
+       à 7 ne tient pas dans une séance. */
+    const want = Math.min(n, Math.max(VOLUME[m].freq, Math.ceil(targets.volume[m] / MAX_SETS)));
     if (!give(m, want)) missing(m);
   }
 

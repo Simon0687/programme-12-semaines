@@ -205,3 +205,28 @@ suite A**, not a competing option.
 Not yet actioned: this reflection is recorded, not yet turned into a #19
 sub-task or a validator module. Next step when resumed: decide whether the
 validator is scoped inside #19 or as its own issue ahead of it.
+
+## Follow-up, 2026-09-17: a fifth contradiction, found by running the engine (#60)
+
+The four above were found by reading. This one was found by generating: at two
+sessions a week the engine reported the small deltoids as uncovered on every
+preset, and the report was honest about a shortfall the method never asked for.
+
+5. **§7 asks a frequency §3 step 2 does not.** §7 demands a stimulation
+   frequency of at least 1,5 per week for every muscle; the volume table of §3
+   step 2 carries a « Fréq. cible » column giving **1–2 to the three deltoids**
+   and 2 to the other eight. #37 implemented §7 literally and dropped the
+   column, so the assertion asked of the small deltoids more than the table
+   that defines them. Since frequency counts whole sessions, « 1,5 » means
+   « 2 » - and a program at two sessions has twelve slots for eleven muscles.
+
+**Resolved in favour of the table, per muscle**: `VOLUME` carries `freq`, and
+the floor is `min(1,5, freq)` - §7 stays the lower of the two for the eight
+muscles the table gives 2, the table is the lower one for the three deltoids.
+Nothing was weakened for anyone else.
+
+What the fix did *not* repair, measured rather than assumed: at two sessions
+the two small deltoids are still uncovered. The cause is not the floor but the
+slot count - eight muscles wanting two sessions each fill all twelve slots
+before `PRIORITY` reaches them. That is an allocation question, and it belongs
+to its own issue.
