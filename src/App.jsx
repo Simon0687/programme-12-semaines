@@ -921,9 +921,16 @@ export default function Programme() {
             <div className="mt-2 divide-y divide-rule border-y border-rule">
               {prog.SESSIONS.map((s) => {
                 const l = findLog(state.logs, dateOf(s.id), s.id);
-                const keySlot = s.ex[0][0];
-                const vid = prog.SLOTS[keySlot][blockOf(week)];
-                const sets = l && l.ex && l.ex[vid] ? l.ex[vid].map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null) : [];
+                /* Le résumé de la ligne est le premier exercice de la séance —
+                   et une séance sans exercice n'en a pas. Le validateur refuse
+                   cette forme aux deux portes depuis #36, mais la lecture reste
+                   prudente : `s.ex[0][0]` sur une séance vide levait pendant le
+                   *rendu*, et un jeté au rendu ne laisse pas un écran en erreur,
+                   il démonte l'appli entière — écran blanc, et le journal en
+                   mémoire perdu avant que l'autosave n'ait pu l'écrire. */
+                const keySlot = s.ex[0]?.[0];
+                const vid = prog.SLOTS[keySlot]?.[blockOf(week)];
+                const sets = vid && l && l.ex && l.ex[vid] ? l.ex[vid].map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null) : [];
                 /* #41 : ce repère fait le travail de l'effet d'auto-sélection
                    qu'on supprime — dire quelle séance est celle du jour — sans
                    choisir à la place de l'utilisateur. Seulement sur la semaine
@@ -944,7 +951,7 @@ export default function Programme() {
                         {l && l.done ? <Check size={16} className="text-done" /> : <span className="w-4 h-4 rounded-full border border-rule-strong inline-block" />}{s.name} <span className="text-ink-muted font-normal text-sm">{dayName(s.day)}</span>
                         {isToday && <span className="rounded-full px-2 py-0.5 text-xs bg-accent text-ink-inverse font-medium">aujourd'hui</span>}
                       </div>
-                      <div className="text-sm text-ink-muted pl-6">{prog.V[vid].name} : {sets.length ? setSummary(sets, prog.V[vid]) : "—"}</div>
+                      <div className="text-sm text-ink-muted pl-6">{prog.V[vid] ? `${prog.V[vid].name} : ${sets.length ? setSummary(sets, prog.V[vid]) : "—"}` : "Aucun exercice"}</div>
                     </div>
                     <ChevronRight size={16} className="text-ink-faint" />
                   </button>
