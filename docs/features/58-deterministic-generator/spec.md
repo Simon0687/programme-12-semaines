@@ -27,7 +27,9 @@ issue are what silences the #57 line honestly - by answering it. Issue:
 - **Out:** the level, objective and priorities **screens** - the engine takes all
   three as parameters from day one, filled by named constants in v1
   (`"intermediaire"`, `"hypertrophie"`, `[]`), per the issue's reduced scope of
-  2026-09-17. Health constraints (Q4, deferred). A « must include this exercise »
+  2026-09-17. *The level and objective screens came back in on 2026-09-17 as lot
+  2 - see « Lot 2 » at the end of this spec. Priorities stay out, as lot 3.*
+  Health constraints (Q4, deferred). A « must include this exercise »
   pin - the editor is the retouch path (Q2). The « affiner avec ton IA » overlay.
   A **bodyweight preset**: the registry holds five bodyweight-only entries and no
   lower body at all, so the preset waits for the catalogue, not for this issue
@@ -45,7 +47,8 @@ screen, and no active cycle changes without an explicit save.
 « Générer un programme ». It opens a collection screen, not the editor.
 
 **The collection screen (new):** three questions, answered with chips, in this
-order and with nothing preselected:
+order and with nothing preselected (*five since lot 2 - see the section at the
+end*):
 
 1. *Combien de séances par semaine ?* - 2 · 3 · 4 · 5 · 6
 2. *Combien de temps par séance ?* - 45 · 60 · 75 · 90 min
@@ -217,7 +220,8 @@ two of them changed this spec.
 ## Out of scope / follow-ups
 
 - **Lot 2:** the level and objective screens, replacing two named constants by
-  two rows of chips. No caller changes.
+  two rows of chips. No caller changes. *Landed on 2026-09-17 - see « Lot 2 »
+  below.*
 - **Lot 3:** priorities (the « focus »), which is what makes the feasibility test
   fail on purpose - it belongs with a fuller refusal screen.
 - The four contradictions of `moteur-generation-programme.md` listed in
@@ -243,3 +247,39 @@ registry, were answered on 2026-09-17 and are recorded with their reasoning in
 `DEFINITION_FORMAT_VERSION` unchanged (Q2), no rejection at the import door but a
 guard on an unknown level (Q3), a read-only intent line in the editor (Q4), a
 derived program name (Q5), and the equipment preset stored with the intent (Q6).
+
+## Lot 2 - the level and the objective are declared (2026-09-17)
+
+The body of this spec describes lot 1: three questions, two named constants. Lot 2
+turns those two constants into two more chip rows, and nothing else. It is
+recorded here rather than rewritten above, so the two rounds stay legible.
+
+- **The collection screen asks five questions**, not three: *Quel niveau ?*
+  (Débutant · Intermédiaire · Avancé) and *Quel objectif ?* (Force ·
+  Hypertrophie · Endurance de force) follow the equipment row. Both carry a
+  one-line hint saying what the answer changes - a set per muscle and which
+  free-weight entries open, for the level; reps and rest, for the objective.
+- **Nothing is preselected**, as for the first three. A preselected level would
+  be an answer nobody gave, copied into `intent` and read back by Plan's advice
+  as a declaration. `DEFAULT_LEVEL` and `DEFAULT_OBJECTIVE` stay in
+  `generator.js` for calls that declare nothing at all.
+- **No caller changed**, as the spec predicted: `generate()` already took both
+  parameters, `App.jsx` and `program-editor.js` are untouched, and the stored
+  shape is the same six-field `intent`. PATCH-level, no storage impact.
+- **The acceptance matrix widened from 38 to 114 generated combinations** (5 × 4
+  × 2 × 3 levels, minus the six refusals of 2 × 45). The contract holds: no
+  finding the engine's own report has not already announced. Measured over the
+  full 360 including the three objectives, with the same result.
+
+Two things the measurement settled:
+
+- **2 × 45 stays refused at every level.** A beginner asks for one set less per
+  muscle and still does not fit - the refusal is a property of the format, not
+  of the person.
+- **The objective touches only `SLOTS[].reps` and `SLOTS[].rest`.** None of the
+  six assertions reads either - assertion 5 estimates 3 min per set flat - so the
+  objective is covered by its own test rather than by tripling the matrix. The
+  test is written so that an objective which ever reaches the *selection* breaks
+  it.
+
+Lot 3 - priorities, and the fuller refusal screen they need - is still out.
