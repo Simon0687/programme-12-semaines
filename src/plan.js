@@ -50,6 +50,7 @@
    ========================================================= */
 
 import { EXERCISES } from "./registry.js";
+import { normalizeCardio, cardioTargets, MODALITIES } from "./cardio.js";
 
 const kg = (n) => String(n).replace(".", ",");                       // 72.5 -> "72,5"
 const sp = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");   // 3150 -> "3 150"
@@ -85,6 +86,74 @@ function startLoadsText(startingLoads) {
   return `${parts.join(" ; ")}. Tout le reste en paliers : 50 → 75 → 100 % de la charge devinée, la première série dans la fourchette à 2–3 RIR devient la charge de travail.`;
 }
 
+
+/* ---------- La section cardio, dérivée (#34) ----------
+
+   Trois paragraphes écrits en dur décrivaient le rameur de Simon sous
+   n'importe quel programme demandant du cardio. Chaque morceau vient
+   maintenant d'où il appartient :
+
+     la modalité et le nombre de séances  -> program.cardio.sessions
+     les cibles chiffrées                 -> definition.cardioBaseline
+     la forme de la montée, les seuils    -> la méthode, ci-dessous
+
+   La courbe reste écrite ici parce qu'elle est la même pour tout le monde :
+   35 min qui montent de 5 en 5 toutes les deux semaines, 30 min faciles en
+   S7. C'est la description en prose de `cardioCurve()` (cardio.js), et les
+   deux bougeront ensemble le jour où #14 remplacera les numéros de semaine.
+
+   Chaque paragraphe disparaît quand sa matière n'existe pas : pas
+   d'intervalles déclarés, pas de paragraphe d'intervalles — au lieu d'un
+   texte qui prescrit ce que le programme ne contient pas. */
+const NUMBER_WORDS = ["zéro", "une", "deux", "trois", "quatre", "cinq", "six", "sept"];
+const times = (n) => `${NUMBER_WORDS[n] || n} fois par semaine`;
+
+function cardioSection(spec, baseline) {
+  if (spec === null) return null;
+  const c = normalizeCardio(spec, baseline);
+  if (!c || !c.sessions.length) return null;
+
+  const blocks = [];
+  const z2 = c.sessions.filter((s) => s.kind === "z2");
+  const iv = c.sessions.filter((s) => s.kind === "intervals");
+
+  if (z2.length) {
+    const label = (MODALITIES[c.modalityOf("z2")] || {}).label || c.modalityOf("z2");
+    const targets = cardioTargets(c.modalityOf("z2"), c.baseline);
+    /* « la puissance ensuite » ne veut rien dire sans puissance prescrite :
+       sur une modalité qui n'en porte pas, la phrase s'arrête à la durée. */
+    const order = c.baseline && c.baseline.power
+      ? " La durée progresse d'abord, la puissance ensuite."
+      : " La durée progresse d'abord.";
+    blocks.push({
+      t: "p",
+      text: `${label} Z2 ${times(z2.length)} : 35 min en S1–S2, +5 min toutes les deux semaines jusqu'à 60 min en S12, 30 min faciles en S7.`
+        + (targets ? ` Cibles ${targets}.` : "")
+        + order,
+    });
+  }
+
+  if (iv.length) {
+    const m = MODALITIES[c.modalityOf("intervals")];
+    /* La cadence de rameur est une consigne de rameur : elle limite la charge
+       lombaire d'un mouvement que la marche inclinée n'a pas. */
+    const cadence = m && m.terms.includes("cadence") ? ", cadence 24–28 pour limiter la charge lombaire" : "";
+    blocks.push({
+      t: "p",
+      text: `Intervalles (optionnel, S2–S6 et S8–S11) : 4 × 4 min en Z4 puis 5 × 4 min en bloc 2, 3 min de récupération${cadence}.`
+        + " Toujours à 48 h d'une séance jambes. C'est la première chose qu'on retire si un déclencheur de décharge s'allume.",
+    });
+  }
+
+  if (c.mobilityDays.length) {
+    blocks.push({
+      t: "p",
+      text: `Mobilité 10–15 min, ${c.mobilityDays.length} fois par semaine : McGill Big 3 en pyramide descendante, 90/90 et couch stretch, thoracique, épaules. Échauffement spécifique avant chaque séance (voir la séance).`,
+    });
+  }
+
+  return blocks.length ? { id: "cardio", title: "Cardio et mobilité", blocks } : null;
+}
 export function buildPlan(definition) {
   const program = definition.program || {};
   const SLOTS = program.SLOTS || {};
@@ -168,15 +237,7 @@ export function buildPlan(definition) {
       blocks: program.fallback.map((text) => ({ t: "p", text })),
     } : null,
 
-    program.cardio !== null ? {
-      id: "cardio",
-      title: "Cardio et mobilité",
-      blocks: [
-        { t: "p", text: "Rameur Z2 deux fois par semaine : 35 min en S1–S2, +5 min toutes les deux semaines jusqu'à 60 min en S12, 30 min faciles en S7. Cibles ~105–115 W, 130–138 bpm, cadence 18–20, drag factor 110–120. La durée progresse d'abord, la puissance ensuite." },
-        { t: "p", text: "Intervalles (optionnel, S2–S6 et S8–S11) : 4 × 4 min en Z4 puis 5 × 4 min en bloc 2, 3 min de récupération, cadence 24–28 pour limiter la charge lombaire. Toujours à 48 h d'une séance jambes. C'est la première chose qu'on retire si un déclencheur de décharge s'allume." },
-        { t: "p", text: "Mobilité 10–15 min, 3 fois par semaine : McGill Big 3 en pyramide descendante, 90/90 et couch stretch, thoracique, épaules. Échauffement spécifique avant chaque séance (voir la séance)." },
-      ],
-    } : null,
+    cardioSection(program.cardio, definition.cardioBaseline),
 
     profile ? {
       id: "nutrition",

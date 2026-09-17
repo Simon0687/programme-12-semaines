@@ -282,8 +282,9 @@ test("parseProgramImport : formatVersion non entier => invalid-field (#20)", () 
 test("parseProgramImport : formatVersion absent, antérieur ou égal au courant => accepté ; au-delà => too-new (#20, #25)", () => {
   assert.equal(parseProgramImport(JSON.stringify(minimalDefinition())).ok, true);
   assert.equal(parseProgramImport(JSON.stringify({ ...minimalDefinition(), formatVersion: 1 })).ok, true); // #25 : un fichier v1 (sans program) charge toujours
-  assert.equal(parseProgramImport(JSON.stringify({ ...minimalDefinition(), formatVersion: 2 })).ok, true); // DEFINITION_FORMAT_VERSION courant depuis #25
-  const tooNew = parseProgramImport(JSON.stringify({ ...minimalDefinition(), formatVersion: 3 }));
+  assert.equal(parseProgramImport(JSON.stringify({ ...minimalDefinition(), formatVersion: 2 })).ok, true); // #25 : un fichier v2 charge toujours
+  assert.equal(parseProgramImport(JSON.stringify({ ...minimalDefinition(), formatVersion: 3 })).ok, true); // DEFINITION_FORMAT_VERSION courant depuis #34
+  const tooNew = parseProgramImport(JSON.stringify({ ...minimalDefinition(), formatVersion: 4 }));
   assert.equal(tooNew.ok, false);
   assert.equal(tooNew.reason, "too-new");
 });

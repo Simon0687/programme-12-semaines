@@ -42,7 +42,7 @@ Module dependencies, as they actually stand - every edge, no others:
 | `journal-shape` | `registry`, `definition` |
 | `program` | `registry`, `cardio`, `legacy-program` |
 | `definition` | `default-program` |
-| `plan` | `registry` |
+| `plan` | `registry`, `cardio` |
 | `display` | `progression`, `units` |
 | `exercise-history` | `progression`, `units` |
 | `program-editor` | `registry`, `definition`, `legacy-program` |

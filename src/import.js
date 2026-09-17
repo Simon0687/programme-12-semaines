@@ -37,7 +37,7 @@ export const IMPORT_MESSAGES = {
   "unsupported-weeks": "Ce programme ne compte pas 12 semaines.",
   "invalid-program": "Le catalogue d'exercices custom (program) est mal formé.",
   "unknown-exercise": "Le programme référence un exercice absent du registre.",
-  "unknown-cardio-rule": "Le programme référence une règle cardio inconnue.",
+  "unknown-cardio-rule": "Le programme référence une modalité ou une règle cardio que l'appli ne connaît pas.",
 };
 
 const reject = (reason, message) => ({ ok: false, reason, message: message || IMPORT_MESSAGES[reason] });
