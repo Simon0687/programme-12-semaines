@@ -27,22 +27,40 @@ import { fmt } from "./progression.js";
 
 /* ---------- Résumé des séries (déplacé depuis App.jsx, #23) ---------- */
 
-/* La forme compacte — « 72,5 kg 8/8/10 » — prenait la charge **maximale** et
-   concaténait **toutes** les reps. Elle fabriquait donc des séries qui
-   n'existent pas : 8 à 90, 8 à 85 puis 10 à 70 se lisait « 90 kg 8/8/10 », et
-   on croyait avoir fait 10 reps à 90 (constaté à l'usage le 2026-09-14).
+/* Trois formes se sont succédé, et les deux premières se lisent dans la
+   troisième.
 
-   La règle est maintenant : **compact tant que la charge ne bouge pas, explicite
-   dès qu'elle bouge.** Quand les trois séries partagent la même charge, la forme
-   compacte est exacte au caractère près et reste la plus lisible — c'est le cas
-   courant, `planned()` ne prescrivant qu'une seule charge de travail. Dès que
-   deux séries diffèrent, chaque série porte la sienne : « 8@90/8@85/10@70 kg ».
-   Une ligne qui change de forme est d'ailleurs elle-même l'information : elle
-   signale une séance où la charge a dû descendre.
+   **La compacte d'origine** — « 72,5 kg 8/8/10 » — prenait la charge
+   **maximale** et concaténait **toutes** les reps. Elle fabriquait donc des
+   séries qui n'ont pas eu lieu : 8 à 90, 8 à 85 puis 10 à 70 se lisait
+   « 90 kg 8/8/10 », et on croyait avoir fait 10 reps à 90 (constaté à l'usage
+   le 2026-09-14).
 
-   Le RIR passe de « @ » à « · » parce que « @ » désigne désormais la charge
-   d'une série, et « 8@90 @ 1 RIR » ne se lit pas. Un RIR non saisi ne s'écrit
-   plus « @ ? RIR » : on n'affiche rien. */
+   **L'explicite** — « 8@90/8@85/10@70 kg » — l'a corrigée en rendant à chaque
+   série sa charge. Elle ne ment pas, mais elle est l'objet le plus large des
+   deux écrans qui la portent (fiche exercice et liste Semaine), et depuis la
+   molette de charge (#46) la variation qu'elle traite comme l'exception est
+   devenue le cas courant : ajuster la charge en cours de séance est un geste.
+
+   **La forme bornée** (#50) — « 70 → 72,5 kg 8/8/8 » — garde l'exactitude de
+   l'explicite dans la largeur de la compacte. Elle n'affirme que « rien
+   au-dessus de 72,5, rien en dessous de 70 », ce qui est vrai, là où la
+   compacte d'origine affirmait une série à 90 × 10 qui n'existait pas. Ce
+   qu'elle abandonne est l'appariement reps ↔ charge, et aucun lecteur ne s'en
+   sert : le moteur lit la charge de travail (`workingSets()`), pas le couple,
+   et dans le cas ordinaire — une charge qui monte, ou qui descend — l'ordre le
+   restitue.
+
+   D'où **les bornes dans l'ordre observé et non triées** : une séance qui
+   descend écrit « 90 → 70 ». Le sens de la flèche est la seule trace qui reste
+   de la chronologie, et c'est elle qui distingue une montée d'un décrochage.
+
+   Charge constante : la compacte est exacte au caractère près et ne bouge pas.
+   C'est toujours le cas d'une séance menée comme prescrite, `planned()` ne
+   prescrivant qu'une seule charge de travail.
+
+   Le RIR se sépare par « · » et non « @ » : hérité de l'explicite, où « @ »
+   désignait la charge d'une série. Un RIR non saisi ne s'écrit pas. */
 export function setSummary(sets, v) {
   if (!sets || !sets.length) return "—";
   const unit = v.unit || "kg";
@@ -50,23 +68,34 @@ export function setSummary(sets, v) {
   const loaded = unit !== "time" && unit !== "reps";
 
   const reps = (s) => (s.r == null ? "?" : fmt(s.r));
-  /* Au poids du corps, « PDC+10 » plutôt que « +10 kg » : la mention porte son
-     unité, donc la liste n'a pas à traîner un « kg » final qui suivrait un
-     « PDC » nu. */
-  const load = (w) => (unit === "bw" ? (w > 0 ? `PDC+${fmt(w)}` : "PDC") : fmt(w));
+  /* Au poids du corps chaque borne porte son unité — « PDC → PDC+10 » — parce
+     qu'un « kg » final suivrait un « PDC » nu. Partout ailleurs les deux
+     bornes partagent le même « kg », posé une fois derrière la seconde. */
+  const bounds = (a, b) => {
+    const bw = (w) => (w > 0 ? `PDC+${fmt(w)}` : "PDC");
+    return unit === "bw" ? `${bw(a)} → ${bw(b)} ` : `${fmt(a)} → ${fmt(b)} kg `;
+  };
 
   const loads = sets.map((s) => (s.w == null ? 0 : s.w));
   const varies = loaded && new Set(loads).size > 1;
 
-  let body;
-  if (varies) {
-    body = sets.map((s, i) => `${reps(s)}${secs ? " s" : ""}@${load(loads[i])}`).join("/");
-    if (unit !== "bw") body += " kg";
+  let head;
+  if (!loaded) {
+    head = "";
+  } else if (varies) {
+    /* Bornes, pas extrémités : sur 70 / 90 / 80 la flèche doit encadrer le 90,
+       que la dernière série ne porte pas. L'ordre est celui de la première des
+       deux rencontrée, donc celui de la séance. */
+    const lo = Math.min(...loads), hi = Math.max(...loads);
+    const [a, b] = loads.find((w) => w === lo || w === hi) === hi ? [hi, lo] : [lo, hi];
+    head = bounds(a, b);
   } else {
-    const head = !loaded ? "" : unit === "bw" ? (loads[0] > 0 ? `+${fmt(loads[0])} kg ` : "PDC ") : `${fmt(loads[0])} kg `;
-    body = `${head}${sets.map(reps).join("/")}${secs ? " s" : ""}`;
+    /* La forme à charge constante est figée : elle est ce que trois écrans
+       affichent depuis #17, et les tests l'épinglent au caractère. */
+    head = unit === "bw" ? (loads[0] > 0 ? `+${fmt(loads[0])} kg ` : "PDC ") : `${fmt(loads[0])} kg `;
   }
 
+  const body = `${head}${sets.map(reps).join("/")}${secs ? " s" : ""}`;
   const rir = [...new Set(sets.map((s) => s.rir).filter((x) => x != null))];
   return rir.length ? `${body} · ${rir.join("-")} RIR` : body;
 }
