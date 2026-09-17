@@ -487,3 +487,165 @@ describe("assertion 4 — 48 h entre deux sollicitations primaires d'un gros gro
     assert.deepEqual(verdict.findings.filter((f) => f.code === "insufficient-recovery"), []);
   });
 });
+
+describe("sans intention déclarée : trois assertions se taisent, et le disent", () => {
+  test("le manque d'intention est un finding, pas un silence", () => {
+    const verdict = assess(BUNDLED);
+    const skip = verdict.findings.filter((f) => f.code === "no-declared-intent");
+    assert.equal(skip.length, 1);
+    assert.match(skip[0].message, /volume par muscle/);
+    assert.match(skip[0].message, /durée/);
+  });
+
+  test("aucune assertion à cibles ne tourne sans cibles", () => {
+    const codes = assess(BUNDLED).findings.map((f) => f.code);
+    for (const code of ["volume-out-of-range", "frequency-below-floor", "duration-over-budget"]) {
+      assert.ok(!codes.includes(code), code);
+    }
+  });
+
+  test("les deux assertions structurelles tournent quand même", () => {
+    const codes = assess(LEGACY).findings.map((f) => f.code);
+    assert.ok(codes.includes("duplicate-pattern"), "l'assertion 3 ne dépend d'aucune cible");
+  });
+
+  test("des cibles incomplètes valent des cibles absentes", () => {
+    for (const bad of [{}, { volume: {} }, { duration: 60 }, { volume: null, duration: 60 }]) {
+      const codes = assess(BUNDLED, bad).findings.map((f) => f.code);
+      assert.ok(codes.includes("no-declared-intent"), JSON.stringify(bad));
+    }
+  });
+});
+
+describe("assertion 1 — volume par muscle dans les fourchettes", () => {
+  const targets = targetsFor({ frequency: 4, duration: 60 });
+
+  test("le bundle dépasse sur les ischios, et sur eux seuls", () => {
+    const found = assess(BUNDLED, targets).findings.filter((f) => f.code === "volume-out-of-range");
+    assert.deepEqual(found.map((f) => f.muscle), ["ischios_fessiers"]);
+    assert.match(found[0].message, /10,5 séries/);
+    assert.match(found[0].message, /fourchette de 6 à 10/);
+  });
+
+  test("le deltoïde antérieur ne se signale jamais en excès : c'est la règle, pas un écart", () => {
+    assert.equal(weeklyVolume(weekOf(BUNDLED)).deltoide_ant, 5.5);
+    assert.ok(5.5 > VOLUME.deltoide_ant.max, "au-dessus de la fourchette");
+    const found = assess(BUNDLED, targets).findings.filter((f) => f.muscle === "deltoide_ant");
+    assert.deepEqual(found, []);
+  });
+
+  test("le programme hérité dépasse sur les abdos et le deltoïde postérieur", () => {
+    const found = assess(LEGACY, targetsFor({ frequency: 5, duration: 60 }))
+      .findings.filter((f) => f.code === "volume-out-of-range");
+    assert.deepEqual(found.map((f) => f.muscle).sort(), ["abdominaux", "deltoide_post"]);
+  });
+
+  test("le message explique le comptage du groupe, pas celui d'un autre", () => {
+    const found = assess(LEGACY, targetsFor({ frequency: 5, duration: 60 }))
+      .findings.filter((f) => f.code === "volume-out-of-range");
+    const abs = found.find((f) => f.muscle === "abdominaux");
+    assert.match(abs.message, /seules les séries directes/, "abdominaux est un groupe direct");
+    assert.doesNotMatch(abs.message, /indirectes comptent pour moitié/);
+  });
+
+  test("un manque est signalé sous la cible, tolérance d'une série", () => {
+    const program = structuredClone(BUNDLED);
+    program.SESSIONS[0].ex = program.SESSIONS[0].ex.filter(([slot]) => slot !== "pulldown");
+    program.SESSIONS[2].ex = program.SESSIONS[2].ex.filter(([slot]) => slot !== "row");
+    const found = assess(program, targets).findings.filter((f) => f.code === "volume-out-of-range");
+    assert.ok(found.some((f) => f.muscle === "dos"), found.map((f) => f.muscle).join(", "));
+    assert.match(found.find((f) => f.muscle === "dos").message, /sous-entraîné/);
+  });
+
+  test("la cascade abaisse le plancher : un volume réduit reste justifié", () => {
+    /* 3 x 45 min : la cascade met mollets et abdos à zéro. Un programme qui
+       n'en fait pas ne doit rien se voir reprocher. */
+    const reduced = targetsFor({ frequency: 3, duration: 45 });
+    assert.equal(reduced.volume.mollets, 0);
+    const program = structuredClone(BUNDLED);
+    for (const s of program.SESSIONS) s.ex = s.ex.filter(([slot]) => !slot.startsWith("calf"));
+    const found = assess(program, reduced).findings.filter((f) => f.muscle === "mollets");
+    assert.deepEqual(found, []);
+  });
+
+  test("les abdos ne se signalent pas en manque quand le gainage échappe au registre", () => {
+    const program = structuredClone(BUNDLED);
+    for (const s of program.SESSIONS) s.core = "coreB"; // pallof partout : abdos comptés à 0
+    assert.equal(weeklyVolume(weekOf(program)).abdominaux, 0);
+    const found = assess(program, targets).findings.filter((f) => f.muscle === "abdominaux");
+    assert.deepEqual(found, [], "le trou est celui du registre, pas celui du programme");
+  });
+
+  test("mais un excès d'abdos reste signalé, gainage ou pas", () => {
+    const program = structuredClone(BUNDLED);
+    program.CORE.coreA.ex = [["crunch", 8]];
+    const found = assess(program, targets).findings.filter((f) => f.muscle === "abdominaux");
+    assert.equal(found.length, 1);
+  });
+});
+
+describe("assertion 2 — fréquence de stimulation >= 1,5", () => {
+  test("le bundle touche quatre groupes une seule fois par semaine", () => {
+    const found = assess(BUNDLED, targetsFor({ frequency: 4, duration: 60 }))
+      .findings.filter((f) => f.code === "frequency-below-floor");
+    assert.deepEqual(found.map((f) => f.muscle).sort(), ["biceps", "deltoide_lat", "deltoide_post", "triceps"]);
+  });
+
+  test("le programme hérité tient partout", () => {
+    const found = assess(LEGACY, targetsFor({ frequency: 5, duration: 60 }))
+      .findings.filter((f) => f.code === "frequency-below-floor");
+    assert.deepEqual(found, []);
+  });
+
+  test("un muscle écarté par la cascade n'a pas de fréquence à tenir", () => {
+    const reduced = targetsFor({ frequency: 3, duration: 45 });
+    assert.equal(reduced.volume.mollets, 0);
+    const program = structuredClone(BUNDLED);
+    for (const s of program.SESSIONS) s.ex = s.ex.filter(([slot]) => !slot.startsWith("calf"));
+    const found = assess(program, reduced).findings.filter((f) => f.muscle === "mollets");
+    assert.deepEqual(found, []);
+  });
+});
+
+describe("assertion 5 — durée estimée <= durée demandée", () => {
+  test("les quatre séances du bundle tiennent dans 60 min", () => {
+    const found = assess(BUNDLED, targetsFor({ frequency: 4, duration: 60 }))
+      .findings.filter((f) => f.code === "duration-over-budget");
+    assert.deepEqual(found, []);
+  });
+
+  test("Haut C dépasse 60 min : 18 séries, soit 64 min", () => {
+    const found = assess(LEGACY, targetsFor({ frequency: 5, duration: 60 }))
+      .findings.filter((f) => f.code === "duration-over-budget");
+    assert.equal(found.length, 1);
+    assert.equal(found[0].sessionId, "hautC");
+    assert.match(found[0].message, /64 min/);
+    assert.match(found[0].message, /demandée à 60 min/);
+  });
+
+  test("le modèle est celui du plafond, à l'envers : 10 min + 3 min par série", () => {
+    const t = targetsFor({ frequency: 4, duration: 60 });
+    /* Une séance au plafond pile ne dépasse pas ; une série de plus, si. */
+    const program = structuredClone(BUNDLED);
+    program.CORE.coreA.ex = [];
+    program.SESSIONS[0].core = "coreA";
+    program.SESSIONS[0].ex = [["press", t.capPerSession]];
+    assert.deepEqual(
+      assess(program, t).findings.filter((f) => f.sessionId === "upperA" && f.code === "duration-over-budget"),
+      [], `${t.capPerSession} séries tiennent dans ${t.duration} min`,
+    );
+    program.SESSIONS[0].ex = [["press", t.capPerSession + 1]];
+    assert.equal(
+      assess(program, t).findings.filter((f) => f.sessionId === "upperA" && f.code === "duration-over-budget").length,
+      1,
+    );
+  });
+
+  test("les séries de gainage comptent dans la durée, elles aussi", () => {
+    const t = targetsFor({ frequency: 4, duration: 60 });
+    const program = structuredClone(BUNDLED);
+    program.CORE.coreB.ex = [["pallof", 6]]; // Upper A passe de 15 à 20 séries
+    const found = assess(program, t).findings.filter((f) => f.code === "duration-over-budget");
+    assert.ok(found.some((f) => f.sessionId === "upperA"));
+  });
+});

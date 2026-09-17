@@ -426,9 +426,126 @@ function assertRecovery(week) {
   return findings;
 }
 
-/* Les assertions qui ne lisent que le programme. Celles qui exigent une
-   intention déclarée les rejoindront à mesure. */
-const ASSERTIONS = [assertPatterns, assertRecovery];
+/* Une intention déclarée est utilisable si elle porte une table de volume et
+   une durée de séance. Trois assertions en dépendent ; les trois autres
+   lisent le programme seul. Rien n'est jamais inféré du programme lui-même :
+   déduire la durée demandée de la durée constatée rendrait l'assertion 5
+   incapable d'échouer, et une assertion qui ne peut pas échouer rassure au
+   lieu de vérifier (decisions-spec.md Q2). */
+const hasTargets = (targets) =>
+  isObj(targets) && isObj(targets.volume) && Number.isFinite(targets.duration);
+
+/* Tout le travail anti-mouvement et les portés est modélisé par le catalogue
+   de génération comme le seul pattern « abdominaux », et les quatre entrées
+   qui en relèvent n'ont pas encore de `muscles` (#25, amendement du
+   2026-09-10). Une semaine dont le gainage n'est que du Pallof affiche donc
+   0 série et 0 séance d'abdominaux — un manque qui appartient au registre,
+   pas au programme.
+
+   Vaut pour les deux formes de manque, volume et fréquence : c'est le même
+   angle mort vu sous deux angles. L'excès, lui, reste signalé — il ne peut
+   pas venir de séries qu'on n'a pas comptées. */
+const shortfallHidden = (week, m) => m === "abdominaux" && hasUnmodelledRows(week);
+
+/* Assertion 1 — volume par muscle dans les fourchettes, ou justifié par la
+   cascade de réduction.
+
+   Le plancher est le plus bas des deux : la fourchette, ou la cible que la
+   cascade a produite — c'est exactement ce que veut dire « justifié par la
+   cascade ». La tolérance de ±1 est celle du §3 étape 4 (« condition
+   d'arrêt : tous les déficits <= 1 ») et celle que le contrôle du §5
+   applique en toutes lettres (« biceps 3 (−1, toléré) »).
+
+   Deux exceptions, chacune pour ne pas reprocher au programme d'avoir
+   appliqué la méthode : le deltoïde antérieur ne se signale jamais en excès
+   (voir VOLUME), et les abdominaux pas en manque quand la semaine porte du
+   gainage que le registre ne sait pas compter (voir shortfallHidden). */
+function assertVolume(week, targets) {
+  if (!hasTargets(targets)) return [];
+  const volume = weeklyVolume(week);
+  const findings = [];
+
+  for (const [m, range] of Object.entries(VOLUME)) {
+    const weekly = volume[m];
+    const target = Number.isFinite(targets.volume[m]) ? targets.volume[m] : range.min;
+    const floor = Math.min(range.min, target);
+
+    if (weekly > range.max && !range.coveredIndirectly) {
+      findings.push({
+        code: "volume-out-of-range",
+        muscle: m,
+        message: `${MUSCLE_LABELS[m]} : ${fr(weekly)} séries de travail par semaine, pour une fourchette de `
+          + `${range.min} à ${range.max}. `
+          /* La phrase d'explication suit la règle de comptage du groupe :
+             la promettre sur un groupe direct décrirait un calcul que le
+             module ne fait pas. */
+          + (range.direct
+            ? "Sur ce groupe, seules les séries directes comptent."
+            : "Les séries indirectes comptent pour moitié dans ce total."),
+      });
+      continue;
+    }
+
+    if (weekly < floor - 1 && !shortfallHidden(week, m)) {
+      findings.push({
+        code: "volume-out-of-range",
+        muscle: m,
+        message: `${MUSCLE_LABELS[m]} : ${fr(weekly)} séries de travail par semaine, pour une cible de `
+          + `${fr(target)}. En dessous de ${fr(floor - 1)}, le groupe est sous-entraîné.`,
+      });
+    }
+  }
+  return findings;
+}
+
+/* Assertion 2 — fréquence de stimulation >= 1,5 par muscle non exclu. Un
+   muscle dont la cible est à zéro a été écarté volontairement (maintien,
+   ou cascade) : lui reprocher de n'être pas stimulé serait signaler la
+   décision qu'on vient de prendre. */
+function assertFrequency(week, targets) {
+  if (!hasTargets(targets)) return [];
+  const frequency = stimulationFrequency(week);
+  const findings = [];
+
+  for (const m of Object.keys(VOLUME)) {
+    if (!(targets.volume[m] > 0)) continue;
+    if (frequency[m] >= 1.5 || shortfallHidden(week, m)) continue;
+    findings.push({
+      code: "frequency-below-floor",
+      muscle: m,
+      message: `${MUSCLE_LABELS[m]} : ${frequency[m]} séance par semaine. La fréquence de stimulation `
+        + `demandée est d'au moins 1,5 par semaine, soit deux séances sur trois.`,
+    });
+  }
+  return findings;
+}
+
+/* Assertion 5 — durée estimée <= durée demandée. Le modèle est celui du §3
+   étape 3, forfaitaire : 10 min d'échauffement et 3 min par série de
+   travail. C'est l'exact inverse du plafond que calcule targetsFor
+   (decisions-spec.md Q4) ; lire le `rest` réel des créneaux donnerait une
+   estimation plus courte, et surtout un module en désaccord avec lui-même. */
+function assertDuration(week, targets) {
+  if (!hasTargets(targets)) return [];
+  const findings = [];
+  for (const session of week.sessions) {
+    const estimated = 10 + 3 * session.sets;
+    if (estimated <= targets.duration) continue;
+    findings.push({
+      code: "duration-over-budget",
+      sessionId: session.id,
+      message: `« ${sessionLabel(session)} » : ${session.sets} séries de travail, soit environ `
+        + `${estimated} min échauffement compris, pour une séance demandée à ${targets.duration} min.`,
+    });
+  }
+  return findings;
+}
+
+/* Les demi-séries existent — un composé apporte 0,5 à un gros groupe — et
+   « 10.5 séries » se lit mal en français. */
+const fr = (n) => String(n).replace(".", ",");
+
+const ASSERTIONS = [assertVolume, assertFrequency, assertPatterns, assertRecovery, assertDuration];
 
 /* Deux findings qui désignent le même problème n'en font qu'un, marqué
    « both ». Sans cette fusion, les deux programmes livrés doublent chacun
@@ -480,5 +597,18 @@ export function assess(program, targets) {
   }
 
   const findings = mergeBlocks(perBlock);
+
+  /* L'absence d'intention déclarée est dite, pas contournée. Trois
+     assertions sur six n'ont alors rien vérifié, et le taire laisserait
+     croire à un programme approuvé. */
+  if (!hasTargets(targets)) {
+    findings.push({
+      code: "no-declared-intent",
+      block: "both",
+      message: "Ce programme ne déclare ni cible de volume ni durée de séance : le volume par muscle, "
+        + "la fréquence de stimulation et la durée n'ont pas été vérifiés.",
+    });
+  }
+
   return { ok: findings.length === 0, findings };
 }
