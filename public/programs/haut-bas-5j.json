@@ -29,22 +29,10 @@
     "pd_close": 90
   },
   "cardioBaseline": {
-    "power": [
-      105,
-      115
-    ],
-    "hr": [
-      130,
-      138
-    ],
-    "cadence": [
-      18,
-      20
-    ],
-    "drag": [
-      110,
-      120
-    ]
+    "power": [105, 115],
+    "hr": [130, 138],
+    "cadence": [18, 20],
+    "drag": [110, 120]
   },
   "program": {
     "SLOTS": {
@@ -475,34 +463,11 @@
     },
     "cardio": {
       "sessions": [
-        {
-          "id": "z2a",
-          "modality": "rameur",
-          "kind": "z2",
-          "day": 3,
-          "anchor": "hautB",
-          "note": "ou le soir"
-        },
-        {
-          "id": "int",
-          "modality": "rameur",
-          "kind": "intervals",
-          "day": 4
-        },
-        {
-          "id": "z2b",
-          "modality": "rameur",
-          "kind": "z2",
-          "day": 7
-        }
+        { "id": "z2a", "modality": "rameur", "kind": "z2", "day": 3, "anchor": "hautB", "note": "ou le soir" },
+        { "id": "int", "modality": "rameur", "kind": "intervals", "day": 4 },
+        { "id": "z2b", "modality": "rameur", "kind": "z2", "day": 7 }
       ],
-      "mobility": {
-        "days": [
-          2,
-          4,
-          7
-        ]
-      }
+      "mobility": { "days": [2, 4, 7] }
     },
     "volume": [
       [
