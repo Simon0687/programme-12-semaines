@@ -183,10 +183,11 @@ export function validateProgram(program) {
        étiquetées, elles devenaient introuvables par findLog et non triables
        par history(). Une plage, pas un test d'analyse : day: 99 produit une
        vraie date, quatorze semaines plus loin.
-       Note : App.jsx compare encore ce champ à today.getDay() (0 = dimanche),
-       ce qui ne coïncide avec l'offset que si startDate tombe un lundi. La
-       plage retenue est correcte sous les deux conventions pour 1-6 ; la
-       contradiction elle-même est une issue à part (design.md, suivis). */
+       La contradiction que cette note signalait — App.jsx comparait ce champ
+       à today.getDay(), qui ne coïncide avec le décalage que si startDate
+       tombe un lundi — est levée par #39 : plus aucun lecteur ne fait de
+       getDay() sur un `session.day`, et la plage 1-7 est désormais la plage
+       de la seule convention qui reste. */
     if (!Number.isInteger(session.day) || session.day < 1 || session.day > 7) {
       return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].day (entier de 1 à 7 attendu)` };
     }
