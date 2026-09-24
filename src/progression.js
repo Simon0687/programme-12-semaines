@@ -209,9 +209,18 @@ export function lastEntry(prog, state, vid, date, si) {
   const h = historyBefore(prog, state, vid, date, si);
   return h[h.length - 1] || null;
 }
-export function planned(prog, state, slotId, week, si, date) {
+/* `vid` est optionnel et vaut, par défaut, l'exercice que le créneau prescrit :
+   les appels d'avant #55 ne le passent pas et obtiennent exactement ce qu'ils
+   obtenaient. Le passer ne sert qu'à un cas — une substitution de séance
+   (session-sub.js), où le créneau garde sa fourchette, son RIR et son repos
+   (c'est le programme qui prescrit) pendant que la charge prévue se lit dans
+   l'historique du remplaçant.
+
+   Le moteur ne connaît toujours pas `sub`, et ne doit pas : on lui dit sur quel
+   exercice se prononcer, il ne va pas le chercher dans le journal. C'est ce qui
+   le garde utilisable par la fiche exercice comme par la séance. */
+export function planned(prog, state, slotId, week, si, date, vid = prog.SLOTS[slotId][blockOf(week)]) {
   const slot = prog.SLOTS[slotId];
-  const vid = slot[blockOf(week)];
   const v = prog.V[vid];
   const u = traitsOf(v.unit);
   const [mn, mx] = slot.reps;
