@@ -23,7 +23,7 @@
    ce qui permet de tester la courbe sans DOM ni moteur de rendu.
    ========================================================= */
 
-import { fmt } from "./progression.js";
+import { fmt, roundTo } from "./progression.js";
 import { traitsOf } from "./units.js";
 
 /* ---------- Résumé des séries (déplacé depuis App.jsx, #23) ---------- */
@@ -537,4 +537,45 @@ export function chartGeometry(series, box, axisIncr) {
        juste en dessous porte de toute façon chaque valeur exacte. */
     barTop: hasBars ? { y: r2(YB(barScale.max)), value: barScale.max } : null,
   };
+}
+
+/* ---------- La montée en charge de l'échauffement (#80) ----------
+
+   Le texte d'échauffement du programme fourni prescrit déjà la rampe —
+   « 50 % × 8, 70 % × 4, 85 % × 2 » — et laissait l'athlète convertir les
+   pourcentages en kilos entre l'élastique et le banc. La charge prévue du
+   premier exercice est connue (planned()), son cran aussi : la rampe se
+   calcule. Mêmes pourcentages que le texte, pour que la ligne et le texte
+   au-dessus ne se contredisent pas (spec #80, Q1).
+
+   Rien n'est enregistré : un échauffement n'est pas une série de travail, et
+   le journal ne doit pas apprendre à en porter (ARCHITECTURE §2.2). */
+export const WARMUP_RAMP = [[0.5, 8], [0.7, 4], [0.85, 2]];
+
+/* Les paliers, arrondis au cran de l'exercice. Un palier qui retombe sur
+   zéro, sur le précédent ou sur la charge de travail elle-même n'est plus un
+   palier : il est retiré. Rend [] quand il n'y a rien à monter — pas de
+   charge prévue (calibration), unité sans charge, poids du corps lesté. */
+export function warmupRamp(v, load) {
+  if (!v || !Number.isFinite(load) || load <= 0) return [];
+  const t = traitsOf(v.unit);
+  if (!t.hasLoad || t.bodyweight) return [];
+  const step = v.incr > 0 ? v.incr : 1;
+  const out = [];
+  for (const [pct, reps] of WARMUP_RAMP) {
+    const l = roundTo(load * pct, step);
+    if (l <= 0 || l >= load || (out.length && l <= out[out.length - 1].load)) continue;
+    out.push({ load: l, reps });
+  }
+  return out;
+}
+
+/* « Montée en charge — Développé couché haltères : 12 kg × 8 · 16 kg × 4 ·
+   20 kg × 2 / main », ou null quand la rampe est vide : l'écran n'affiche
+   alors que le texte du programme, sans ligne vide. */
+export function warmupText(v, load) {
+  const steps = warmupRamp(v, load);
+  if (!steps.length) return null;
+  const parts = steps.map((s) => `${fmt(s.load)} kg × ${s.reps}`).join(" · ");
+  return `Montée en charge — ${v.name} : ${parts}${v.perHand ? " / main" : ""}`;
 }

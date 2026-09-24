@@ -16,7 +16,7 @@ import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilit
 import { AFTER_HINTS } from "./cardio.js";
 import { isDeloadWeek, withForcedDeloads, evaluateDeload } from "./policies.js";
 import { num, fmt, phaseOf, setsFor, lastEntry, lastEntryLabel, historyBefore, history, planned, computeKind, workingSets, loadDrops, loadText, normalizeSets, setsOf } from "./progression.js";
-import { setSummary, dayName, weekdayName, adviceSummary, unitColumns, cardioWhen, mobilityDayNames, rowIsDone, completedSets } from "./display.js";
+import { setSummary, dayName, weekdayName, adviceSummary, unitColumns, cardioWhen, mobilityDayNames, rowIsDone, completedSets, warmupText } from "./display.js";
 import { traitsOf } from "./units.js";
 import { EXERCISE_IDS } from "./registry.js";
 /* #55 : la seule réponse à « quel exercice ce créneau porte-t-il ? ». Elle
@@ -789,6 +789,18 @@ export default function Programme() {
   const session = prog.SESSIONS.find((s) => s.id === sessionId);
   const si = prog.SESSIONS.findIndex((s) => s.id === sessionId);
   const log = findLog(state.logs, dateOf(session.id), session.id) || {};
+  /* #80 : la rampe d'échauffement se calcule sur le premier exercice de la
+     séance, substitution comprise, depuis la charge que planned() lui prévoit.
+     Pas de charge prévue (calibration, poids du corps) : null, et l'écran ne
+     montre que le texte du programme. */
+  const warmLine = (() => {
+    const first = session.ex[0]?.[0];
+    if (!first) return null;
+    const vid = vidFor(prog, log, first, week);
+    const v = prog.V[vid];
+    if (!v) return null;
+    return warmupText(v, planned(prog, state, first, week, si, dateOf(session.id), vid, policies).load);
+  })();
 
   const onSet = (vid, i, f, val) => {
     updateActive((st) => {
@@ -1434,7 +1446,7 @@ export default function Programme() {
                   <div className="text-sm text-ink-muted">{setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week, policies)} séries dures + abdos. {PHASE_NOTES[phase.id]}</div>
                   {log.done && <div className="mt-2 text-sm text-done inline-flex items-center gap-1"><Check size={15} />Validée le {log.updatedAt && log.updatedAt.slice(0, 10)}. <button onClick={reopen} className="underline text-ink-soft ml-1 focus:outline-none">Rouvrir</button></div>}
                 </div>
-                <Section title="Échauffement">{prog.WARM[session.warm]}</Section>
+                <Section title="Échauffement"><p>{prog.WARM[session.warm]}</p>{warmLine && <p className="text-ink">{warmLine}</p>}</Section>
                 {session.ex.map(([slotId, n], i) => (
                   <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} policies={policies} state={state}
                     vid={vidFor(prog, log, slotId, week)} substituted={isSubstituted(prog, log, slotId, week)} isTest={log.kind === "test"}
