@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Download, Upload, Zap, X, Repeat } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Download, Upload, Zap, X, Repeat, Plus } from "lucide-react";
 import { SCHEMA_VERSION, emptyJournal, weekStartKey, dateForSlot, slotForDate, findLog, writeLog, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport, IMPORT_MESSAGES } from "./import.js";
 import { listBackups, readDroppedBackup, backupPreImportOnce, readPreImportBackup } from "./backup.js";
@@ -336,23 +336,29 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, policie
             </button>,
           ];
         })}
-      </div>
-      {/* #55 : « un jour je suis chaud, je veux ajouter une série ». Retirer une
-          série marchait déjà — une ligne sans répétitions n'a pas eu lieu
-          (normalizeSets, #23) — seul l'ajout manquait.
+        {/* #55 : « un jour je suis chaud, je veux ajouter une série ». Retirer une
+            série marchait déjà — une ligne sans répétitions n'a pas eu lieu
+            (normalizeSets, #23) — seul l'ajout manquait.
 
-          Visible seulement quand tout le prescrit est rempli (`nextIdx === -1`,
-          la logique de #42). On décide d'ajouter une série **après** avoir fait
-          les autres, jamais avant : plus tôt, le bouton ne pourrait produire
-          qu'une rangée de champs vides de plus. Il se limite ainsi tout seul,
-          sans plafond arbitraire — la troisième s'ajoute, il faut juste avoir
-          rempli la deuxième. */}
-      {nextIdx === -1 && (
-        <button onClick={() => setExtra((n) => n + 1)}
-          className="mt-2 text-sm text-ink-muted inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-focus rounded">
-          + une série
-        </button>
-      )}
+            Visible seulement quand tout le prescrit est rempli (`nextIdx === -1`,
+            la logique de #42). On décide d'ajouter une série **après** avoir fait
+            les autres, jamais avant : plus tôt, le bouton ne pourrait produire
+            qu'une rangée de champs vides de plus. Il se limite ainsi tout seul,
+            sans plafond arbitraire — la troisième s'ajoute, il faut juste avoir
+            rempli la deuxième.
+
+            #65 : dans la grille, à la place qu'occuperait S{n+1}. La position
+            dit ce qu'il ajoute, et il porte le gris des séries à venir — le
+            même que la coche inerte au bout de la rangée. Un libellé
+            n'apprenait rien de plus et posait une phrase au milieu d'une
+            grille de chiffres. */}
+        {nextIdx === -1 && (
+          <button onClick={() => setExtra((n) => n + 1)} aria-label="Ajouter une série"
+            className="h-11 w-8 self-center inline-flex items-center justify-center rounded-md bg-surface-raised border border-rule text-ink-dim focus:outline-none focus:ring-2 focus:ring-focus">
+            <Plus size={16} strokeWidth={2.5} />
+          </button>
+        )}
+      </div>
       <LoadPickerOverlay picker={picker.picker} />
     </div>
   );
