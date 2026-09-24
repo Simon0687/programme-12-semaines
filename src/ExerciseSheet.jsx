@@ -33,22 +33,24 @@ const CHART = { w: 358, h: 162 };
 /* Copie, pas logique : ce que l'axe et la table de records annoncent selon
    l'unité de l'exercice. La règle des records est écrite sous la table
    parce qu'une table de records qu'on ne sait pas lire est un piège — et
-   parce que « ou plus » est exactement ce qui la rend décroissante. */
+   parce que « ou plus » est exactement ce qui la rend décroissante, et ce qui
+   fait depuis #63 qu'une charge n'y figure qu'une fois. La phrase dit donc la
+   règle de lecture, ligne à ligne, et non le calcul qui la produit. */
 const COPY = {
   kg: {
     chart: "10RM estimé",
     note: `Charge estimée pour dix répétitions, calculée sur la meilleure série du jour. Grisée en dessous de ${ESTIMATE_REPS.min} reps ou au-dessus de ${ESTIMATE_REPS.max}, où l'estimation cesse d'être crédible.`,
-    rule: "Charge la plus lourde jamais portée sur ce nombre de reps ou plus.",
+    rule: "Chaque charge une fois, au meilleur nombre de reps jamais tenu dessus.",
   },
   carry: {
     chart: "Tenue et charge de la meilleure série",
     note: "Deux progressions sur une même abscisse : la tenue en courbe, la charge en barres. Aucune estimation ici — extrapoler une charge portée sur un temps donnerait un résultat qui ne veut rien dire.",
-    rule: "Charge la plus lourde jamais portée sur ce nombre de reps ou plus.",
+    rule: "Chaque charge une fois, au meilleur nombre de reps jamais tenu dessus.",
   },
   bw: {
     chart: "Reps et lest de la meilleure série",
     note: "Deux progressions sur une même abscisse : les reps en courbe, le lest en barres. Aucune estimation ici — un 10RM calculé sur six tractions donnerait un lest négatif.",
-    rule: "Lest le plus lourd jamais porté sur ce nombre de reps ou plus.",
+    rule: "Chaque lest une fois, au meilleur nombre de reps jamais tenu avec lui.",
   },
   time: { chart: "Tenue de la meilleure série", rule: "Aucune charge sur cet exercice : le record est la tenue la plus longue.", best: "Meilleure tenue" },
   reps: { chart: "Répétitions de la meilleure série", rule: "Aucune charge sur cet exercice : le record est la meilleure série.", best: "Meilleure série" },

@@ -243,6 +243,14 @@ export function headline(entries, unit) {
    stricte : la date retenue est donc la *première* fois que la charge a été
    atteinte, pas la dernière.
 
+   #63 : une charge n'occupe qu'une ligne, au meilleur nombre de reps atteint
+   sur elle. 105 kg sur 7 reps puis sur 8 produisaient deux lignes, et la
+   première n'énonçait rien que la seconde ne dise déjà — 8 reps à 105 *est*
+   7 reps à 105. C'est la même règle du « ou plus », menée jusqu'à sa
+   conséquence : une ligne dont la voisine du dessous porte la même charge ne
+   porte aucun fait à elle. La table devient strictement décroissante, ce que
+   la phrase sous la table promettait déjà.
+
    Sans charge (time, reps), la table dégénère en une ligne — même écran, même
    code (#17, critère d'acceptation). */
 export function recordsFor(entries, unit) {
@@ -273,5 +281,9 @@ export function recordsFor(entries, unit) {
     }
     if (load != null) rows.push({ reps, load, date });
   }
-  return { mode: "byReps", rows };
+  /* Les reps montent, la charge ne peut que descendre : une ligne est
+     redondante exactement quand la suivante porte la même charge. Filtrer
+     après coup plutôt que dans la boucle garde la règle du « ou plus » — la
+     seule qui produise la date — intacte et lisible d'un bloc. */
+  return { mode: "byReps", rows: rows.filter((r, i) => i === rows.length - 1 || rows[i + 1].load < r.load) };
 }
