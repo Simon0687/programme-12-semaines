@@ -50,12 +50,13 @@ function Question({ label, hint, children }) {
   );
 }
 
-/* Ce que le rapport dit, en français et sans jargon de cascade. Les deux
-   listes ne disent pas la même chose et ne se fusionnent donc pas : l'une
-   est une décision du budget, l'autre une limite du matériel ou du format. */
+/* Ce que le rapport dit, en français et sans jargon de cascade. Les trois
+   listes ne disent pas la même chose et ne se fusionnent donc pas : la
+   première est une décision du budget, la deuxième une limite du matériel ou
+   du format, la troisième (#61) un arbitrage entre deux muscles. */
 function Report({ report }) {
-  const { cut, uncovered } = report;
-  if (!cut.length && !uncovered.length) return null;
+  const { cut, uncovered, underFrequency = [] } = report;
+  if (!cut.length && !uncovered.length && !underFrequency.length) return null;
   return (
     <div className="mt-4 space-y-2">
       {cut.length > 0 && (
@@ -68,6 +69,15 @@ function Report({ report }) {
         <p className="text-sm text-notice">
           Rien ne couvre : {uncovered.join(", ").toLowerCase()}. Le matériel déclaré ou le nombre de séances
           ne permet pas de les travailler — à ajouter à la main dans l'éditeur si tu as de quoi.
+        </p>
+      )}
+      {/* #61 : le prix de « couvrir tout le monde d'abord ». Dit ici, et pas
+          seulement découvert plus tard dans l'avis de Plan — un arbitrage que
+          le moteur rend à la place de quelqu'un doit être annoncé par lui. */}
+      {underFrequency.length > 0 && (
+        <p className="text-sm text-ink-muted">
+          Une séance par semaine au lieu de deux pour : {underFrequency.join(", ").toLowerCase()}. Les créneaux
+          du format sont allés d'abord à ce qui n'était pas travaillé du tout.
         </p>
       )}
     </div>
@@ -101,7 +111,12 @@ export default function GenerateProgram({ today, onBack, onAccept }) {
      plein rendu. */
   const run = () => {
     const r = generate({ frequency, duration, equipment, level, objective }, today);
-    if (r.ok && !r.report.cut.length && !r.report.uncovered.length) { onAccept(r.definition); return; }
+    /* #61 : `underFrequency` entre dans la condition. Le raccourci existe pour
+       éviter « un écran vide pour le plaisir d'un clic de plus » — un arbitrage
+       que le moteur a rendu à la place de quelqu'un n'est pas un écran vide.
+       Mesuré : 14 des 171 combinaisons générées s'arrêtent ici alors qu'elles
+       passaient droit, et chacune a quelque chose de vrai à dire. */
+    if (r.ok && !r.report.cut.length && !r.report.uncovered.length && !r.report.underFrequency.length) { onAccept(r.definition); return; }
     setResult(r);
   };
 

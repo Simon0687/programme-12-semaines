@@ -316,19 +316,62 @@ describe("generate : ce que le moteur dit avoir coupé (#58)", () => {
     }
   });
 
-  /* Ce que le plancher ne répare pas, et qu'il ne faut pas croire réparé :
-     à deux séances, douze créneaux ne suffisent pas à onze muscles. Les deux
-     petits deltoïdes passent après les bras dans PRIORITY et n'ont toujours
-     rien — le rapport l'annonce, et c'est un arbitrage de créneaux, pas un
-     plancher de fréquence. Ce test casse le jour où cet ordre change. */
-  test("à 2 séances, le format laisse encore les petits deltoïdes dehors", () => {
+  /* Ce que le plancher de #60 ne réparait pas, et que #61 a réparé. La note
+     d'origine disait : « à deux séances, douze créneaux ne suffisent pas à onze
+     muscles ; les deux petits deltoïdes passent après les bras dans PRIORITY et
+     n'ont toujours rien — c'est un arbitrage de créneaux, pas un plancher de
+     fréquence. Ce test casse le jour où cet ordre change. »
+
+     L'ordre a changé, et le test a cassé exactement comme annoncé. */
+  /* #60 avait posé ce test à l'endroit : « à 2 séances, le format laisse encore
+     les petits deltoïdes dehors ». C'était vrai, et c'est exactement ce que #61
+     a retourné — le plancher de fréquence n'était pas en cause, l'ordre
+     d'allocation l'était. Le test est réécrit dans le sens neuf plutôt que
+     supprimé : c'est lui qui dit que la correction tient. */
+  test("à 2 séances, plus personne n'est laissé dehors par l'allocation (#61)", () => {
     for (const duration of [60, 75, 90]) {
-      for (const equipment of Object.keys(PRESETS)) {
+      for (const equipment of ["salle-complete", "home-gym"]) {
         const r = gen({ frequency: 2, duration, equipment });
-        assert.ok(
-          r.report.uncovered.includes("Delt latéraux"),
+        assert.deepEqual(
+          r.report.uncovered, [],
           `2 x ${duration} ${equipment} : ${JSON.stringify(r.report.uncovered)}`,
         );
+      }
+    }
+  });
+
+  test("au poids du corps, ce qui reste dehors est le catalogue, pas l'allocation (#61)", () => {
+    /* Distinction à ne pas perdre : #61 corrige l'ordre dans lequel les
+       créneaux se distribuent, il ne fabrique pas d'exercice. Le deltoïde
+       latéral n'a aucun exercice primaire sans matériel — une contrainte
+       physique mesurée en #59, que le rapport déclare — et aucune allocation ne
+       peut lui donner ce qui n'existe pas. */
+    for (const duration of [60, 75, 90]) {
+      const r = gen({ frequency: 2, duration, equipment: "poids-du-corps" });
+      assert.deepEqual(r.report.uncovered, ["Delt latéraux"], `2 x ${duration}`);
+    }
+  });
+
+  test("à 2 séances, le prix payé est annoncé, pas tu (#61)", () => {
+    /* Douze créneaux offerts, quatorze demandés : couvrir tout le monde se paie
+       en fréquence sur les derniers de PRIORITY. Le rapport doit le dire — sans
+       quoi l'avis de Plan signalerait une fréquence basse que rien
+       n'expliquerait, et c'est précisément le contrat du moteur. */
+    const r = gen({ frequency: 2, duration: 60, equipment: "salle-complete" });
+    assert.deepEqual(r.report.uncovered, []);
+    assert.ok(r.report.underFrequency.length > 0, JSON.stringify(r.report));
+  });
+
+  test("hors pénurie, l'allocation d'origine est conservée (#61)", () => {
+    /* « Couverture d'abord » ne se déclenche que quand « fréquence d'abord » a
+       réellement laissé quelqu'un dehors. À 4 et 5 séances il y a de la place
+       pour tout le monde : personne n'est servi sous son plancher, donc aucun
+       arbitrage n'a été rendu — et rendre un arbitrage sans conflit est ce qui
+       dégradait 18 combinaisons dans la première version de ce correctif. */
+    for (const frequency of [4, 5]) {
+      for (const duration of [60, 75, 90]) {
+        const r = gen({ frequency, duration, equipment: "salle-complete" });
+        assert.deepEqual(r.report.underFrequency, [], `${frequency} x ${duration}`);
       }
     }
   });
@@ -409,7 +452,12 @@ describe("generate : les six assertions sur les 171 combinaisons (§7)", () => {
     for (const c of COMBINATIONS) {
       const out = findingsFor(c);
       if (!out) continue;
-      const known = new Set([...out.r.report.cut, ...out.r.report.uncovered]);
+      /* #61 : le rapport annonce désormais une troisième catégorie — les
+         muscles servis moins souvent que leur plancher de fréquence. C'est le
+         prix de « couverture d'abord », et le contrat tient parce qu'il est
+         annoncé : un manque connu est dans le rapport, un manque découvert
+         dans l'avis est un bug. */
+      const known = new Set([...out.r.report.cut, ...out.r.report.uncovered, ...out.r.report.underFrequency]);
       const surprises = out.findings.filter((f) => !(f.muscle && known.has(LABELS[f.muscle])));
       assert.deepEqual(
         surprises.map((f) => `${f.code}:${f.muscle || f.sessionId}`), [],
