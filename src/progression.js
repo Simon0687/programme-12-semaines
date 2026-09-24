@@ -26,7 +26,7 @@
 import { traitsOf } from "./units.js";
 /* #14 : la forme du cycle est une donnée. policies.js est une feuille comme
    units.js, donc le moteur reste une feuille en la lisant (ARCHITECTURE §1). */
-import { DEFAULT_POLICIES, phaseFor, variantOf, setsForWeek, kindForWeek, isDeloadWeek } from "./policies.js";
+import { DEFAULT_POLICIES, phaseFor, variantOf, setsForWeek, kindForWeek } from "./policies.js";
 
 export const num = (s) => {
   if (s === "" || s == null) return null;
