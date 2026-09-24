@@ -23,7 +23,7 @@
    ce qui permet de tester la courbe sans DOM ni moteur de rendu.
    ========================================================= */
 
-import { fmt, roundTo } from "./progression.js";
+import { fmt, roundTo, loadText } from "./progression.js";
 import { traitsOf } from "./units.js";
 
 /* ---------- Résumé des séries (déplacé depuis App.jsx, #23) ---------- */
@@ -578,4 +578,15 @@ export function warmupText(v, load) {
   if (!steps.length) return null;
   const parts = steps.map((s) => `${fmt(s.load)} kg × ${s.reps}`).join(" · ");
   return `Montée en charge — ${v.name} : ${parts}${v.perHand ? " / main" : ""}`;
+}
+
+/* ---------- Provenance d'une charge reportée (#74) ----------
+   Sous le champ « Charges de départ » de l'éditeur : d'où vient la valeur
+   pré-remplie. La date suffit quand la charge est reprise telle quelle ; une
+   charge convertie dit de quoi elle est partie, pour qu'on puisse juger la
+   conversion au lieu de la subir. */
+export function carryNote(c, v) {
+  if (!c || !v) return "";
+  const when = dateShort(c.date);
+  return c.converted ? `converti de ${loadText(v, c.fromLoad)} × ${c.fromReps} · ${when}` : `reporté · ${when}`;
 }

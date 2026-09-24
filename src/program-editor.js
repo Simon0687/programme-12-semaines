@@ -428,6 +428,58 @@ export function referencedExercises(program) {
   return out;
 }
 
+/* ---------- Charges reportées d'un cycle passé (#74) ----------
+   L'éditeur ne voit jamais le journal : App.jsx lui passe `carry`, une
+   fonction (vid, fourchette) -> { load, date, fromLoad, fromReps, converted }
+   | null, construite sur carriedLoad() (carryover.js). Ce qui est écrit dans
+   le brouillon est une charge de départ ordinaire — une valeur, pas une
+   référence à l'ancien cycle (ARCHITECTURE §2.1). `draft.carried` ne sert qu'à
+   l'affichage de la provenance : ni snapshot() ni toDefinition() ne le lisent.
+
+   La fourchette cible est celle du premier créneau qui porte l'exercice
+   (bloc 1 ou bloc 2) : `startingLoads` est indexé par exercice, pas par
+   créneau, donc une seule valeur par exercice. */
+export function targetRange(program, vid) {
+  for (const [slotId] of allRows(program)) {
+    const slot = program.SLOTS[slotId];
+    if (slot && (slot.b1 === vid || slot.b2 === vid)) return Array.isArray(slot.reps) ? slot.reps : null;
+  }
+  return null;
+}
+
+const carryInto = (draft, vids, carry, replace) => {
+  let startingLoads = draft.startingLoads;
+  let carried = draft.carried || {};
+  for (const vid of vids) {
+    if (!replace && vid in startingLoads) continue;
+    const c = carry(vid, targetRange(draft.program, vid));
+    if (!c) continue;
+    startingLoads = { ...startingLoads, [vid]: c.load };
+    carried = { ...carried, [vid]: c };
+  }
+  return { ...draft, startingLoads, carried };
+};
+
+/* À l'ouverture : chaque exercice du brouillon qui a un historique reçoit sa
+   charge reportée, **en remplaçant** une valeur copiée (décision Q3 : pour
+   « Partir du programme actif », la valeur copiée est l'estimation du début
+   de l'ancien cycle, l'historique est plus récent). Rescellé ensuite : un
+   brouillon qu'on vient d'ouvrir n'a rien à confirmer en sortie. */
+export function withCarriedLoads(draft, carry) {
+  if (typeof carry !== "function") return draft;
+  return sealed(carryInto(draft, referencedExercises(draft.program), carry, true));
+}
+
+/* Pendant l'édition : seuls les exercices qui viennent d'entrer dans le
+   brouillon, et qui n'ont pas encore de valeur. C'est ce qui empêche un champ
+   vidé exprès d'être rempli de nouveau à la modification suivante. */
+export function carryNewlyReferenced(prev, next, carry) {
+  if (typeof carry !== "function" || next.program === prev.program) return next;
+  const before = new Set(referencedExercises(prev.program));
+  const added = referencedExercises(next.program).filter((vid) => !before.has(vid));
+  return added.length ? carryInto(next, added, carry, false) : next;
+}
+
 /* Vide (ou illisible) veut dire « pas de charge de départ » — la semaine 1
    de calibration s'en charge, comme pour le programme livré depuis #26.
    Zéro, lui, est une valeur : c'est le poids du corps aux tractions, et

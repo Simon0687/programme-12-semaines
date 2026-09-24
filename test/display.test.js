@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  setSummary, rowIsDone, completedSets, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, weekdayName, adviceSummary, unitColumns, unitLoadLabel, warmupRamp, warmupText, WARMUP_RAMP,
+  setSummary, rowIsDone, completedSets, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, weekdayName, adviceSummary, unitColumns, unitLoadLabel, warmupRamp, warmupText, WARMUP_RAMP, carryNote,
 } from "../src/display.js";
 import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS, PATTERNS } from "../src/registry.js";
 import { fmt } from "../src/progression.js";
@@ -519,4 +519,12 @@ test("warmupRamp : un palier qui retombe sur zéro, le précédent ou la charge 
   /* 2 kg au cran de 5 : tout retombe sur 0 ou sur la charge. */
   assert.deepEqual(warmupRamp({ name: "x", incr: 5 }, 2), []);
   assert.equal(warmupText({ name: "x", incr: 5 }, 2), null);
+});
+
+test("carryNote : la date quand la charge est reprise, l'origine quand elle est convertie (#74)", () => {
+  const v = { name: "Développé couché barre", incr: 2.5 };
+  assert.equal(carryNote({ load: 100, date: "2026-09-07", fromLoad: 100, fromReps: 8, converted: false }, v), "reporté · 7 sept.");
+  assert.equal(carryNote({ load: 92.5, date: "2026-09-07", fromLoad: 115, fromReps: 4, converted: true }, v), "converti de 115 kg × 4 · 7 sept.");
+  assert.equal(carryNote({ load: 40, date: "2026-09-07", fromLoad: 44, fromReps: 4, converted: true }, { name: "x", perHand: true }), "converti de 44 kg / main × 4 · 7 sept.");
+  assert.equal(carryNote(null, v), "");
 });

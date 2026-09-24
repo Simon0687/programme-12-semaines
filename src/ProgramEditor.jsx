@@ -25,7 +25,7 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronUp, ChevronDown, Plus, X } from "lucide-react";
 import { EXERCISES } from "./registry.js";
-import { DAY_NAMES, unitLoadLabel } from "./display.js";
+import { DAY_NAMES, unitLoadLabel, carryNote } from "./display.js";
 import ExercisePicker from "./ExercisePicker.jsx";
 import { intentSummary } from "./generator.js";
 import {
@@ -33,7 +33,7 @@ import {
   addRow, removeRow, moveRow, patchRow,
   addWarm, setWarmText, removeWarm,
   addCore, setCoreLabel, removeCore,
-  referencedExercises, setStartingLoad,
+  referencedExercises, setStartingLoad, carryNewlyReferenced,
 } from "./program-editor.js";
 
 const FIELD = "h-11 w-full px-3 rounded-md bg-surface-raised border border-rule text-ink focus:outline-none focus:ring-2 focus:ring-focus";
@@ -145,13 +145,15 @@ function Rows({ program, owner, rows, apply, onPick }) {
   );
 }
 
-export default function ProgramEditor({ draft, onChange, onBack, onSave, error }) {
+export default function ProgramEditor({ draft, onChange, onBack, onSave, error, carry }) {
   /* { owner, index, block } — index null : ajouter une ligne ; sinon
      remplacer l'exercice de la ligne, `block` disant lequel des deux quand
      la ligne en porte deux. */
   const [picker, setPicker] = useState(null);
   const { program } = draft;
-  const apply = (fn, ...args) => onChange(fn(draft, ...args));
+  /* #74 : un exercice qui entre dans le brouillon reçoit sa charge reportée
+     s'il a un historique — et seulement lui, jamais un champ vidé exprès. */
+  const apply = (fn, ...args) => onChange(carryNewlyReferenced(draft, fn(draft, ...args), carry));
   const openPicker = (owner, index = null, block = null) => setPicker({ owner, index, block });
   const choose = (id) => {
     const p = picker;
@@ -302,7 +304,7 @@ export default function ProgramEditor({ draft, onChange, onBack, onSave, error }
       {/* ---------- Charges de départ ---------- */}
       <h2 className="text-sm text-ink-muted mt-6">Charges de départ</h2>
       <p className="text-xs text-ink-faint">
-        À remplir si tu connais tes charges. Laissé vide, l'exercice démarre par la semaine 1 de calibration, qui les trouve à ta place. Zéro est une valeur : c'est une traction au poids du corps.
+        Celles des exercices déjà faits sont reprises de ton journal, et la semaine 1 de calibration les valide. Laissé vide, l'exercice démarre par des paliers, qui trouvent la charge à ta place. Zéro est une valeur : c'est une traction au poids du corps.
       </p>
       {loads.length === 0 ? (
         <p className="text-sm text-ink-faint py-3">Les exercices ajoutés aux séances apparaîtront ici.</p>
@@ -310,7 +312,14 @@ export default function ProgramEditor({ draft, onChange, onBack, onSave, error }
         <div className="mt-2 divide-y divide-rule border-y border-rule">
           {loads.map(({ id, v }) => (
             <div key={id} className="py-2 flex items-center gap-3">
-              <span className="flex-1 text-sm text-ink">{v.name}</span>
+              {/* #74 : la provenance tant que la valeur est celle reportée ;
+                  modifiée à la main, elle est la tienne et la note s'efface. */}
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm text-ink">{v.name}</span>
+                {draft.carried?.[id] && draft.startingLoads[id] === draft.carried[id].load && (
+                  <span className="block text-xs text-ink-faint">{carryNote(draft.carried[id], v)}</span>
+                )}
+              </span>
               <input type="number" inputMode="decimal" aria-label={`Charge de départ, ${v.name}`}
                 value={draft.startingLoads[id] ?? ""}
                 onChange={(e) => apply(setStartingLoad, id, e.target.value === "" ? NaN : Number(e.target.value))}
