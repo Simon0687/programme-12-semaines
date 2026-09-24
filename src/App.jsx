@@ -756,8 +756,13 @@ export default function Programme() {
        quitter. resolveScreen la renvoie sur Semaine plutôt que d'ouvrir
        Séance sur un identifiant que prog.SESSIONS ne connaît pas. */
     setNav((n) => resolveScreen(n, prog.SESSIONS.map((s) => s.id)));
+    /* La date de départ aussi, pas seulement l'identifiant : au lancement,
+       le journal vide du premier rendu porte le programme livré, et un journal
+       stocké sur ce même programme garde le même identifiant — l'effet ne se
+       relançait pas, et l'appli s'ouvrait en semaine 1 d'un cycle en cours
+       (ou terminé, sous la carte de fin de cycle de #77). */
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [journal.activeProgramId]);
+  }, [journal.activeProgramId, definition.startDate]);
 
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(""), 2500); };
 
