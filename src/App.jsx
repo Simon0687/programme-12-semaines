@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Download, Upload, Zap, X, Repeat, Plus, Trash2, Copy, Sparkles, PenLine } from "lucide-react";
 import { SCHEMA_VERSION, emptyJournal, weekStartKey, dateForSlot, slotForDate, findLog, writeLog, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport, IMPORT_MESSAGES } from "./import.js";
@@ -547,7 +547,16 @@ export default function Programme() {
      pouvoir être retrouvée). Deux passages du même programme ont des
      definition.startDate différents, donc jamais la même date pour
      "semaine 1" : c'est ce qui évite l'écrasement (#16 spec.md Decision 3). */
-  const dateOf = (sid) => dateForSlot(definition.startDate, week, prog.SESSIONS.find((s) => s.id === sid).day);
+  /* #89 : `useCallback` non pour économiser un rendu mais pour rendre la
+     dépendance *citable*. Recréée à chaque rendu, cette fonction ne pouvait
+     pas figurer dans le tableau d'un useMemo, et les trois calculs qui
+     l'appellent listaient à la place les valeurs qu'elle lit — une copie de
+     ses dépendances, maintenue à la main, qu'un jour on oublie de mettre à
+     jour avec elle. Stable, elle se cite, et la copie disparaît. */
+  const dateOf = useCallback(
+    (sid) => dateForSlot(definition.startDate, week, prog.SESSIONS.find((s) => s.id === sid).day),
+    [definition.startDate, week, prog],
+  );
   /* Le repli garde `session` toujours défini, y compris quand on est sur
      Semaine et que nav.sessionId est null. C'est ce qui permet de supprimer
      les gardes qu'imposait l'ancienne sentinelle "cardio". */
@@ -733,7 +742,7 @@ export default function Programme() {
     const m = {};
     prog.SESSIONS.forEach((s) => { const log = findLog(state.logs, dateOf(s.id), s.id); m[s.id] = !!(log && log.done); });
     return m;
-  }, [prog, state, week, definition.startDate]);
+  }, [prog, state, dateOf]);
   const weekDoneCount = useMemo(() => Object.values(doneMap).filter(Boolean).length, [doneMap]);
 
   /* #41 : l'effet qui devinait la séance à afficher est supprimé. Il n'existait
@@ -761,6 +770,14 @@ export default function Programme() {
        stocké sur ce même programme garde le même identifiant — l'effet ne se
        relançait pas, et l'appli s'ouvrait en semaine 1 d'un cycle en cours
        (ou terminé, sous la carte de fin de cycle de #77). */
+    /* #89 : ce commentaire ne désactivait rien — il n'y avait pas d'ESLint
+       dans le dépôt. Maintenant qu'il y en a un, il porte, et voici ce qu'il
+       tait : la règle réclame `curWeek` et `prog.SESSIONS`. Les inclure
+       relancerait l'effet à chaque changement de semaine affichée, et
+       `setWeek(curWeek)` ramènerait aussitôt sur la semaine du jour — on ne
+       pourrait plus feuilleter une semaine passée. L'effet ne veut pas dire
+       « quand ces valeurs changent » mais « quand on change de cycle », et
+       c'est un cas que le tableau de dépendances ne sait pas écrire. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [journal.activeProgramId, definition.startDate]);
 
@@ -780,13 +797,17 @@ export default function Programme() {
      `poids` et `sommeil` dans un objet déjà libre, donc ni migration ni bump,
      et son absence se lit « aucune décision prise ». Même classe de champ que
      `sub` (#55). */
-  const deloadAt = (w) => (state.checkin[weekStartKey(definition.startDate, w)] || {}).deload || null;
+  /* Même raison que `dateOf` ci-dessus (#89) : citable plutôt que recopiée. */
+  const deloadAt = useCallback(
+    (w) => (state.checkin[weekStartKey(definition.startDate, w)] || {}).deload || null,
+    [state.checkin, definition.startDate],
+  );
   const deloadChoice = (deloadAt(week) || {}).choice || null;
   const forcedDeloads = useMemo(() => {
     const out = [];
     for (let w = 1; w <= definition.weeks; w++) if ((deloadAt(w) || {}).choice === "accepted") out.push(w);
     return out;
-  }, [state.checkin, definition.startDate, definition.weeks]);
+  }, [definition.weeks, deloadAt]);
   /* Les politiques réellement exécutées cette semaine : celles du programme,
      plus les décharges acceptées. Un seul objet, mémorisé, passé partout —
      un objet neuf à chaque rendu défait les useMemo qui en dépendent (#22). */
@@ -795,7 +816,16 @@ export default function Programme() {
   const phase = phaseOf(week, policies, definition.weeks);
   const session = prog.SESSIONS.find((s) => s.id === sessionId);
   const si = prog.SESSIONS.findIndex((s) => s.id === sessionId);
-  const log = findLog(state.logs, dateOf(session.id), session.id) || {};
+  /* #89 : le seul des trois signalements qui désignait un vrai défaut. Sans
+     séance enregistrée, `|| {}` fabriquait un objet neuf à chaque rendu ;
+     `log` entre dans le tableau de dépendances de `firstUnfinished`, qui se
+     recalculait donc à chaque frappe — une séance jamais ouverte étant
+     précisément le cas le plus fréquent. C'est la classe de défauts que la
+     suite ne peut pas voir : aucun test ne monte React. */
+  const log = useMemo(
+    () => findLog(state.logs, dateOf(session.id), session.id) || {},
+    [state.logs, session.id, dateOf],
+  );
   /* #80 : la rampe d'échauffement se calcule sur le premier exercice de la
      séance, substitution comprise, depuis la charge que planned() lui prévoit.
      Pas de charge prévue (calibration, poids du corps) : null, et l'écran ne

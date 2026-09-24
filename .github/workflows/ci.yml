@@ -26,6 +26,10 @@ jobs:
           node-version-file: .node-version
           cache: npm
       - run: npm ci
+      # #89 : avant les tests, parce que c'est la passe la plus rapide et
+      # qu'un hook aux dépendances fausses ne se voit pas ailleurs — aucun
+      # test ne monte React.
+      - run: npm run lint
       - run: npm test
       # Le build que Cloudflare fera derrière : un import cassé ou un JSX
       # invalide passe les tests (aucun test ne monte React) mais pas esbuild.

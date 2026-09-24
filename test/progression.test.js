@@ -610,7 +610,6 @@ test("au poids du corps, la mention parle en lest", () => {
 /* ---- séance allégée (#43) -------------------------------------------- */
 
 describe("séance allégée", () => {
-  const wk = (week, sets, kind) => ({ week, sid: "hautA", vid: "dc", sets, kind });
 
   test("une base allégée n'est jamais lue : on repart de la séance d'avant", () => {
     /* Le cas qui motive #43. Sans le saut, 8 reps à 80 kg deviennent la
