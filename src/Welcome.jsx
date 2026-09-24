@@ -23,19 +23,10 @@
    ========================================================= */
 
 import { Sparkles, PenLine, Upload, Eye } from "lucide-react";
-
-function Route({ icon, title, note, onClick, primary }) {
-  return (
-    <button type="button" onClick={onClick}
-      className={`w-full text-left p-4 rounded-lg border flex items-start gap-3 focus:outline-none focus:ring-2 focus:ring-focus ${primary ? "bg-surface-raised border-accent" : "bg-surface-raised border-rule"}`}>
-      <span className={`shrink-0 mt-0.5 ${primary ? "text-accent" : "text-ink-muted"}`}>{icon}</span>
-      <span>
-        <span className={`block font-medium ${primary ? "text-accent" : "text-ink"}`}>{title}</span>
-        <span className="block text-sm text-ink-muted mt-0.5">{note}</span>
-      </span>
-    </button>
-  );
-}
+/* #68 : la porte est partagée avec l'onglet Plan, qui pose la même question
+   après le premier lancement. Sortie telle quelle, sans rien changer à son
+   rendu. */
+import Route from "./Route.jsx";
 
 export default function Welcome({ onGenerate, onCompose, onLoadFile, onPreview, error }) {
   return (
