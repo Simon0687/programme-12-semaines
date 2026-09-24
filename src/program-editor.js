@@ -153,6 +153,17 @@ export function draftFrom(definition) {
   });
 }
 
+/* « Partir du programme actif » (#68) : la même structure, **un nouveau
+   cycle**. draftFrom() recopiait aussi la date de départ, si bien que le
+   nouveau cycle commençait dans le passé et s'ouvrait à la semaine où en
+   était l'ancien — en bloc 2, en décharge — alors que ses charges reportées
+   (#74) sont des charges de semaine 1, que la calibration valide. Constaté à
+   l'usage le 2026-09-24. Il démarre donc au lundi suivant, comme « Composer
+   le mien » et le générateur ; la date reste modifiable dans l'éditeur. */
+export function nextCycleFrom(definition, today) {
+  return sealed({ ...draftFrom(definition), startDate: nextMonday(today) });
+}
+
 /* L'id du cycle à écrire. Rendu explicite plutôt que calculé dans
    toDefinition() : c'est la décision « nouveau cycle ou cycle repris »,
    la seule qui touche à ce qui est déjà stocké, et elle mérite un appel

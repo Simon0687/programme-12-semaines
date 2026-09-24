@@ -6,7 +6,7 @@ import {
   addSession, removeSession, moveSession, patchSession,
   addRow, removeRow, moveRow, patchRow,
   addWarm, setWarmText, renameWarm, removeWarm, addCore, setCoreLabel, removeCore,
-  referencedExercises, setStartingLoad, targetRange, withCarriedLoads, carryNewlyReferenced,
+  referencedExercises, setStartingLoad, targetRange, withCarriedLoads, carryNewlyReferenced, nextCycleFrom,
 } from "../src/program-editor.js";
 import { validateProgram, validateDefinition } from "../src/journal-shape.js";
 import { buildProgram } from "../src/program.js";
@@ -598,5 +598,16 @@ describe("charges reportées (#74)", () => {
     const d = setStartingLoad(withDc(), "row_cable", 55);
     const next = addRow(d, { session: "seance" }, "row_cable");
     assert.equal(carryNewlyReferenced(d, next, carry).startingLoads.row_cable, 55);
+  });
+});
+
+describe("« Partir du programme actif » ouvre un nouveau cycle (#74)", () => {
+  test("même structure et mêmes charges, mais départ au lundi suivant, pas à la date de l'ancien", () => {
+    const def = { ...LEGACY_DEFINITION, id: "ancien", startDate: "2026-08-03" };
+    const d = nextCycleFrom(def, new Date(2026, 8, 24)); // jeudi 24 sept.
+    assert.equal(d.startDate, "2026-09-28");
+    assert.deepEqual(d.program, draftFrom(def).program);
+    assert.deepEqual(d.startingLoads, draftFrom(def).startingLoads);
+    assert.equal(isDirty(d), false);
   });
 });

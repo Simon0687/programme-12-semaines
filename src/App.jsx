@@ -37,7 +37,7 @@ import { programSummaries, removeProgram } from "./program-list.js";
 import { facetsOf } from "./exercise-filter.js";
 import ProgramEditor from "./ProgramEditor.jsx";
 import GenerateProgram from "./GenerateProgram.jsx";
-import { emptyDraft, draftFrom, withNewId, toDefinition, isDirty, withCarriedLoads } from "./program-editor.js";
+import { emptyDraft, draftFrom, nextCycleFrom, withNewId, toDefinition, isDirty, withCarriedLoads } from "./program-editor.js";
 import { carriedLoad } from "./carryover.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { useLoadPicker, LoadPickerOverlay, PICKER_FIELD_STYLE } from "./LoadPicker.jsx";
@@ -1790,7 +1790,7 @@ export default function Programme() {
                           tant que l'édition en place n'existe pas (étape 8), ce
                           bouton compose un nouveau cycle à partir de celui-ci, et un
                           nouveau cycle repart sur la calibration. */}
-                      <Route icon={<Copy size={18} />} onClick={() => { setNewProgram(false); openEditor(draftFrom(definition)); }}
+                      <Route icon={<Copy size={18} />} onClick={() => { setNewProgram(false); openEditor(nextCycleFrom(definition, today)); }}
                         title="Partir du programme actif"
                         note={`Une copie de ${definition.name} à retoucher. Le cycle en cours n'est pas modifié.`} />
                       <Btn small onClick={() => setNewProgram(false)}>Annuler</Btn>

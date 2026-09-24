@@ -95,6 +95,11 @@ Settled by Simon on 2026-09-24 — full reasoning in `decisions-spec.md`.
    reads `converti de 115 kg × 4 · 12 sept.` when converted.
 3. **« Partir du programme actif »:** observed loads replace the copied ones.
 4. **No age threshold;** the date is shown.
+5. **« Partir du programme actif » starts next Monday** (found in use on
+   2026-09-24). It used to copy the old start date, so the new cycle opened in
+   the past at the old cycle's week — block 2 variants with no history showed
+   "Paliers", a deload week cut the carried load. A new cycle now starts at
+   week 1, where the carried loads belong; the date stays editable.
 
 ## Open questions
 
