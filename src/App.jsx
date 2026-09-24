@@ -39,6 +39,7 @@ import ProgramEditor from "./ProgramEditor.jsx";
 import GenerateProgram from "./GenerateProgram.jsx";
 import { emptyDraft, draftFrom, nextCycleFrom, withNewId, toDefinition, isDirty, withCarriedLoads } from "./program-editor.js";
 import { carriedLoad } from "./carryover.js";
+import { cycleReview } from "./cycle-review.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { useLoadPicker, LoadPickerOverlay, PICKER_FIELD_STYLE } from "./LoadPicker.jsx";
 import { fieldSetup } from "./load-picker.js";
@@ -1267,10 +1268,20 @@ export default function Programme() {
      phrase au-dessus. Restent les deux cas que la pastille ne sait pas porter,
      parce qu'ils parlent du cycle et non du jour : avant le départ, et après
      les douze semaines. */
-  const cycleNote =
-    !at ? `Le programme commence ${weekdayName(START)} ${dateLabel(START)}.`
-    : at.week > definition.weeks ? `Les ${definition.weeks} semaines sont terminées : bilan et programme suivant.`
+  const cycleNote = !at ? `Le programme commence ${weekdayName(START)} ${dateLabel(START)}.` : null;
+
+  /* #77 : la fin du cycle n'est plus une phrase sans porte. Dès la dernière
+     semaine, Semaine montre ce que le cycle a produit et propose de
+     continuer — le chemin par défaut ; changer de programme reste possible,
+     mais devient une décision (philosophie §6.7). Continuer, c'est le geste
+     de « Partir du programme actif » (#74) : même structure, charges
+     reportées, départ au lundi suivant, relu dans l'éditeur avant d'être
+     enregistré. */
+  const cycleEnd = at && at.week >= definition.weeks
+    ? { over: at.week > definition.weeks, review: cycleReview(prog, state, definition.weeks) }
     : null;
+  const continueProgram = () => openEditor(nextCycleFrom(definition, today));
+  const changeProgram = () => { setNav({ screen: "plan", sessionId: null }); setPlanTopic("programme"); setNewProgram(true); };
 
   const backSession = nav.sessionId ? prog.SESSIONS.find((s) => s.id === nav.sessionId) : null;
   const backLabel = backSession ? `Séance ${backSession.name}` : "Semaine";
@@ -1568,6 +1579,24 @@ export default function Programme() {
         {screen === "semaine" && (
           <div className="px-4">
             {cycleNote && <p className="text-sm text-notice mt-3">{cycleNote}</p>}
+            {cycleEnd && (
+              <div className="mt-3 p-3 rounded-lg bg-surface-raised border border-rule">
+                <div className="font-medium text-ink">{cycleEnd.over ? "Cycle terminé" : "Dernière semaine du cycle"}</div>
+                <p className="text-sm text-ink-muted mt-0.5">{cycleEnd.review.done} séance{cycleEnd.review.done > 1 ? "s" : ""} sur {cycleEnd.review.planned}</p>
+                {cycleEnd.review.lines.length > 0 && (
+                  <ul className="mt-2 text-sm space-y-0.5">
+                    {cycleEnd.review.lines.map((l) => (
+                      <li key={l.vid} className="text-ink-soft">{l.name} : <span className="text-ink">{l.text}</span></li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-3 grid gap-2">
+                  <Btn primary onClick={continueProgram}>Continuer ce programme</Btn>
+                  <Btn small onClick={changeProgram}>Changer de programme</Btn>
+                </div>
+                <p className="text-xs text-ink-faint mt-2">Même programme, charges reprises de ce cycle, départ lundi prochain par une semaine de calibration.</p>
+              </div>
+            )}
             {/* #14 : recommander, jamais imposer. L'avis nomme ce sur quoi il
                 se fonde — une recommandation qu'on ne peut pas contester n'est
                 pas discutable, elle est subie — et les deux réponses sont
