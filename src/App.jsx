@@ -15,7 +15,7 @@ import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilit
 import { AFTER_HINTS } from "./cardio.js";
 import { isDeloadWeek, withForcedDeloads, evaluateDeload } from "./policies.js";
 import { num, fmt, phaseOf, setsFor, lastEntry, lastEntryLabel, historyBefore, history, planned, computeKind, workingSets, loadDrops, loadText, normalizeSets } from "./progression.js";
-import { setSummary, dayName, weekdayName, adviceSummary, unitColumns, cardioWhen, mobilityDayNames } from "./display.js";
+import { setSummary, dayName, weekdayName, adviceSummary, unitColumns, cardioWhen, mobilityDayNames, rowIsDone, completedSets } from "./display.js";
 import { traitsOf } from "./units.js";
 import { EXERCISE_IDS } from "./registry.js";
 /* #55 : la seule réponse à « quel exercice ce créneau porte-t-il ? ». Elle
@@ -163,7 +163,7 @@ function ProgramAdvice({ findings }) {
 }
 
 /* ---------- Carte exercice ---------- */
-function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, policies, state, rows, vid, substituted, isTest, onSet, onTimer, onOpen, onSubstitute }) {
+function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, policies, state, rows, vid, substituted, isTest, open, onToggle, onSet, onTimer, onOpen, onSubstitute }) {
   const slot = prog.SLOTS[slotId];
   const v = prog.V[vid];
   const unit = v.unit || "kg";
@@ -200,7 +200,9 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, policie
     () => (isTest ? historyBefore(prog, state, vid, date, si).filter((e) => e.kind === "test").pop() || null : null),
     [isTest, prog, state, vid, date, si],
   );
-  const [open, setOpen] = useState(false);
+  /* #66 : le repli de la consigne technique, distinct du repli de la carte
+     elle-même, qui est tenu par le parent (une seule carte ouverte). */
+  const [cueOpen, setCueOpen] = useState(false);
   const phase = phaseOf(week, policies, weeks);
   /* #14 : « pas en décharge » se lit dans la politique, plus dans un numéro de
      semaine écrit en dur. Un programme qui décharge en S5 autorisait encore
@@ -231,8 +233,10 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, policie
      est informatif, donc pré-rempli quand la phase donne un chiffre unique et
      laissé vide en calibration et en décharge, où la cible est une fourchette. */
   const filled = (row, f) => String((row && row[f]) ?? "").trim() !== "";
-  const doneFields = fields.filter((f) => f !== "rir");
-  const rowDone = (i) => doneFields.every((f) => filled(rows[i], f));
+  /* #66 : la règle est sortie dans display.js, parce que la carte repliée la
+     lit aussi — « 2 séries sur 3 » et la coche de la troisième ne peuvent pas
+     répondre à deux définitions différentes. */
+  const rowDone = (i) => rowIsDone(rows[i], unit);
   const nextIdx = Array.from({ length: sets }).findIndex((_, i) => !rowDone(i));
   const rirTarget = /^\d+$/.test(String(phase.rir)) ? String(phase.rir) : null;
 
@@ -260,16 +264,45 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, policie
     onTimer(slot.rest, v.name);
   };
 
+  /* #66 : ce que la carte repliée dit d'elle-même. Une carte faite porte son
+     résultat, une carte à venir sa prescription — jamais rien qui demande
+     d'ouvrir pour savoir si on l'a faite. Le compte passe par `completedSets`,
+     la même règle que la coche de chaque rangée. */
+  const doneCount = completedSets(rows, unit);
+  const allDone = doneCount >= prescribed;
+  const summary = normalizeSets(rows).length ? setSummary(normalizeSets(rows), v) : null;
+
   return (
     <div className="py-4 border-b border-rule">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          {/* #17 : le nom ouvre la fiche de l’exercice. La cible existait déjà —
-              c’est la première chose qu’on lit — et le chevron la signale. */}
-          <button onClick={() => onOpen(vid)} className="text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
-            <span className="font-medium text-ink leading-snug">{idx}. {v.name}</span>
-            <ChevronRight size={15} className="inline text-ink-faint ml-1 mb-0.5" />
-          </button>
+        <div className="min-w-0 flex-1">
+          {/* #17 : le nom ouvre la fiche de l'exercice. La cible existait déjà —
+              c'est la première chose qu'on lit — et le chevron la signale.
+
+              #66 : seulement sur la carte ouverte. Repliée, la ligne entière
+              ouvre l'exercice : c'est le geste qu'on attend d'un accordéon, et
+              un nom qui partirait vers une autre page sous le pouce de
+              quelqu'un qui voulait juste déplier serait le piège classique de
+              deux cibles empilées. */}
+          {open ? (
+            <button onClick={() => onOpen(vid)} className="text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
+              <span className="font-medium text-ink leading-snug">{idx}. {v.name}</span>
+              <ChevronRight size={15} className="inline text-ink-faint ml-1 mb-0.5" />
+            </button>
+          ) : (
+            <button onClick={onToggle} aria-expanded={false} className="w-full text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
+              <span className={`font-medium leading-snug ${allDone ? "text-ink-muted" : "text-ink"}`}>{idx}. {v.name}</span>
+              <span className="block text-sm mt-0.5 truncate">
+                {allDone ? (
+                  <span className="text-ink-soft inline-flex items-center gap-1"><Check size={14} className="text-done shrink-0" />{summary}</span>
+                ) : doneCount > 0 ? (
+                  <span className="text-ink-soft">{doneCount}/{prescribed} séries · {summary}</span>
+                ) : (
+                  <span className="text-ink-muted">Prévu : <span className="text-accent font-medium">{plan.text}</span></span>
+                )}
+              </span>
+            </button>
+          )}
           {/* #55 : on doit *voir* qu'on a dévié, pas le déduire. Une déviation
               qu'on ne voit pas est une déviation qu'on oublie, puis qu'on met en
               doute en relisant son historique six semaines plus tard. La ligne
@@ -280,39 +313,59 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, policie
               <Repeat size={13} />Remplace {prog.V[prescribedVid(prog, slotId, week)]?.name || "l'exercice prévu"}
             </div>
           )}
-          <div className="text-sm text-ink-muted mt-0.5">
-            {prescribed} × {repLabel}{v.side ? " par côté" : ""}, RIR {phase.rir}
-            {failOk && <span className="ml-2 inline-flex items-center gap-1 text-badge"><Zap size={13} />dernière série à l'échec OK</span>}
-            {amrap && <span className="ml-2 text-badge">Séance test : dernière série AMRAP</span>}
-          </div>
+          {open && (
+            <div className="text-sm text-ink-muted mt-0.5">
+              {prescribed} × {repLabel}{v.side ? " par côté" : ""}, RIR {phase.rir}
+              {failOk && <span className="ml-2 inline-flex items-center gap-1 text-badge"><Zap size={13} />dernière série à l'échec OK</span>}
+              {amrap && <span className="ml-2 text-badge">Séance test : dernière série AMRAP</span>}
+            </div>
+          )}
         </div>
         <div className="shrink-0 flex items-center gap-2">
-          {/* Présent aussi sur une carte déjà substituée : c'est par lui qu'on
-              revient au prescrit, en le rechoisissant dans le sélecteur
-              (design.md décision 5). */}
-          <button onClick={() => onSubstitute(slotId)} aria-label={`Remplacer ${v.name} pour cette séance`}
-            className="h-9 px-2 rounded-md bg-surface-raised border border-rule text-ink-soft inline-flex items-center gap-1 text-sm focus:outline-none focus:ring-2 focus:ring-focus">
-            <Repeat size={15} />
-          </button>
-          <button onClick={() => onTimer(slot.rest, v.name)} aria-label="Lancer le repos" className="h-9 px-2 rounded-md bg-surface-raised border border-rule text-ink-soft inline-flex items-center gap-1 text-sm focus:outline-none focus:ring-2 focus:ring-focus">
-            <Timer size={15} />{Math.floor(slot.rest / 60)}:{String(slot.rest % 60).padStart(2, "0")}
+          {/* #66 : substitution et minuteur appartiennent à l'exercice qu'on est
+              en train de faire. Sur une carte repliée, ils remplissaient la
+              ligne de deux cibles pour un geste qu'on ne fait pas là. */}
+          {open && (
+            <>
+              {/* Présent aussi sur une carte déjà substituée : c'est par lui qu'on
+                  revient au prescrit, en le rechoisissant dans le sélecteur
+                  (design.md décision 5). */}
+              <button onClick={() => onSubstitute(slotId)} aria-label={`Remplacer ${v.name} pour cette séance`}
+                className="h-9 px-2 rounded-md bg-surface-raised border border-rule text-ink-soft inline-flex items-center gap-1 text-sm focus:outline-none focus:ring-2 focus:ring-focus">
+                <Repeat size={15} />
+              </button>
+              <button onClick={() => onTimer(slot.rest, v.name)} aria-label="Lancer le repos" className="h-9 px-2 rounded-md bg-surface-raised border border-rule text-ink-soft inline-flex items-center gap-1 text-sm focus:outline-none focus:ring-2 focus:ring-focus">
+                <Timer size={15} />{Math.floor(slot.rest / 60)}:{String(slot.rest % 60).padStart(2, "0")}
+              </button>
+            </>
+          )}
+          <button onClick={onToggle} aria-expanded={open} aria-label={`${open ? "Replier" : "Ouvrir"} ${v.name}`}
+            className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-md text-ink-faint focus:outline-none focus:ring-2 focus:ring-focus">
+            <ChevronDown size={18} className={open ? "rotate-180" : ""} />
           </button>
         </div>
       </div>
 
-      <div className="mt-2 text-sm">
-        <span className="text-ink">Prévu : <span className="text-accent font-medium">{plan.text}</span></span>
-        {plan.why && <span className="text-ink-muted"> — {plan.why}</span>}
-      </div>
-      {last && <div className="text-sm text-ink-muted">Dernière fois ({lastEntryLabel(last)}) : {setSummary(last.sets, v)}</div>}
-      {lastTest && <div className="text-sm text-badge">Dernier test ({lastEntryLabel(lastTest)}) : {setSummary(lastTest.sets, v)}</div>}
+      {open && (
+        <>
+          {/* #66 : entre deux séries, ce qui se lit est un nombre. Il était écrit
+              à la taille de la phrase qui l'explique, au milieu de trois lignes
+              de prose. Le « pourquoi » reste sous le chiffre, en gris : il ne
+              disparaît pas, il cesse de lui disputer la place. */}
+          <div className="mt-2 flex items-baseline gap-2 flex-wrap">
+            <span className="text-[26px] leading-none font-semibold text-accent">{plan.text}</span>
+            <span className="text-xs uppercase tracking-wider text-ink-muted">prévu</span>
+          </div>
+          {plan.why && <div className="text-sm text-ink-muted mt-1">{plan.why}</div>}
+          {last && <div className="text-sm text-ink-muted mt-0.5">Dernière fois ({lastEntryLabel(last)}) : {setSummary(last.sets, v)}</div>}
+          {lastTest && <div className="text-sm text-badge">Dernier test ({lastEntryLabel(lastTest)}) : {setSummary(lastTest.sets, v)}</div>}
 
-      <button onClick={() => setOpen(!open)} className="mt-1 text-sm text-ink-muted inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-focus rounded">
-        Technique <ChevronDown size={14} className={open ? "rotate-180" : ""} />
-      </button>
-      {open && <p className="text-sm text-ink-soft leading-relaxed mt-1">{v.cue}</p>}
+          <button onClick={() => setCueOpen(!cueOpen)} className="mt-1 text-sm text-ink-muted inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-focus rounded">
+            Technique <ChevronDown size={14} className={cueOpen ? "rotate-180" : ""} />
+          </button>
+          {cueOpen && <p className="text-sm text-ink-soft leading-relaxed mt-1">{v.cue}</p>}
 
-      <div className="mt-3 grid gap-2" style={{ gridTemplateColumns: fields.length === 3 ? "2rem 1fr 1fr 1fr 2.75rem" : "2rem 1fr 1fr 2.75rem" }}>
+          <div className="mt-3 grid gap-2" style={{ gridTemplateColumns: fields.length === 3 ? "2rem 1fr 1fr 1fr 2.75rem" : "2rem 1fr 1fr 2.75rem" }}>
         <div />
         {cols.map((c) => <div key={c} className="text-xs text-ink-muted text-center">{c}</div>)}
         <div />
@@ -361,8 +414,10 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, policie
             <Plus size={16} strokeWidth={2.5} />
           </button>
         )}
-      </div>
-      <LoadPickerOverlay picker={picker.picker} />
+          </div>
+          <LoadPickerOverlay picker={picker.picker} />
+        </>
+      )}
     </div>
   );
 }
@@ -675,6 +730,32 @@ export default function Programme() {
   /* #55 : le créneau dont le sélecteur est ouvert, ou null. État d'écran pur —
      rien n'est écrit tant qu'un exercice n'est pas choisi. */
   const [subSlot, setSubSlot] = useState(null);
+
+  /* #66 : un seul exercice déplié. L'état porte la séance avec lui, si bien
+     qu'ouvrir une autre séance repart du premier exercice à faire au lieu de
+     désigner un créneau qui n'est pas dans cette séance-là. Rien n'est stocké :
+     c'est une position de lecture, pas une donnée.
+
+     Tant que personne n'a touché un en-tête, l'ouvert est **dérivé** — le
+     premier exercice dont les séries prescrites ne sont pas toutes remplies.
+     C'est ce qui fait qu'une séance reprise en cours s'ouvre là où on s'était
+     arrêté, sans effet ni état à resynchroniser. */
+  const [openEx, setOpenEx] = useState(null);
+  const sessionSlots = useMemo(
+    () => [...session.ex, ...prog.CORE[session.core].ex].map(([slotId, n]) => [slotId, n]),
+    [session, prog],
+  );
+  const firstUnfinished = useMemo(() => {
+    for (const [slotId, n] of sessionSlots) {
+      const vid = vidFor(prog, log, slotId, week);
+      const v = prog.V[vid];
+      if (!v) continue;
+      if (completedSets((log.ex && log.ex[vid]) || [], v.unit || "kg") < setsFor(n, week, policies)) return slotId;
+    }
+    return null;
+  }, [sessionSlots, prog, log, week, policies]);
+  const openSlot = openEx && openEx.sessionId === session.id ? openEx.slotId : firstUnfinished;
+  const toggleEx = (slotId) => setOpenEx({ sessionId: session.id, slotId: openSlot === slotId ? null : slotId });
 
   /* Pose (ou retire) la substitution sur la ligne de séance du jour.
      `withSub` rend `{ sub: undefined }` quand il n'en reste aucune : l'absence
@@ -1230,7 +1311,11 @@ export default function Programme() {
         )}
 
         {screen === "seance" && (
-          <div className="px-4">
+          /* #66 : la barre d'action est fixe, donc le contenu lui réserve sa
+             place — sans quoi les notes de séance finiraient dessous. Le
+             panneau de #43 est plus haut que le bouton qu'il remplace, d'où
+             les deux valeurs : la réserve suit ce que la barre porte. */
+          <div className={`px-4 ${pendingLight ? "pb-64" : "pb-16"}`}>
             {/* #55 Q3 = C : le registre entier, avec les facettes du créneau
                 déjà cochées — mouvement, et depuis #64 le muscle dominant :
                 « une autre poussée horizontale pour les pectoraux » à zéro
@@ -1263,12 +1348,14 @@ export default function Programme() {
                 {session.ex.map(([slotId, n], i) => (
                   <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} policies={policies} state={state}
                     vid={vidFor(prog, log, slotId, week)} substituted={isSubstituted(prog, log, slotId, week)} isTest={log.kind === "test"}
+                    open={openSlot === slotId} onToggle={() => toggleEx(slotId)}
                     rows={(log.ex && log.ex[vidFor(prog, log, slotId, week)]) || []} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 <div className="pt-4 text-sm text-ink-muted">{prog.CORE[session.core].label}</div>
                 {prog.CORE[session.core].ex.map(([slotId, n], i) => (
                   <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} policies={policies} state={state}
                     vid={vidFor(prog, log, slotId, week)} substituted={isSubstituted(prog, log, slotId, week)} isTest={log.kind === "test"}
+                    open={openSlot === slotId} onToggle={() => toggleEx(slotId)}
                     rows={(log.ex && log.ex[vidFor(prog, log, slotId, week)]) || []} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 {session.after && cardio && (
@@ -1280,6 +1367,21 @@ export default function Programme() {
                   <span className="text-xs text-ink-muted">Notes de séance (douleur 0–10, forme, remarques)</span>
                   <textarea value={log.notes || ""} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Remontées dans le bilan de la semaine." className="mt-1 w-full p-3 rounded-md bg-surface-raised border border-rule text-ink focus:outline-none focus:ring-2 focus:ring-focus" />
                 </label>
+              </div>
+            </div>
+            {/* #66 : l'action ne se mérite plus au bout du scroll. L'en-tête
+                était collant depuis #41 et l'action ne l'était pas : l'écran
+                gardait sa navigation sous les yeux et laissait filer la seule
+                chose qu'on vient y faire. Elle tient au-dessus de la barre
+                d'onglets, qui fait 56 px — d'où `bottom-14`.
+
+                Le panneau de #43 vit **dans** cette barre plutôt qu'en dessous
+                d'elle : c'est la même décision au même moment, et deux couches
+                qui se disputent le bas de l'écran feraient exactement ce que
+                cette issue corrige. Le panneau remplace le bouton, comme avant,
+                seul l'endroit change. */}
+            <div className="fixed left-0 right-0 bottom-14 z-10 bg-surface border-t border-rule">
+              <div className="max-w-md mx-auto px-4 py-2">
                 {/* #43 : le panneau remplace le bouton — une seule décision, un
                     seul moment. Les deux boutons valident, ils ne diffèrent que
                     par ce qu'ils font à la référence, donc chacun dit son effet
@@ -1288,7 +1390,7 @@ export default function Programme() {
                     défaut qui attire le pouce. Même motif que la confirmation
                     d'import, plus bas. */}
                 {pendingLight ? (
-                  <div className="mt-4 rounded-md border border-rule bg-surface-raised p-3 space-y-2">
+                  <div className="rounded-md border border-rule bg-surface-raised p-3 space-y-2">
                     <p className="text-sm text-ink font-medium">Séance plus légère que la précédente</p>
                     {pendingLight.map((d) => (
                       <p key={d.vid} className="text-sm text-ink-muted">
@@ -1306,7 +1408,7 @@ export default function Programme() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-4 flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <Btn primary onClick={askThenValidate}><Check size={18} />{log.done ? "Mettre à jour la séance" : "Valider la séance"}</Btn>
                     {/* #14 : le repère qu'on prend quand on décide de le prendre.
                         Il remplace l'AMRAP automatique de la dernière semaine —

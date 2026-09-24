@@ -109,6 +109,31 @@ const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "aoû
 /* Numéro de jour absolu depuis une chaîne ISO, sans passer par le fuseau
    local : la courbe n'a besoin que d'écarts, et parseLocalDate()
    (definition.js) ferait entrer une dépendance pour rien. */
+/* ---------- Ce qu'une série remplie vaut à l'écran (#66) ----------
+
+   Deux définitions de « faite » coexistent, et les confondre serait le bug.
+   Le moteur dit : **une série sans répétitions n'a pas eu lieu**
+   (`normalizeSets`, #23) — la charge seule ne suffit pas, un poids réglé puis
+   reposé n'est pas une série. L'écran dit plus : une série est faite quand
+   elle porte *toutes* ses valeurs, charge comprise là où l'unité en a une.
+   C'est ce que la coche verte et la bordure ambre de #42 racontent depuis
+   qu'elles existent, et c'est plus strict que le moteur à dessein : une charge
+   oubliée est une saisie à finir, pas une série de plus.
+
+   Le RIR n'entre pas dans le critère : `planned()` ne le lit jamais, et il
+   reste vide en calibration et en décharge, où la cible est une fourchette.
+
+   Écrit ici plutôt que dans la carte parce que la Séance repliée en a besoin
+   aussi (#66) : sans ça, « 2 séries sur 3 » et la coche de la troisième
+   pourraient se contredire — deux endroits, deux règles. */
+const filled = (row, f) => String((row && row[f]) ?? "").trim() !== "";
+
+export const rowIsDone = (row, unit) =>
+  filled(row, "r") && (traitsOf(unit).hasLoad ? filled(row, "w") : true);
+
+export const completedSets = (rows, unit) =>
+  (Array.isArray(rows) ? rows : []).filter((row) => rowIsDone(row, unit)).length;
+
 export function dayNumber(iso) {
   const [y, m, d] = String(iso).split("-").map(Number);
   return Date.UTC(y, m - 1, d) / 86400000;
