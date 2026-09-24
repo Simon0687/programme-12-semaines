@@ -83,15 +83,19 @@ capability, `startingLoads` changes provenance), hence `/decide` before code.
 - The header of `src/exercise-history.js` still says `history()` throws on a
   string `ex` payload and points to #38; stale since #86/#85 — fix in passing.
 
+## Decisions
+
+Settled by Simon on 2026-09-24 — full reasoning in `decisions-spec.md`.
+
+1. **Continuity.** The app carries loads into a new cycle; week-1 calibration
+   *validates* them, as `PHASE_NOTES.calib` already words it.
+2. **Asymmetric carry.** New range at or below the old one in reps: raw load.
+   New range asking for more reps: converted through the 10RM estimate to the
+   new range's top, never above the raw load. `bw` / `carry`: raw. The note
+   reads `converti de 115 kg × 4 · 12 sept.` when converted.
+3. **« Partir du programme actif »:** observed loads replace the copied ones.
+4. **No age threshold;** the date is shown.
+
 ## Open questions
 
-1. **Raw load, or adjusted to the new rep range?** Last cycle's working load was
-   at 1 RIR in its own range; week 1 of the new cycle is calibration at 2–3 RIR,
-   possibly in another range. Proposal: carry the **raw** load and let
-   calibration correct it; convert through the existing 10RM estimate only if
-   the ranges differ by more than a few reps. Needs a decision.
-2. **« Partir du programme actif »:** should observed loads replace the copied
-   `startingLoads`, or only fill empty fields? Proposal: replace — the copied
-   values are the old cycle's *starting* guesses, the observed ones are newer.
-3. **How old is too old?** Carry anything, or ignore history older than, say,
-   six months? Proposal: carry anything, the date on screen lets the athlete judge.
+None.

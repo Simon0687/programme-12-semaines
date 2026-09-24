@@ -4,7 +4,7 @@ Source: spec.md
 Scope: product / requirement choices only — including the method question Simon
 raised on 2026-09-24 ("does this need a review of the tool's philosophy?").
 Implementation choices will go in `decisions.md`, after `/design-tech 74`.
-Status: awaiting Simon's answers
+Status: decided by Simon on 2026-09-24 — Q1 A, Q2 D, Q3 A, Q4 A
 
 ## Q1 - What a new cycle remembers, and what calibration is for
 
@@ -42,7 +42,7 @@ reference exists; B keeps a gap, not a principle. Reversible: carried values are
 ordinary `startingLoads` in each new definition — stop pre-filling and nothing
 stored changes meaning.
 
-**Simon's decision.** _(left blank for Simon)_
+**Simon's decision.** A — continuity: the app carries, calibration validates.
 
 ## Q2 - Raw load, or adjusted to the new rep range and RIR
 
@@ -67,11 +67,24 @@ deliberately never compares ranges (header of `src/exercise-history.js`).
 **Option C - Raw when the range matches, blank otherwise**
 - Pros: never wrong across ranges. Cons: most rotated exercises lose the benefit.
 
-**Recommendation.** A. Calibration exists to absorb exactly this error, and an
+**Option D - Asymmetric: raw toward fewer reps, converted toward more** (added
+2026-09-24 after Simon's hypertrophy → strength question)
+- What it means: if the new range's top is at or below the old one, carry the
+  raw load — it errs light, and the engine climbs (+5 % after calibration, then
+  +`incr` per session at the top of the range). If the new range asks for more
+  reps, convert through `estimate10RM` to the new range's top, never above the
+  raw load, rounded to `incr`. `bw` / `carry` units: raw, as the sheet does.
+- Example: 100 kg × 8 (4–8) → strength 2–5: 100 kg carried, ~10 % light, safe.
+  115 kg × 4 (2–5) → 8–12: raw would be 20 %+ too heavy; converted ≈ 92,5 kg.
+- Pros: the model is only ever used to *lower* a load, so its error is on the
+  safe side; covers both directions of a program change.
+- Cons: two rules instead of one; needs the source slot's rep range.
+
+**Recommendation.** D (revised from A). Calibration exists to absorb a light error, and an
 observed value is easier to trust and to correct than an estimate. Reversible:
 B can be added later inside `carryover.js` without touching stored data.
 
-**Simon's decision.** _(left blank for Simon)_
+**Simon's decision.** D — raw toward fewer reps, converted toward more.
 
 ## Q3 - « Partir du programme actif »: observed loads replace the copied ones?
 
@@ -88,7 +101,7 @@ definition's `startingLoads` — its guesses from the *start* of that cycle.
 **Recommendation.** A, with the "reporté · date" note so the replacement is
 visible. Reversible per field by editing it.
 
-**Simon's decision.** _(left blank for Simon)_
+**Simon's decision.** A — observed replaces copied, with the "reporté · date" note.
 
 ## Q4 - How old is too old
 
@@ -105,7 +118,7 @@ for loads the app knows.
 **Recommendation.** A. The date is on screen and calibration catches the rest;
 a threshold can be added later without data impact.
 
-**Simon's decision.** _(left blank for Simon)_
+**Simon's decision.** A — carry anything, show the date.
 
 ## How to apply
 

@@ -205,6 +205,29 @@ Règle générale :
 
 > Toute valeur de repli dépendant du code courant peut réinterpréter un ancien journal.
 
+### 6.6 Ce que retient un cycle (décidé le 2026-09-24, #74)
+
+Un cycle n'est pas une île. La semaine de calibration est écrite pour
+**valider** des charges connues et ne **découvrir** que celles qu'on n'a pas
+(« Séries à 2–3 RIR pour valider les charges. Exercices sans référence :
+paliers »). L'application reporte donc, à la création d'un cycle, la dernière
+charge de travail observée de chaque exercice, tous cycles confondus.
+
+La répartition des rôles reste celle du §1 :
+
+- **l'application calcule et mémorise** (niveau 1) : la charge reprise est un
+  calcul déterministe sur le journal, pas une interprétation ;
+- **l'utilisateur décide** : la valeur est affichée, datée, modifiable, et
+  vide si on l'efface ;
+- **elle est stockée comme une valeur** dans les charges de départ du nouveau
+  cycle, jamais comme une référence à l'ancien (§6.5).
+
+Le moteur de progression, lui, reste étroit : il ne compare jamais deux
+fourchettes de répétitions. Le report est asymétrique pour cette raison — tel
+quel vers moins de répétitions (l'erreur est du côté léger, et la progression
+la rattrape), converti par le 10RM estimé vers plus de répétitions, sans jamais
+dépasser la charge d'origine (l'estimation ne sert qu'à alléger).
+
 ## 7. Fonctionnalités recommandées
 
 ### Priorité 1 - Fiabilité
