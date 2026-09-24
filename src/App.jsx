@@ -44,6 +44,8 @@ import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { useLoadPicker, LoadPickerOverlay, PICKER_FIELD_STYLE } from "./LoadPicker.jsx";
 import { fieldSetup } from "./load-picker.js";
 import { buildBilan } from "./bilan.js";
+import { bodyMeasures } from "./measures.js";
+import MeasureCharts from "./MeasureChart.jsx";
 import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
 import { LEGACY_DEFINITION } from "./legacy-program.js";
 
@@ -1295,6 +1297,15 @@ export default function Programme() {
   const ca = state.cardio[weekStartKey(definition.startDate, week)] || {};
   const ci = state.checkin[weekStartKey(definition.startDate, week)] || {};
   const bilanFilled = BILAN_KEYS.filter((k) => (ci[k] || "") !== "").length;
+  /* #76 : les courbes lisent tout le cycle, pas la semaine affichée — c'est
+     la suite des valeurs qui porte leur sens, et une mesure seule ne dit
+     rien. Mémoïsé sur le check-in : une frappe dans un champ du bilan
+     reconstruit `state`, et sans cela les deux courbes se recalculeraient à
+     chaque caractère (la leçon d'App.jsx:217-221). */
+  const measures = useMemo(
+    () => bodyMeasures(state.checkin, definition.startDate, definition.weeks),
+    [state.checkin, definition.startDate, definition.weeks],
+  );
 
   if (!loaded) return <div className="min-h-screen bg-surface text-ink-muted flex items-center justify-center">Chargement du journal…</div>;
 
@@ -1717,6 +1728,14 @@ export default function Programme() {
                   <Field label="Écarts nutrition" value={ci.nutrition} onChange={(v) => setCheck("nutrition", v)} placeholder="RAS" wide />
                   <Field label="Remarques" value={ci.remarques} onChange={(v) => setCheck("remarques", v)} wide />
                 </div>
+                {/* #76 : ce que les deux premiers champs ont produit depuis le
+                    début du cycle. Sous le formulaire et non au-dessus : on
+                    vient ici pour saisir, et la courbe est ce qu'on reçoit en
+                    échange — la remettre au-dessus mettrait la récompense
+                    avant le geste. Elle lit tout le cycle et non la semaine
+                    affichée : le poids est la seule valeur du check-in dont
+                    le sens est dans la suite et non dans le point. */}
+                <MeasureCharts measures={measures} />
                 {/* #41 : un bouton, pas de pavé de texte. L'aperçu ne servait
                     plus de repli depuis que le presse-papier a quitté ce
                     chemin, et un bilan qui fait maintenant neuf lignes ne se
