@@ -65,7 +65,6 @@ import { traitsOf } from "./units.js";
 export function setSummary(sets, v) {
   if (!sets || !sets.length) return "—";
   const u = traitsOf(v.unit);
-  const unit = v.unit || "kg";
   const secs = u.repUnit === "s";
   const loaded = u.hasLoad;
 
