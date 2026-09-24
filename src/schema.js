@@ -13,7 +13,7 @@
 
 /* Version courante du schéma. Déclarée ici et nulle part ailleurs :
    save et export la lisent depuis ce module. */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /* Identité du cycle hérité : celui qui existait avant #6, sans fichier chargé.
    Sert de clé dans `programs` pour le journal migré depuis la v1. La valeur ne
@@ -38,11 +38,30 @@ export const emptyJournal = (definition) => ({
   programs: { [definition.id]: { definition, logs: {}, cardio: {}, checkin: {} } },
 });
 
-/* Cardio et check-in restent indexés par semaine de cycle (#16 decisions-spec
-   Q2 : hors périmètre, suivi par #29). Les séances, elles, sont indexées par
-   date depuis #16 (logKey, le format w{week}_{sessionId}, est retiré :
-   plus aucun appelant ne le référence). */
+/* Ancienne clé de cardio et de check-in : `w{n}`, un numéro de semaine relatif
+   au cycle. **Plus aucun appelant ne l'écrit depuis #29** — elle reste exportée
+   parce que c'est la forme que MIGRATIONS[4] doit savoir reconnaître, et que la
+   nommer ici vaut mieux qu'un littéral répété dans une expression régulière.
+
+   Le défaut qu'elle portait est celui que #16 avait corrigé pour les séances :
+   reprendre un programme terminé avec une startDate rafraîchie remet le
+   compteur à 1, et l'entrée « semaine 1 » du second passage écrase celle du
+   premier, en silence. */
 export const weekKey = (week) => `w${week}`;
+
+/* Clé d'une entrée cardio ou check-in depuis #29 : la date réelle du premier
+   jour de la semaine de cycle concernée.
+
+   Par semaine et non par jour (decisions-spec.md Q1) parce que c'est ce que la
+   donnée est déjà — le check-in demande « poids moyen », « sommeil moyen », des
+   agrégats d'une semaine. Le cardio a l'air plus découpable depuis #34, mais le
+   jour de chaque séance de conditionnement est dans le *programme* : la semaine
+   est le conteneur, l'item porte le jour.
+
+   Deux passages du même programme ont deux startDate, donc jamais la même clé
+   pour « semaine 1 » — c'est exactement l'argument de #16, appliqué à la
+   dernière donnée qui lui échappait. */
+export const weekStartKey = (startDateIso, week) => dateForSlot(startDateIso, week, 1);
 
 /* Identité et horodatage d'un enregistrement de séance (#16). genId() n'a pas
    besoin d'être cryptographique : juste unique côté client pour que deux
@@ -187,7 +206,59 @@ export const MIGRATIONS = {
     programs: Object.fromEntries(Object.entries(v3.programs).map(([id, p]) =>
       [id, p.definition ? p : { ...p, definition: ctx.legacyDefinition }])),
   }),
+
+  /* v4 -> v5 (#29) : cardio et check-in passent de `w{n}` à une date réelle.
+     La dernière donnée qui échappait encore à #16 — reprendre un programme
+     terminé avec une startDate rafraîchie remettait le compteur à 1, et
+     l'entrée « semaine 1 » du second passage écrasait celle du premier.
+
+     N'a besoin d'aucun `ctx`, et c'est une propriété de la v4 : depuis #26
+     chaque programme porte sa définition épinglée, donc sa startDate est là,
+     dans l'entrée qu'on est en train de convertir. La date d'une semaine se
+     dérive du programme contre lequel elle a été tenue, jamais de celui que
+     l'appli embarque aujourd'hui. */
+  4: (v4) => ({
+    ...v4,
+    programs: Object.fromEntries(Object.entries(v4.programs).map(([id, p]) => [id, {
+      ...p,
+      cardio: datedWeekKeys(p.cardio, p.definition && p.definition.startDate),
+      checkin: datedWeekKeys(p.checkin, p.definition && p.definition.startDate),
+    }])),
+  }),
 };
+
+/* Réécrit les seules clés de la forme `w{n}`, et laisse tout le reste
+   strictement intact.
+
+   Ce choix porte deux propriétés, et la seconde vaut plus que la première :
+
+   1. **Idempotence gratuite.** Une clé déjà datée ne matche pas `^w(\d+)$`,
+      donc rejouer l'étape sur un journal converti ne change rien. La migration
+      n'a pas besoin de savoir si elle est déjà passée.
+   2. **Elle ne refuse jamais le journal.** MIGRATIONS[2] lève sur une clé de
+      log qu'elle ne reconnaît pas, et c'était juste : perdre une séance en
+      silence est inacceptable, et il n'existait aucun repli sûr. Ici le calcul
+      est différent — ces entrées ne nourrissent ni `planned()` ni `history()`,
+      et faire perdre l'accès à deux ans d'historique d'entraînement pour une
+      clé cardio inattendue serait hors de proportion. C'est le raisonnement de
+      #32 sur les lignes illisibles, tenu une étape plus tôt : une clé qu'on ne
+      sait pas convertir traverse, et le lecteur ne la trouvera simplement pas —
+      exactement ce qui se passait déjà pour elle avant cette migration.
+
+   Une startDate absente ou hors format ferait rendre « NaN-NaN-NaN » à
+   dateForSlot. Les définitions des cycles *inactifs* ne sont pas validées au
+   chargement (#32 Q2), donc le cas est atteignable : la clé d'origine est alors
+   conservée telle quelle. Une clé lisible vaut mieux qu'une clé fausse. */
+function datedWeekKeys(map, startDate) {
+  if (typeof map !== "object" || map === null || Array.isArray(map)) return map;
+  const ok = typeof startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(startDate);
+  return Object.fromEntries(Object.entries(map).map(([k, v]) => {
+    const m = /^w(\d+)$/.exec(k);
+    if (!m || !ok) return [k, v];
+    const date = weekStartKey(startDate, Number(m[1]));
+    return [/^\d{4}-\d{2}-\d{2}$/.test(date) ? date : k, v];
+  }));
+}
 
 function migrateLogsV2ToV3(logs, startDate, dayBySlot) {
   const out = {};
