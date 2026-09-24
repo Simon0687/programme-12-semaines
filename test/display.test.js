@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  setSummary, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, weekdayName, adviceSummary, unitColumns, unitLoadLabel,
+  setSummary, rowIsDone, completedSets, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, weekdayName, adviceSummary, unitColumns, unitLoadLabel,
 } from "../src/display.js";
 import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS, PATTERNS } from "../src/registry.js";
 import { fmt } from "../src/progression.js";
@@ -437,4 +437,52 @@ test("unitLoadLabel : « lest » et « / main » se composent au lieu de s'exclu
   assert.equal(unitLoadLabel({ unit: "carry" }), "kg");
   assert.equal(unitLoadLabel({}), "kg");
   assert.equal(unitLoadLabel({ unit: "bw", perHand: true }), "lest kg / main");
+});
+
+/* ---------- Une série faite, à l'écran (#66) ----------
+
+   Plus strict que `normalizeSets` du moteur, et c'est voulu : le moteur dit
+   qu'une série sans reps n'a pas eu lieu, l'écran dit qu'une série sans sa
+   charge n'est pas finie de saisir. Les deux règles sont justes, elles ne
+   répondent pas à la même question. */
+
+test("rowIsDone : charge et reps quand l'unité porte une charge", () => {
+  assert.equal(rowIsDone({ w: "80", r: "8", rir: "1" }, "kg"), true);
+  assert.equal(rowIsDone({ w: "80", r: "8" }, "kg"), true, "le RIR n'entre pas dans le critère");
+  assert.equal(rowIsDone({ w: "", r: "8" }, "kg"), false, "une charge manquante est une saisie à finir");
+  assert.equal(rowIsDone({ w: "80", r: "" }, "kg"), false);
+  assert.equal(rowIsDone({ w: "80", r: "  " }, "kg"), false, "des espaces ne sont pas une valeur");
+});
+
+test("rowIsDone : les reps seules suffisent là où il n'y a pas de charge", () => {
+  assert.equal(rowIsDone({ r: "45" }, "time"), true);
+  assert.equal(rowIsDone({ r: "12" }, "reps"), true);
+  assert.equal(rowIsDone({ w: "", r: "" }, "time"), false);
+});
+
+test("rowIsDone : au poids du corps la charge est le lest, donc exigée", () => {
+  /* `bw` porte une charge (le lest), et zéro est une valeur : une traction à
+     vide se saisit « 0 », pas en laissant le champ vide. */
+  assert.equal(rowIsDone({ w: "0", r: "8" }, "bw"), true);
+  assert.equal(rowIsDone({ r: "8" }, "bw"), false);
+});
+
+test("rowIsDone : rien du tout", () => {
+  assert.equal(rowIsDone(null, "kg"), false);
+  assert.equal(rowIsDone(undefined, "kg"), false);
+  assert.equal(rowIsDone({}, "kg"), false);
+});
+
+test("completedSets : compte les séries finies, pas les lignes", () => {
+  const rows = [{ w: "80", r: "8" }, { w: "80", r: "7" }, { w: "80", r: "" }, {}];
+  assert.equal(completedSets(rows, "kg"), 2);
+  assert.equal(completedSets([], "kg"), 0);
+  assert.equal(completedSets(null, "kg"), 0);
+});
+
+test("completedSets : une ligne trouée au milieu ne bloque pas le compte", () => {
+  /* Le compte sert à dire « 2 séries sur 3 », pas à dire où on en est :
+     `nextIdx` s'en charge sur la carte ouverte. */
+  const rows = [{ w: "80", r: "8" }, { w: "", r: "" }, { w: "80", r: "8" }];
+  assert.equal(completedSets(rows, "kg"), 2);
 });
