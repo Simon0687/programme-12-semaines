@@ -59,6 +59,28 @@ export const normalizeSets = (rows) =>
     .map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) }))
     .filter((x) => x.r != null);
 
+/* ---------- Les lignes brutes d'un exercice, lues sans risque (#86) ----------
+
+   normalizeSets sert le moteur : des nombres, et seulement les séries faites.
+   L'écran de séance a besoin d'autre chose — les lignes telles que tapées,
+   « 72,5 » comme « », les vides compris, **à leur index**, puisque onSet
+   écrit la série i et que la carte affiche la ligne i.
+
+   `isLogRow` ne regarde pas à l'intérieur de `ex` (ARCHITECTURE §2.4), donc
+   un journal importé peut porter n'importe quoi sous `ex[vid]`. `|| []` n'en
+   protège pas : une chaîne non vide est vraie, `.map` lève pendant la
+   validation, et l'étaler la découpe en caractères que onSet réécrit dans le
+   journal. Un jeté au rendu démonte l'appli entière.
+
+   Donc : toujours un tableau, et chaque entrée qui n'est pas une ligne
+   devient une ligne vide — remplacée et non écartée, pour que les index
+   restent ceux du journal. */
+const isRow = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
+export const setsOf = (log, vid) => {
+  const ex = log && isRow(log.ex) ? log.ex[vid] : null;
+  return Array.isArray(ex) ? ex.map((x) => (isRow(x) ? x : {})) : [];
+};
+
 /* ---------- La charge de travail d'une séance (#31) ----------
 
    `planned()` réduisait une séance à un seul nombre — le maximum de ses charges
