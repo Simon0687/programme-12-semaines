@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Download, Upload, Zap, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Download, Upload, Zap, X, Repeat } from "lucide-react";
 import { SCHEMA_VERSION, emptyJournal, weekKey, dateForSlot, slotForDate, findLog, writeLog, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport, IMPORT_MESSAGES } from "./import.js";
 import { listBackups, readDroppedBackup, backupPreImportOnce, readPreImportBackup } from "./backup.js";
@@ -17,7 +17,11 @@ import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned
 import { setSummary, dayName, weekdayName, adviceSummary, unitColumns, cardioWhen, mobilityDayNames } from "./display.js";
 import { traitsOf } from "./units.js";
 import { EXERCISE_IDS } from "./registry.js";
+/* #55 : la seule réponse à « quel exercice ce créneau porte-t-il ? ». Elle
+   était écrite six fois, chacune ne regardant que le programme. */
+import { prescribedVid, vidFor, isSubstituted, withSub, takenVids, slotIdsOf } from "./session-sub.js";
 import ExerciseSheet from "./ExerciseSheet.jsx";
+import ExercisePicker from "./ExercisePicker.jsx";
 import ProgramEditor from "./ProgramEditor.jsx";
 import GenerateProgram from "./GenerateProgram.jsx";
 import { emptyDraft, draftFrom, withNewId, toDefinition, isDirty } from "./program-editor.js";
@@ -152,9 +156,8 @@ function ProgramAdvice({ findings }) {
 }
 
 /* ---------- Carte exercice ---------- */
-function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, rows, onSet, onTimer, onOpen }) {
+function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, rows, vid, substituted, onSet, onTimer, onOpen, onSubstitute }) {
   const slot = prog.SLOTS[slotId];
-  const vid = slot[blockOf(week)];
   const v = prog.V[vid];
   const unit = v.unit || "kg";
   /* #55 : deux comptes, et les confondre est le bug. `prescribed` est ce que
@@ -174,7 +177,12 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
   const prescribed = setsFor(nSets, week);
   const [extra, setExtra] = useState(0);
   const sets = Math.max(prescribed + extra, rows.length);
-  const plan = useMemo(() => planned(prog, state, slotId, week, si, date), [prog, state, slotId, week, si, date]);
+  /* #55 : `vid` entre dans les dépendances, et c'est tout l'objet du septième
+     paramètre de planned(). Substitué, le créneau garde sa fourchette, son RIR
+     et son repos — c'est le programme qui prescrit — et la charge prévue se lit
+     dans l'historique du remplaçant, qui peut n'en avoir aucun : « Paliers » et
+     la charge de départ sont déjà le bon comportement pour ça. */
+  const plan = useMemo(() => planned(prog, state, slotId, week, si, date, vid), [prog, state, slotId, week, si, date, vid]);
   const last = useMemo(() => lastEntry(prog, state, vid, date, si), [prog, state, vid, date, si]);
   const [open, setOpen] = useState(false);
   const phase = phaseOf(week);
@@ -239,15 +247,34 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
             <span className="font-medium text-ink leading-snug">{idx}. {v.name}</span>
             <ChevronRight size={15} className="inline text-ink-faint ml-1 mb-0.5" />
           </button>
+          {/* #55 : on doit *voir* qu'on a dévié, pas le déduire. Une déviation
+              qu'on ne voit pas est une déviation qu'on oublie, puis qu'on met en
+              doute en relisant son historique six semaines plus tard. La ligne
+              nomme l'exercice remplacé, seule information que la carte ne porte
+              plus nulle part ailleurs une fois le nom du remplaçant en titre. */}
+          {substituted && (
+            <div className="text-sm text-notice mt-0.5 inline-flex items-center gap-1">
+              <Repeat size={13} />Remplace {prog.V[prescribedVid(prog, slotId, week)]?.name || "l'exercice prévu"}
+            </div>
+          )}
           <div className="text-sm text-ink-muted mt-0.5">
             {prescribed} × {repLabel}{v.side ? " par côté" : ""}, RIR {phase.rir}
             {failOk && <span className="ml-2 inline-flex items-center gap-1 text-badge"><Zap size={13} />dernière série à l'échec OK</span>}
             {amrap && <span className="ml-2 text-badge">S12 : dernière série AMRAP</span>}
           </div>
         </div>
-        <button onClick={() => onTimer(slot.rest, v.name)} aria-label="Lancer le repos" className="shrink-0 h-9 px-2 rounded-md bg-surface-raised border border-rule text-ink-soft inline-flex items-center gap-1 text-sm focus:outline-none focus:ring-2 focus:ring-focus">
-          <Timer size={15} />{Math.floor(slot.rest / 60)}:{String(slot.rest % 60).padStart(2, "0")}
-        </button>
+        <div className="shrink-0 flex items-center gap-2">
+          {/* Présent aussi sur une carte déjà substituée : c'est par lui qu'on
+              revient au prescrit, en le rechoisissant dans le sélecteur
+              (design.md décision 5). */}
+          <button onClick={() => onSubstitute(slotId)} aria-label={`Remplacer ${v.name} pour cette séance`}
+            className="h-9 px-2 rounded-md bg-surface-raised border border-rule text-ink-soft inline-flex items-center gap-1 text-sm focus:outline-none focus:ring-2 focus:ring-focus">
+            <Repeat size={15} />
+          </button>
+          <button onClick={() => onTimer(slot.rest, v.name)} aria-label="Lancer le repos" className="h-9 px-2 rounded-md bg-surface-raised border border-rule text-ink-soft inline-flex items-center gap-1 text-sm focus:outline-none focus:ring-2 focus:ring-focus">
+            <Timer size={15} />{Math.floor(slot.rest / 60)}:{String(slot.rest % 60).padStart(2, "0")}
+          </button>
+        </div>
       </div>
 
       <div className="mt-2 text-sm">
@@ -579,6 +606,29 @@ export default function Programme() {
   };
   const setNotes = (val) => updateActive((st) => ({ ...st, logs: writeLog(st.logs, dateOf(session.id), session.id, { notes: val }) }));
 
+  /* #55 : le créneau dont le sélecteur est ouvert, ou null. État d'écran pur —
+     rien n'est écrit tant qu'un exercice n'est pas choisi. */
+  const [subSlot, setSubSlot] = useState(null);
+
+  /* Pose (ou retire) la substitution sur la ligne de séance du jour.
+     `withSub` rend `{ sub: undefined }` quand il n'en reste aucune : l'absence
+     du champ est la forme canonique de « aucune substitution », et JSON.stringify
+     ne recopie pas une clé indéfinie — le journal stocké reste celui d'avant.
+
+     Les séries déjà saisies sous l'exercice abandonné ne sont pas effacées
+     (design.md décision 6) : elles ont eu lieu, elles appartiennent à
+     l'historique de cet exercice-là, et sa fiche (#17) est l'endroit qui les
+     concerne. */
+  const substitute = (slotId, vid) => {
+    setSubSlot(null);
+    if (!slotId) return;
+    updateActive((st) => {
+      const d = dateOf(session.id);
+      const cur = findLog(st.logs, d, session.id) || {};
+      return { ...st, logs: writeLog(st.logs, d, session.id, withSub(cur, slotId, vid, prescribedVid(prog, slotId, week))) };
+    });
+  };
+
   /* Les séries de la séance telles qu'elles seront enregistrées : les poids
      vides remplis depuis « Prévu », exactement comme validate() le fait. La
      comparaison de #43 doit porter sur ça et non sur ce qui est tapé à l'écran,
@@ -590,8 +640,11 @@ export default function Programme() {
     const ex = { ...(cur.ex || {}) };
     const plans = [];
     [...session.ex, ...prog.CORE[session.core].ex].forEach(([slotId]) => {
-      const vid = prog.SLOTS[slotId][blockOf(week)];
-      const p = planned(prog, st, slotId, week, si, d);
+      /* #55 : l'exercice réellement tenu par le créneau, substitution comprise.
+         C'est sous cet identifiant-là que validate() écrit, et c'est celui-là
+         dont le moteur lit l'historique. */
+      const vid = vidFor(prog, cur, slotId, week);
+      const p = planned(prog, st, slotId, week, si, d, vid);
       const rows = (ex[vid] || []).map((r) => (r.r && !r.w && p.load != null ? { ...r, w: fmt(p.load) } : r));
       if (rows.length) ex[vid] = rows;
       plans.push({ slotId, vid, plan: p });
@@ -694,13 +747,37 @@ export default function Programme() {
     const cardioLines = (prog.CARDIO_ITEMS || []).filter((it) => ca[it.id] && ca[it.id].done).map((it) => { const d = ca[it.id]; return `${it.label} ${d.min || "?"} min${d.w ? `, ${d.w} W` : ""}${d.hr ? `, ${d.hr} bpm` : ""}`; });
     const mob = (ca.mob || []).filter(Boolean).length;
     const keys = getKeySlots(prog);
+    /* #55 Q2 = A : un créneau clé substitué nomme son remplaçant. Avant, la
+       ligne cherchait les séries sous l'identifiant *prescrit*, n'en trouvait
+       aucune et rendait null — la ligne disparaissait entièrement du bilan, et
+       une ligne absente se lit « pas fait », ce qui est faux.
+
+       Résolu séance par séance : la même semaine peut porter deux occurrences
+       du créneau, l'une substituée et l'autre non, et les séries des deux
+       comptent — chacune sous l'exercice qui l'a portée. */
     const keyLines = keys.map((slotId) => {
-      const vid = prog.SLOTS[slotId][blockOf(week)];
-      const sessionsW = prog.SESSIONS.map((s) => findLog(state.logs, dateOf(s.id), s.id)).filter((l) => l && l.done && l.ex && l.ex[vid]);
-      if (!sessionsW.length) return null;
-      const sets = normalizeSets(sessionsW.flatMap((l) => l.ex[vid]));
-      if (!sets.length) return null;
-      return `${prog.V[vid].name} : ${setSummary(sets, prog.V[vid])}`;
+      const prescribed = prescribedVid(prog, slotId, week);
+      /* Groupé par exercice *résolu*, et non par séance : sans substitution,
+         toutes les séances de la semaine tombent dans le même groupe et la
+         chaîne produite est identique au caractère près à celle d'avant #55.
+         C'est la substitution qui crée un second groupe, jamais autre chose. */
+      const byVid = new Map();
+      for (const s of prog.SESSIONS) {
+        const l = findLog(state.logs, dateOf(s.id), s.id);
+        if (!l || !l.done || !l.ex) continue;
+        const vid = vidFor(prog, l, slotId, week);
+        if (!l.ex[vid]) continue;
+        byVid.set(vid, [...(byVid.get(vid) || []), ...l.ex[vid]]);
+      }
+      const parts = [...byVid.entries()].map(([vid, rows]) => {
+        const sets = normalizeSets(rows);
+        if (!sets.length) return null;
+        const v = prog.V[vid];
+        if (!v) return null;
+        const name = vid === prescribed ? v.name : `${prog.V[prescribed]?.name || prescribed} → ${v.name}`;
+        return `${name} : ${setSummary(sets, v)}`;
+      }).filter(Boolean);
+      return parts.length ? parts.join(" ; ") : null;
     }).filter(Boolean);
     /* #13 : cardio et mobilité sont deux affordances indépendantes — un
        bundle peut n'avoir ni l'une ni l'autre, ou une seule des deux ; la
@@ -991,6 +1068,20 @@ export default function Programme() {
 
         {screen === "seance" && (
           <div className="px-4">
+            {/* #55 Q3 = C : le registre entier, avec la facette « mouvement » du
+                créneau déjà cochée — « une autre poussée horizontale » à zéro
+                tap, et décocher rend les 73 entrées. Les exercices que les
+                autres créneaux de la séance tiennent déjà sont inertes : `ex`
+                étant indexé par exercice, deux créneaux sur le même identifiant
+                mélangeraient leurs séries sans rien pour les redémêler. */}
+            {subSlot && (
+              <ExercisePicker
+                onChoose={(vid) => substitute(subSlot, vid)}
+                onClose={() => setSubSlot(null)}
+                initialFacets={{ pattern: prog.V[vidFor(prog, log, subSlot, week)]?.pattern || "" }}
+                disabledIds={takenVids(prog, log, slotIdsOf(prog, session), week, subSlot)}
+              />
+            )}
             {!storageOk && !loadError && <p className="text-sm text-notice mt-3">Stockage indisponible ici : les saisies ne survivront pas à la fermeture. Télécharge le journal (onglet Plan) en fin de séance.</p>}
 
             {/* #41 : le rail de chips est parti. Il faisait doublon avec la
@@ -1007,12 +1098,14 @@ export default function Programme() {
                 <Section title="Échauffement">{prog.WARM[session.warm]}</Section>
                 {session.ex.map(([slotId, n], i) => (
                   <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} state={state}
-                    rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onOpen={openExercise} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
+                    vid={vidFor(prog, log, slotId, week)} substituted={isSubstituted(prog, log, slotId, week)}
+                    rows={(log.ex && log.ex[vidFor(prog, log, slotId, week)]) || []} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 <div className="pt-4 text-sm text-ink-muted">{prog.CORE[session.core].label}</div>
                 {prog.CORE[session.core].ex.map(([slotId, n], i) => (
                   <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} state={state}
-                    rows={(log.ex && log.ex[prog.SLOTS[slotId][blockOf(week)]]) || []} onSet={onSet} onOpen={openExercise} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
+                    vid={vidFor(prog, log, slotId, week)} substituted={isSubstituted(prog, log, slotId, week)}
+                    rows={(log.ex && log.ex[vidFor(prog, log, slotId, week)]) || []} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 {session.after && cardio && (
                   <p className="text-sm text-ink-muted mt-3">

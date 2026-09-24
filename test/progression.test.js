@@ -787,3 +787,49 @@ describe("historyBefore", () => {
     assert.deepEqual(lastEntry(prog, st, "dc", d, si("hautA")), h[h.length - 1]);
   });
 });
+
+/* ---- #55 : planned() sur un exercice qu'on lui désigne ------------------ */
+
+describe("planned() avec un vid explicite (#55)", () => {
+  /* Deux séances de développé couché barre derrière soi, et rien au développé
+     haltères : c'est la situation d'une machine prise un mardi. */
+  const st = S(
+    { week: 2, sid: "hautA", vid: "dc", sets: [set(80, 8, 1), set(80, 8, 1), set(80, 8, 1)] },
+  );
+  const d = dateOf(3, "hautA");
+
+  test("sans le septième paramètre, rien ne change — c'est ce qui rend #55 bon marché", () => {
+    /* Tout le reste de ce fichier appelle planned() à six paramètres, et aucune
+       de ses valeurs attendues n'a bougé. Ce test dit explicitement ce que les
+       autres supposent : le défaut est l'exercice que le créneau prescrit. */
+    assert.deepEqual(
+      planned(prog, st, "dc", 3, si("hautA"), d),
+      planned(prog, st, "dc", 3, si("hautA"), d, prog.SLOTS.dc.b1),
+    );
+  });
+
+  test("le vid passé décide de l'historique lu, pas le créneau", () => {
+    /* La substitution vue du moteur. Le prescrit a trois séries au haut de
+       fourchette derrière lui, donc il monte d'un incrément ; le remplaçant n'a
+       ni historique ni charge de départ — `startingLoads` ne couvre que les
+       exercices du programme — donc il rend « Paliers ».
+
+       C'est le chemin `!base` qui existait déjà, et c'est le bon comportement :
+       on ne devine pas une charge sur un exercice jamais fait. */
+    const onSlot = planned(prog, st, "dc", 3, si("hautA"), d);
+    const onSub = planned(prog, st, "dc", 3, si("hautA"), d, "dc_db");
+    assert.equal(onSlot.load, 82.5);
+    assert.equal(onSub.load, null);
+    assert.equal(onSub.text, "Paliers");
+  });
+
+  test("le remplaçant lit son propre historique, pas celui du créneau", () => {
+    const both = S(
+      { week: 2, sid: "hautA", vid: "dc", sets: [set(80, 8, 1), set(80, 8, 1), set(80, 8, 1)] },
+      { week: 2, sid: "basA", vid: "dc_db", sets: [set(30, 8, 1), set(30, 8, 1), set(30, 8, 1)] },
+    );
+    const onSub = planned(prog, both, "dc", 3, si("hautA"), d, "dc_db");
+    assert.equal(onSub.load, 30 + prog.V.dc_db.incr);
+    assert.match(onSub.why, /haut de fourchette atteint/);
+  });
+});

@@ -75,6 +75,17 @@ describe("isLogRow", () => {
     assert.equal(isLogRow(row()), true);
   });
 
+  test("#55 : sub absent, vide ou peuplé — les trois passent", () => {
+    /* Un journal d'avant #55 ne porte pas le champ, et "absent" s'y lit
+       "aucune substitution" : c'est exactement ce qui s'est passé. */
+    assert.equal(isLogRow({ date: "2026-09-07", slot: "hautA" }), true);
+    assert.equal(isLogRow({ date: "2026-09-07", slot: "hautA", sub: {} }), true);
+    assert.equal(isLogRow({ date: "2026-09-07", slot: "hautA", sub: { dc: "dc_db" } }), true);
+    /* Les valeurs ne sont pas vérifiées contre le registre : vidFor() retombe
+       sur le prescrit, et une ligne n'a pas à perdre ses séries pour ça. */
+    assert.equal(isLogRow({ date: "2026-09-07", slot: "hautA", sub: { dc: "nexiste-pas" } }), true);
+  });
+
   for (const [label, value] of [
     ["null", null],
     ["nombre", 42],
@@ -85,6 +96,10 @@ describe("isLogRow", () => {
     ["sans slot", { date: "2026-09-07" }],
     ["slot vide", { date: "2026-09-07", slot: "" }],
     ["ex non-objet", { date: "2026-09-07", slot: "hautA", ex: 3 }],
+    /* #55 : `sub` est jugé sur sa forme, et sur rien d'autre — voir
+       l'en-tête d'isLogRow. */
+    ["sub chaîne", { date: "2026-09-07", slot: "hautA", sub: "dc_db" }],
+    ["sub tableau", { date: "2026-09-07", slot: "hautA", sub: ["dc_db"] }],
   ]) {
     test(`rejette : ${label}`, () => assert.equal(isLogRow(value), false));
   }

@@ -339,6 +339,12 @@ export function isLogRow(row) {
   if (typeof row.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)) return false;
   if (typeof row.slot !== "string" || row.slot === "") return false;
   if (row.ex != null && !isObj(row.ex)) return false;
+  /* #55 : `sub` est jugé sur sa forme et rien d'autre. Pas de contrôle que les
+     valeurs sont des exercices du registre ni que les clés sont des créneaux
+     connus : vidFor() (session-sub.js) retombe déjà sur l'exercice prescrit
+     pour tout ce qu'elle ne reconnaît pas, et une ligne de séance n'a pas à
+     être écartée — avec ses séries — pour un champ dont la lecture est sûre. */
+  if (row.sub != null && !isObj(row.sub)) return false;
   return true;
 }
 

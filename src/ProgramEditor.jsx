@@ -23,10 +23,10 @@
    ========================================================= */
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronUp, ChevronDown, Plus, X, Search } from "lucide-react";
+import { ChevronLeft, ChevronUp, ChevronDown, Plus, X } from "lucide-react";
 import { EXERCISES } from "./registry.js";
-import { filterExercises, FACET_VALUES } from "./exercise-filter.js";
-import { MUSCLE_LABELS, PATTERN_LABELS, EQUIPMENT_LABELS, DAY_NAMES, unitLoadLabel } from "./display.js";
+import { DAY_NAMES, unitLoadLabel } from "./display.js";
+import ExercisePicker from "./ExercisePicker.jsx";
 import { intentSummary } from "./generator.js";
 import {
   addSession, removeSession, moveSession, patchSession,
@@ -141,62 +141,6 @@ function Rows({ program, owner, rows, apply, onPick }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-/* ---------- Sélecteur d'exercices ----------
-   Plein écran : sur un téléphone, 63 entrées et trois facettes ne tiennent
-   pas dans un panneau replié. Se ferme sur un choix ou sur la croix, et ne
-   touche jamais au brouillon — il rend un id à l'écran, qui appelle la
-   mutation. */
-function Picker({ onChoose, onClose }) {
-  const [q, setQ] = useState("");
-  const [facets, setFacets] = useState({ muscle: "", pattern: "", equipment: "" });
-  const results = useMemo(() => filterExercises(q, facets), [q, facets]);
-  const facet = (key, label, labels) => (
-    <select value={facets[key]} onChange={(e) => setFacets({ ...facets, [key]: e.target.value })} aria-label={label}
-      className="h-10 px-2 shrink-0 rounded-md bg-surface-raised border border-rule text-sm text-ink focus:outline-none focus:ring-2 focus:ring-focus">
-      <option value="">{label}</option>
-      {FACET_VALUES[key].map((v) => <option key={v} value={v}>{labels[v] || v}</option>)}
-    </select>
-  );
-  return (
-    <div className="fixed inset-0 z-20 bg-surface overflow-y-auto">
-      <div className="max-w-md mx-auto px-4 pb-24">
-        <div className="sticky top-0 bg-surface pt-3 pb-2 border-b border-rule">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
-              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chercher un exercice" aria-label="Chercher un exercice" className={`${FIELD} pl-9`} />
-            </div>
-            <IconBtn label="Fermer le sélecteur" onClick={onClose}><X size={18} /></IconBtn>
-          </div>
-          <div className="flex gap-2 mt-2 overflow-x-auto">
-            {facet("muscle", "Muscle", MUSCLE_LABELS)}
-            {facet("pattern", "Mouvement", PATTERN_LABELS)}
-            {facet("equipment", "Matériel", EQUIPMENT_LABELS)}
-          </div>
-        </div>
-        {results.length === 0 ? (
-          <p className="text-sm text-ink-muted py-4">Aucun exercice ne correspond. Le registre est fermé : si rien ne convient, c'est qu'il y manque une entrée.</p>
-        ) : (
-          <div className="divide-y divide-rule">
-            {results.map((e) => (
-              <button key={e.id} type="button" onClick={() => onChoose(e.id)} className="w-full py-3 text-left rounded focus:outline-none focus:ring-2 focus:ring-focus">
-                <div className="font-medium text-ink">{e.name}</div>
-                {/* Les quatre entrées sans champs de sélection (#25) n'ont ni
-                    mouvement ni matériel à afficher : la ligne dit ce qu'elles
-                    sont plutôt que de rester vide. */}
-                <div className="text-xs text-ink-muted">
-                  {e.pattern ? PATTERN_LABELS[e.pattern] || e.pattern : "Gainage et portés"}
-                  {e.equipement?.length ? ` · ${e.equipement.map((k) => EQUIPMENT_LABELS[k] || k).join(", ")}` : ""}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -377,7 +321,7 @@ export default function ProgramEditor({ draft, onChange, onBack, onSave, error }
         </div>
       )}
 
-      {picker && <Picker onChoose={choose} onClose={() => setPicker(null)} />}
+      {picker && <ExercisePicker onChoose={choose} onClose={() => setPicker(null)} />}
     </div>
   );
 }
