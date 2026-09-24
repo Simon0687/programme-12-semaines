@@ -65,7 +65,6 @@ import { traitsOf } from "./units.js";
 export function setSummary(sets, v) {
   if (!sets || !sets.length) return "—";
   const u = traitsOf(v.unit);
-  const unit = v.unit || "kg";
   const secs = u.repUnit === "s";
   const loaded = u.hasLoad;
 
@@ -428,6 +427,19 @@ function niceScale(lo, hi) {
 const MIN_SPAN_RATIO = 0.15;
 const MIN_SPAN_INCR = 3;
 
+/* Le plancher proportionnel est ouvert en paramètre depuis #76, et la valeur
+   ci-dessus reste son défaut. Motif : 15 % de la médiane est un empan plausible
+   pour une charge d'exercice — un développé qui passe de 60 à 70 kg couvre
+   largement les 9 kg que la règle réclame. Sur un poids de corps, 15 % de 82 kg
+   font 12 kg : aucune variation réelle sur douze semaines n'atteint cet empan,
+   et une perte de 4 kg — le résultat que le programme vise — se tracerait comme
+   une ligne plate. La protection contre la fusée reste assurée par l'autre
+   plancher, celui en incréments, qui lui ne dépend pas de l'ordre de grandeur
+   de la mesure.
+
+   Aucun appelant n'est tenu de le passer : sans argument, l'axe se comporte
+   exactement comme avant. */
+
 function median(vals) {
   const s = [...vals].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);
@@ -439,10 +451,10 @@ function median(vals) {
    l'appelant passe alors `null`. Une médiane nulle ou absente annule simplement
    le pourcentage — il n'y a rien à diviser, et le comportement retombe sur
    celui d'avant. */
-export function framed(vals, incr) {
+export function framed(vals, incr, spanRatio = MIN_SPAN_RATIO) {
   const lo = Math.min(...vals), hi = Math.max(...vals);
   const med = median(vals);
-  const floor = Math.max(med > 0 ? med * MIN_SPAN_RATIO : 0, incr > 0 ? incr * MIN_SPAN_INCR : 0);
+  const floor = Math.max(med > 0 ? med * spanRatio : 0, incr > 0 ? incr * MIN_SPAN_INCR : 0);
   const pad = (floor - (hi - lo)) / 2;
   return pad > 0 ? niceScale(lo - pad, hi + pad) : niceScale(lo, hi);
 }
@@ -455,7 +467,7 @@ export function framed(vals, incr) {
    le haut de la zone. */
 const BAR_ZONE = 0.55;
 
-export function chartGeometry(series, box, axisIncr) {
+export function chartGeometry(series, box, axisIncr, spanRatio = MIN_SPAN_RATIO) {
   const all = (series || []).flatMap((s) => s.points || []);
   if (!all.length) return null;
 
@@ -473,7 +485,7 @@ export function chartGeometry(series, box, axisIncr) {
   const days = all.map((p) => dayNumber(p.date));
   const d0 = Math.min(...days), d1 = Math.max(...days);
   const vals = all.map((p) => p.value);
-  const scale = framed(vals, axisIncr);
+  const scale = framed(vals, axisIncr, spanRatio);
 
   const X = (iso) => (d1 === d0 ? (x0 + x1) / 2 : x0 + ((dayNumber(iso) - d0) / (d1 - d0)) * (x1 - x0));
   const Y = (v) => (scale.max === scale.min ? (y0 + y1) / 2 : y1 - ((v - scale.min) / (scale.max - scale.min)) * (y1 - y0));
