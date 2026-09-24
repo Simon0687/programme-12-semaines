@@ -70,6 +70,20 @@ export const FREQUENCIES = [2, 3, 4, 5, 6];
 export const DURATIONS = [45, 60, 75, 90];
 export const OBJECTIVES = ["force", "hypertrophie", "endurance"];
 
+/* La sixième question, et la seule qui soit facultative (#82). Les six
+   valeurs sont celles que le registre emploie : `articulations` est rempli
+   sur tout le catalogue depuis #25 et n'était lu que par la fiche exercice,
+   pour l'afficher.
+
+   Pourquoi une question et non un réglage de plus dans l'éditeur : la
+   première raison de changer de programme n'est pas l'ennui, c'est la
+   douleur. La seule réponse que l'application avait jusqu'ici était la
+   substitution séance par séance (#55) — un pansement, reposé douze fois.
+
+   Facultative au sens strict : `null` est une réponse, et elle rend
+   exactement ce que le moteur rendait avant #82. */
+export const JOINTS = ["epaule", "coude", "poignet", "lombaires", "hanche", "genou"];
+
 /* Deux presets, pas trois (decisions-spec.md Q1). Le poids du corps seul
    rendrait cinq exercices sélectionnables et aucun bas du corps : c'est un
    trou de catalogue, pas un réglage, et il revient quand le registre le
@@ -240,6 +254,15 @@ const MUSCLE_LABELS = {
    du JSX finit par diverger, et c'est l'écran qui aurait tort. */
 export const LEVEL_LABELS = { debutant: "Débutant", intermediaire: "Intermédiaire", avance: "Avancé" };
 export const OBJECTIVE_LABELS = { force: "Force", hypertrophie: "Hypertrophie", endurance: "Endurance de force" };
+/* Capitalisés, comme les deux tables au-dessus : ce sont des chips. La fiche
+   exercice a les siens (display.js, JOINT_LABELS), en minuscules, parce
+   qu'ils s'y lisent au fil d'une phrase. Deux tables donc, et un test qui
+   les verrouille l'une sur l'autre et sur le registre — c'est ce qui rend
+   la divergence impossible sans casser la suite. */
+export const JOINT_LABELS = {
+  epaule: "Épaule", coude: "Coude", poignet: "Poignet",
+  lombaires: "Lombaires", hanche: "Hanche", genou: "Genou",
+};
 
 /* La phrase que l'éditeur affiche sous le nom, en lecture seule
    (decisions-spec.md Q4). Elle vit ici parce que les quatre vocabulaires y
@@ -267,12 +290,18 @@ export function intentSummary(intent) {
    Le prédicat d'équipement est l'inverse de la facette de l'éditeur : celle-ci
    répond « cet exercice utilise une poulie », celui-ci « j'ai tout ce que cet
    exercice demande ». */
-export function poolFor(gear, level) {
+export function poolFor(gear, level, spare = null) {
   const rank = LEVEL_RANK[level] ?? 0;
   return Object.entries(EXERCISES)
     .filter(([, e]) => e.muscles && Array.isArray(e.equipement)
       && e.equipement.every((q) => gear.includes(q))
-      && (e.niveau_min ?? 1) <= rank)
+      && (e.niveau_min ?? 1) <= rank
+      /* #82 : l'articulation à ménager sort les exercices qui la chargent,
+         à la source. Retirer ici plutôt qu'en aval de la sélection est ce
+         qui garantit le critère : aucune boucle ne peut reposer un
+         exercice que le pool ne contient pas. Une entrée sans le champ
+         n'est jamais écartée — l'absence n'est pas une charge. */
+      && !(spare && Array.isArray(e.articulations) && e.articulations.includes(spare)))
     .map(([id, e]) => ({ id, ...e }))
     .sort((a, b) => (a.id < b.id ? -1 : 1));
 }
@@ -648,7 +677,15 @@ export function generate(constraints, today = new Date()) {
     level = DEFAULT_LEVEL,
     objective = DEFAULT_OBJECTIVE,
     priorities = DEFAULT_PRIORITIES,
+    spare = null,
   } = constraints ?? {};
+
+  /* Vocabulaire fermé comme les autres, à une nuance près : ici le refus est
+     silencieux. Une fréquence hors vocabulaire fait échouer la génération
+     parce qu'elle décrit un programme impossible ; une articulation inconnue
+     ne décrit rien du tout, et la traiter comme une absence rend exactement
+     le programme que l'on aurait eu sans la poser. */
+  const spared = JOINTS.includes(spare) ? spare : null;
 
   /* Vocabulaires fermés : une durée de 50 min n'est pas une demi-réponse à
      laquelle le moteur devrait improviser un plafond, c'est une valeur que la
@@ -664,7 +701,15 @@ export function generate(constraints, today = new Date()) {
   }
   if (!targets.feasible) return { ok: false, reason: "budget", message: targets.message };
 
-  const pool = poolFor(preset.gear, level);
+  const pool = poolFor(preset.gear, level, spared);
+
+  /* Ce que l'articulation a coûté, mesuré et non déduit : le même pool sans
+     la contrainte, et la différence. Sans articulation, aucun second pool
+     n'est construit et rien de tout ceci ne tourne. */
+  const fullPool = spared ? poolFor(preset.gear, level) : pool;
+  const lostToSpare = spared
+    ? MUSCLES.filter((m) => servableBy(fullPool).has(m) && !servableBy(pool).has(m))
+    : [];
   const { assigned, uncovered, short } = planSlots(split, targets, servableBy(pool));
 
   const ctx = {
@@ -691,7 +736,19 @@ export function generate(constraints, today = new Date()) {
     ok: true,
     report: {
       cut: MUSCLES.filter((m) => targets.volume[m] === 0).map((m) => MUSCLE_LABELS[m]),
-      uncovered: MUSCLES.filter((m) => ctx.uncovered.has(m)).map((m) => MUSCLE_LABELS[m]),
+      /* Les muscles perdus à cause de l'articulation sortent d'ici pour
+         entrer dans `spared` : les deux listes ne se disent pas de la même
+         façon. « Le matériel ne permet pas de les travailler » serait faux
+         d'un muscle écarté pour ménager une épaule, et c'est précisément le
+         genre de phrase qui fait acheter une poulie. */
+      uncovered: MUSCLES.filter((m) => ctx.uncovered.has(m) && !lostToSpare.includes(m)).map((m) => MUSCLE_LABELS[m]),
+      /* #82 : null quand aucune articulation n'a été posée — l'écran n'a
+         alors rien à dire, et pas une phrase vide à ne pas afficher. */
+      spared: spared && {
+        joint: JOINT_LABELS[spared],
+        excluded: fullPool.length - pool.length,
+        lost: lostToSpare.map((m) => MUSCLE_LABELS[m]),
+      },
       /* #61 : servi, mais moins souvent que son plancher de fréquence. C'est le
          prix de « couverture d'abord », annoncé ici au lieu d'être découvert
          plus tard dans l'avis de Plan. */
@@ -709,7 +766,13 @@ export function generate(constraints, today = new Date()) {
       /* L'intention déclarée : les cinq champs que `targetsFor()` prend, plus
          le matériel, qui est ce qui *explique* le programme quand un groupe
          manque (decisions-spec.md Q6). */
-      intent: { frequency, duration, level, objective, priorities: [...priorities], equipment },
+      /* `spare` rejoint l'intention pour la raison qui y a mis `equipment`
+         (decisions-spec.md Q6) : c'est ce qui *explique* le programme quand
+         un groupe manque. Le champ reste optionnel et consultatif, donc le
+         format de définition ne bouge pas — une version antérieure de
+         l'appli l'ignore et exécute le programme sans rien perdre
+         (definition.js, note du formatVersion 2). */
+      intent: { frequency, duration, level, objective, priorities: [...priorities], equipment, ...(spared && { spare: spared }) },
       program: toProgram(plan, ctx, objective),
     },
   };

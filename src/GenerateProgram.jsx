@@ -1,11 +1,11 @@
 /* =========================================================
-   Écran de collecte — cinq réponses, puis une proposition (#58)
+   Écran de collecte — cinq réponses, puis une proposition (#58, #82)
 
    Comme ProgramEditor.jsx, ce fichier n'émet que du balisage : les
    vocabulaires, le moteur et les phrases du rapport viennent de
    src/generator.js, qui est testé sous `node --test` (ARCHITECTURE §2.6).
 
-   Ce qu'il possède, et qui n'est pas de la donnée : les trois réponses en
+   Ce qu'il possède, et qui n'est pas de la donnée : les réponses en
    cours et la proposition affichée. Rien n'est stocké — la proposition part
    dans l'éditeur, et c'est l'éditeur qui décide d'enregistrer (#36 Q4). Un
    rechargement en pleine collecte retombe sur Semaine, comme en pleine
@@ -23,7 +23,7 @@ import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import {
   FREQUENCIES, DURATIONS, PRESETS, LEVELS, OBJECTIVES,
-  LEVEL_LABELS, OBJECTIVE_LABELS, generate,
+  LEVEL_LABELS, OBJECTIVE_LABELS, JOINTS, JOINT_LABELS, generate,
 } from "./generator.js";
 
 function Chip({ selected, onClick, children }) {
@@ -55,10 +55,19 @@ function Question({ label, hint, children }) {
    première est une décision du budget, la deuxième une limite du matériel ou
    du format, la troisième (#61) un arbitrage entre deux muscles. */
 function Report({ report }) {
-  const { cut, uncovered, underFrequency = [] } = report;
-  if (!cut.length && !uncovered.length && !underFrequency.length) return null;
+  const { cut, uncovered, underFrequency = [], spared = null } = report;
+  if (!cut.length && !uncovered.length && !underFrequency.length && !spared) return null;
   return (
     <div className="mt-4 space-y-2">
+      {/* #82 : en tête, parce que c'est la seule des quatre que
+          l'utilisateur a demandée. Elle se lit comme un accusé de réception
+          — voilà ce que ta contrainte a coûté — et non comme un reproche. */}
+      {spared && (
+        <p className="text-sm text-ink-muted">
+          {spared.joint} ménagée : {spared.excluded} exercice{spared.excluded > 1 ? "s" : ""} écarté{spared.excluded > 1 ? "s" : ""}.
+          {spared.lost.length > 0 && ` Plus rien ne couvre ${spared.lost.join(", ").toLowerCase()} sans la solliciter — à ajouter à la main dans l'éditeur si la douleur passe.`}
+        </p>
+      )}
       {cut.length > 0 && (
         <p className="text-sm text-notice">
           Ce format ne laisse pas de place à : {cut.join(", ").toLowerCase()}. Le temps disponible passe d'abord
@@ -95,6 +104,11 @@ export default function GenerateProgram({ today, onBack, onAccept }) {
      peut demander. */
   const [level, setLevel] = useState(null);
   const [objective, setObjective] = useState(null);
+  /* La seule des six qui a une valeur de départ, et c'est la bonne réponse
+     pour la plupart des gens : `null` veut dire « aucune », pas « pas encore
+     répondu ». Une question facultative qui bloquerait le bouton serait une
+     question obligatoire déguisée. */
+  const [spare, setSpare] = useState(null);
   const [result, setResult] = useState(null);
 
   /* Changer une réponse jette la proposition : la garder à l'écran sous des
@@ -110,13 +124,17 @@ export default function GenerateProgram({ today, onBack, onAccept }) {
      le parent depuis le corps du composant serait une mise à jour d'état en
      plein rendu. */
   const run = () => {
-    const r = generate({ frequency, duration, equipment, level, objective }, today);
+    const r = generate({ frequency, duration, equipment, level, objective, spare }, today);
     /* #61 : `underFrequency` entre dans la condition. Le raccourci existe pour
        éviter « un écran vide pour le plaisir d'un clic de plus » — un arbitrage
        que le moteur a rendu à la place de quelqu'un n'est pas un écran vide.
        Mesuré : 14 des 171 combinaisons générées s'arrêtent ici alors qu'elles
        passaient droit, et chacune a quelque chose de vrai à dire. */
-    if (r.ok && !r.report.cut.length && !r.report.uncovered.length && !r.report.underFrequency.length) { onAccept(r.definition); return; }
+    /* #82 : `spared` entre dans la condition pour la même raison que
+       `underFrequency` en #61 — ce que la contrainte a coûté est quelque
+       chose de vrai à dire, et le dire après coup dans l'avis de Plan
+       arriverait six semaines trop tard. */
+    if (r.ok && !r.report.cut.length && !r.report.uncovered.length && !r.report.underFrequency.length && !r.report.spared) { onAccept(r.definition); return; }
     setResult(r);
   };
 
@@ -132,9 +150,9 @@ export default function GenerateProgram({ today, onBack, onAccept }) {
       </div>
 
       <p className="text-sm text-ink-soft mt-3">
-        Cinq réponses suffisent : le reste — le découpage des séances, les exercices, les séries et les
-        répétitions — se calcule. La proposition s'ouvre ensuite dans l'éditeur, et rien n'est enregistré
-        tant que tu ne l'as pas validée.
+        Cinq réponses suffisent — une sixième, facultative, met une articulation de côté. Le reste — le
+        découpage des séances, les exercices, les séries et les répétitions — se calcule. La proposition
+        s'ouvre ensuite dans l'éditeur, et rien n'est enregistré tant que tu ne l'as pas validée.
       </p>
 
       <Question label="Combien de séances par semaine ?">
@@ -173,6 +191,20 @@ export default function GenerateProgram({ today, onBack, onAccept }) {
       >
         {OBJECTIVES.map((key) => (
           <Chip key={key} selected={objective === key} onClick={() => answer(setObjective)(key)}>{OBJECTIVE_LABELS[key]}</Chip>
+        ))}
+      </Question>
+
+      <Question
+        label="Une articulation à ménager ? (facultatif)"
+        hint="Les exercices qui la chargent sortent de la sélection — pas seulement d'une séance. Un groupe que plus rien ne couvre sans elle sera annoncé."
+      >
+        {/* « Aucune » est une chip comme les autres et non une absence de
+            chip : sans elle, on ne peut pas revenir sur sa réponse, et le
+            lot 2 a justement retiré tout ce qui était présélectionné sans
+            avoir été répondu. */}
+        <Chip selected={spare === null} onClick={() => answer(setSpare)(null)}>Aucune</Chip>
+        {JOINTS.map((key) => (
+          <Chip key={key} selected={spare === key} onClick={() => answer(setSpare)(key)}>{JOINT_LABELS[key]}</Chip>
         ))}
       </Question>
 

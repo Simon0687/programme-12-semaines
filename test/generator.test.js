@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   FREQUENCIES, DURATIONS, PRESETS, LEVELS, OBJECTIVES,
   LEVEL_LABELS, OBJECTIVE_LABELS, DEFAULT_LEVEL, DEFAULT_OBJECTIVE,
-  generate, poolFor, intentSummary,
+  generate, poolFor, intentSummary, JOINTS, JOINT_LABELS,
 } from "../src/generator.js";
 import { VOLUME, assess, targetsFor, resolveWeek, weeklyVolume } from "../src/assertions.js";
 import { validateDefinition } from "../src/journal-shape.js";
@@ -12,6 +12,7 @@ import { buildProgram } from "../src/program.js";
 import { EXERCISES, UNSELECTABLE_IDS } from "../src/registry.js";
 import { draftFrom, toDefinition, withNewId } from "../src/program-editor.js";
 import { buildPlan } from "../src/plan.js";
+import { JOINT_LABELS as SHEET_JOINT_LABELS } from "../src/display.js";
 
 /* Une date fixe : `startDate` est le lundi qui vient, et un test qui lit
    l'horloge change de résultat le lundi. */
@@ -557,5 +558,106 @@ describe("generate : reproductible (#58)", () => {
     const avance = generate({ ...c, level: "avance" }, TODAY).definition;
     assert.notDeepEqual(debutant.program, avance.program);
     assert.equal(debutant.intent.level, "debutant");
+  });
+});
+
+/* ---------- #82 : une articulation à ménager ---------- */
+
+describe("generate : une articulation à ménager (#82)", () => {
+  const BASE = { frequency: 4, duration: 60, equipment: "salle-complete", level: "intermediaire", objective: "hypertrophie" };
+  const slotsOf = (def) => Object.values(def.program.SLOTS).flatMap((s) => [s.b1, s.b2]).filter(Boolean);
+  const loads = (vid, joint) => {
+    const e = EXERCISES[vid];
+    return !!(e && Array.isArray(e.articulations) && e.articulations.includes(joint));
+  };
+
+  /* Le critère central, vérifié sur toutes les combinaisons du vocabulaire et
+     non sur un cas choisi : un seul créneau fautif suffirait à rendre la
+     réponse inutile, puisqu'on la pose pour une douleur. */
+  test("aucun créneau généré ne charge l'articulation, sur tout le vocabulaire", () => {
+    let generated = 0;
+    for (const frequency of FREQUENCIES) {
+      for (const duration of DURATIONS) {
+        for (const equipment of Object.keys(PRESETS)) {
+          for (const level of LEVELS) {
+            for (const spare of JOINTS) {
+              const r = gen({ frequency, duration, equipment, level, objective: "hypertrophie", spare });
+              if (!r.ok) continue;
+              generated++;
+              const fautifs = slotsOf(r.definition).filter((vid) => loads(vid, spare));
+              assert.deepEqual(fautifs, [], `${frequency}×${duration} ${equipment} ${level}, ${spare}`);
+            }
+          }
+        }
+      }
+    }
+    assert.ok(generated > 1000, `couverture insuffisante : ${generated} combinaisons`);
+  });
+
+  test("le rapport nomme l'articulation et ce qu'elle a écarté", () => {
+    const { report } = gen({ ...BASE, spare: "epaule" });
+    assert.equal(report.spared.joint, JOINT_LABELS.epaule);
+    assert.ok(report.spared.excluded > 0, "des exercices ont été écartés");
+    assert.equal(report.spared.excluded, poolFor(PRESETS["salle-complete"].gear, "intermediaire").length
+      - poolFor(PRESETS["salle-complete"].gear, "intermediaire", "epaule").length);
+  });
+
+  /* Un muscle que plus rien ne sert à cause de l'articulation est dit comme
+     tel, et sort de `uncovered` : « le matériel ne permet pas de les
+     travailler » serait faux, et enverrait acheter une machine. */
+  test("un muscle perdu à cause de l'articulation est dit là, et pas dans uncovered", () => {
+    const { report } = gen({ ...BASE, spare: "epaule" });
+    assert.ok(report.spared.lost.length > 0, "ménager l'épaule coûte au moins un groupe");
+    for (const m of report.spared.lost) assert.ok(!report.uncovered.includes(m), `${m} compté deux fois`);
+  });
+
+  test("sans articulation, le rapport n'a rien à en dire", () => {
+    assert.equal(gen(BASE).report.spared, null);
+  });
+
+  /* Le critère d'acceptation « sortie identique à aujourd'hui » : la
+     définition produite, au champ près, ne bouge pas. */
+  test("aucune articulation posée : la définition est exactement celle d'avant", () => {
+    for (const frequency of FREQUENCIES) {
+      for (const equipment of Object.keys(PRESETS)) {
+        const sans = gen({ ...BASE, frequency, equipment });
+        for (const spare of [null, undefined, "", "cheville", 42]) {
+          const r = gen({ ...BASE, frequency, equipment, spare });
+          assert.equal(r.ok, sans.ok, `ok diverge pour ${JSON.stringify(spare)}`);
+          if (!r.ok) continue;
+          assert.deepEqual(r.definition, sans.definition, `${frequency} ${equipment}, spare=${JSON.stringify(spare)}`);
+          assert.equal(r.report.spared, null);
+        }
+      }
+    }
+  });
+
+  test("l'articulation ménagée rejoint l'intention déclarée, et elle seule", () => {
+    assert.equal(gen({ ...BASE, spare: "genou" }).definition.intent.spare, "genou");
+    assert.ok(!("spare" in gen(BASE).definition.intent), "sans contrainte, pas de champ");
+    /* Consultatif : le programme reste valide aux deux portes. */
+    assert.equal(validateDefinition(gen({ ...BASE, spare: "genou" }).definition), null);
+  });
+
+  /* Les deux tables de libellés du dépôt ne peuvent pas diverger sans que ce
+     test tombe — c'est ce qui autorise qu'il y en ait deux. */
+  test("le vocabulaire des articulations s'accorde avec le registre et avec la fiche exercice", () => {
+    assert.deepEqual([...JOINTS].sort(), Object.keys(JOINT_LABELS).sort());
+    assert.deepEqual([...JOINTS].sort(), Object.keys(SHEET_JOINT_LABELS).sort());
+    const inRegistry = new Set();
+    for (const e of Object.values(EXERCISES)) for (const a of e.articulations || []) inRegistry.add(a);
+    assert.deepEqual([...inRegistry].sort(), [...JOINTS].sort());
+    assert.ok(JOINTS.every((j) => JOINT_LABELS[j] && JOINT_LABELS[j][0] === JOINT_LABELS[j][0].toUpperCase()),
+      "les chips portent des libellés capitalisés");
+  });
+
+  test("poolFor n'écarte que ce qui charge l'articulation", () => {
+    const gear = PRESETS["salle-complete"].gear;
+    const full = poolFor(gear, "intermediaire");
+    const sans = poolFor(gear, "intermediaire", "genou");
+    assert.ok(sans.length < full.length);
+    assert.ok(sans.every((e) => !loads(e.id, "genou")));
+    const retires = full.filter((e) => !sans.some((x) => x.id === e.id));
+    assert.ok(retires.every((e) => loads(e.id, "genou")), "rien d'autre n'a été écarté");
   });
 });
