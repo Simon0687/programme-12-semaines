@@ -41,7 +41,11 @@ export default function Welcome({ onGenerate, onCompose, onLoadFile, onPreview, 
   return (
     <div className="max-w-md mx-auto px-4 pb-24">
       <div className="pt-10 pb-6">
-        <h1 className="text-2xl font-semibold text-ink">Ton programme, pas celui d'un autre</h1>
+        {/* #70 : le titre nomme ce que l'appli fait. « Ton programme, pas celui
+            d'un autre » défendait une position que personne ne conteste au
+            moment d'ouvrir l'appli pour la première fois, et y dépensait le
+            plus gros texte de l'écran. */}
+        <h1 className="text-2xl font-semibold text-ink">Un programme qui suit tes charges</h1>
         <p className="text-sm text-ink-muted mt-2 leading-relaxed">
           Douze semaines, quatre séances par semaine au plus, et une charge proposée
           à chaque série à partir de ce que tu as réellement soulevé la fois d'avant.
