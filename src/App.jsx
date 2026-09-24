@@ -1294,8 +1294,13 @@ export default function Programme() {
         {/* #41 : un en-tête par écran, plus un en-tête pour tout le monde.
             C'est la bascule dont tout le reste découle — les flèches de semaine
             n'avaient de sens au-dessus de Séance que parce qu'on pouvait y
-            arriver sans avoir choisi. */}
-        {screen !== "seance" && screen !== "exercice" && screen !== "editeur" && (
+            arriver sans avoir choisi.
+            #83 : la même logique, poussée au bout. La liste d'exclusion laissait
+            passer le Plan et le générateur, où les flèches changeaient une
+            semaine que rien sur la page ne lit — et s'empilaient au-dessus de
+            leur propre en-tête collant. L'en-tête de semaine appartient à
+            Semaine ; les autres écrans portent le leur. */}
+        {screen === "semaine" && (
           <div className="sticky top-0 z-10 bg-surface border-b border-rule px-4 pt-3 pb-2">
             <div className="flex items-center justify-between">
               <button onClick={() => setWeek(Math.max(1, week - 1))} aria-label="Semaine précédente" className="h-11 w-11 rounded-md bg-surface-raised border border-rule inline-flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-focus"><ChevronLeft size={18} /></button>
@@ -1782,6 +1787,13 @@ export default function Programme() {
               )}
             </PlanPage>
           ) : (
+            <>
+            {/* #83 : l'index perd l'en-tête de semaine et gagne le sien, du même
+                dessin que celui de PlanPage — un titre, sans flèches. La
+                semaine reste dite, sur la carte du programme actif. */}
+            <div className="sticky top-0 z-10 bg-surface border-b border-rule px-4 pt-3 pb-2">
+              <div className="text-xl font-semibold leading-tight">Plan</div>
+            </div>
             <div className="px-4">
               <p className="text-sm text-ink-soft mt-3">{PLAN_INTRO}</p>
               {/* De quel programme cette référence parle, dit une fois en haut
@@ -1798,6 +1810,7 @@ export default function Programme() {
               </div>
               <PlanIndex topics={planTopics} onOpen={setPlanTopic} />
             </div>
+            </>
           )
         )}
 
