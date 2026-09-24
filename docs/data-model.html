@@ -348,8 +348,8 @@
       <div class="fields">
         <div class="k">definition</div><div class="v">Le programme figé de ce cycle. Détaillé ci-dessous.</div>
         <div class="k">logs</div><div class="v">Dictionnaire <em>id de ligne → séance</em>. Une ligne par séance effectuée.</div>
-        <div class="k">cardio</div><div class="v">Dictionnaire <em>"w1".."w12" → { id d'item → { done, min, w, hr } }</em>.</div>
-        <div class="k">checkin</div><div class="v">Dictionnaire <em>"w1".."w12" → { poids, taille, sommeil, energie, rir, nutrition, remarques }</em>. Tout en texte libre.</div>
+        <div class="k">cardio</div><div class="v">Dictionnaire <em>date → { id d'item → { done, min, w, hr }, mob: [booléens] }</em>. Depuis #29 la clé est la <strong>date réelle du premier jour de la semaine de cycle</strong> (<code>weekStartKey</code> = <code>dateForSlot(startDate, semaine, 1)</code>), et non plus <code>"w1".."w12"</code> : reprendre un programme avec une <code>startDate</code> rafraîchie remettait le compteur à 1, et la semaine 1 du second passage écrasait celle du premier, en silence. Par semaine et non par jour — le jour de chaque séance de conditionnement est porté par le <em>programme</em> depuis #34, pas par le journal.</div>
+        <div class="k">checkin</div><div class="v">Dictionnaire <em>date → { poids, taille, sommeil, energie, rir, nutrition, remarques }</em>, même clé que <code>cardio</code> (#29). Tout en texte libre. Aucun champ de synchronisation — ni <code>id</code>, ni <code>updatedAt</code>, ni <code>deletedAt</code> : la clé <em>est</em> la date, il n'y a rien à engendrer, et rien n'affiche la date de saisie d'un check-in.</div>
       </div>
     </div>
 

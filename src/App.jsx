@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Timer, Download, Upload, Zap, X, Repeat } from "lucide-react";
-import { SCHEMA_VERSION, emptyJournal, weekKey, dateForSlot, slotForDate, findLog, writeLog, withVersion } from "./schema.js";
+import { SCHEMA_VERSION, emptyJournal, weekStartKey, dateForSlot, slotForDate, findLog, writeLog, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport, IMPORT_MESSAGES } from "./import.js";
 import { listBackups, readDroppedBackup, backupPreImportOnce, readPreImportBackup } from "./backup.js";
 import { createStore, loadJournal, saveJournal } from "./storage.js";
@@ -708,9 +708,12 @@ export default function Programme() {
   };
   const reopen = () => updateActive((st) => ({ ...st, logs: writeLog(st.logs, dateOf(session.id), session.id, { done: false }) }));
 
-  const setCardio = (id, f, val) => updateActive((st) => { const k = weekKey(week); const c = st.cardio[k] || {}; return { ...st, cardio: { ...st.cardio, [k]: { ...c, [id]: { ...(c[id] || {}), [f]: val } } } }; });
-  const toggleMob = (i) => updateActive((st) => { const k = weekKey(week); const c = st.cardio[k] || {}; const m = [...(c.mob || Array(prog.MOB_DAYS.length).fill(false))]; m[i] = !m[i]; return { ...st, cardio: { ...st.cardio, [k]: { ...c, mob: m } } }; });
-  const setCheck = (f, val) => updateActive((st) => { const k = weekKey(week); return { ...st, checkin: { ...st.checkin, [k]: { ...(st.checkin[k] || {}), [f]: val } } }; });
+  /* #29 : la clé est la date du premier jour de la semaine de cycle, plus un
+     numéro relatif. Deux passages du même programme ont deux startDate, donc
+     jamais la même clé pour « semaine 1 » — le second n'écrase plus le premier. */
+  const setCardio = (id, f, val) => updateActive((st) => { const k = weekStartKey(definition.startDate, week); const c = st.cardio[k] || {}; return { ...st, cardio: { ...st.cardio, [k]: { ...c, [id]: { ...(c[id] || {}), [f]: val } } } }; });
+  const toggleMob = (i) => updateActive((st) => { const k = weekStartKey(definition.startDate, week); const c = st.cardio[k] || {}; const m = [...(c.mob || Array(prog.MOB_DAYS.length).fill(false))]; m[i] = !m[i]; return { ...st, cardio: { ...st.cardio, [k]: { ...c, mob: m } } }; });
+  const setCheck = (f, val) => updateActive((st) => { const k = weekStartKey(definition.startDate, week); return { ...st, checkin: { ...st.checkin, [k]: { ...(st.checkin[k] || {}), [f]: val } } }; });
 
   /* #41 : le bilan sort en fichier, comme le journal — un seul geste à
      connaître pour les deux. Ça retire aussi le presse-papier du chemin, qui
@@ -758,8 +761,8 @@ export default function Programme() {
   };
 
   const bilanText = () => {
-    const c = state.checkin[weekKey(week)] || {};
-    const ca = state.cardio[weekKey(week)] || {};
+    const c = state.checkin[weekStartKey(definition.startDate, week)] || {};
+    const ca = state.cardio[weekStartKey(definition.startDate, week)] || {};
     const done = prog.SESSIONS.filter((s) => doneMap[s.id]);
     const missing = prog.SESSIONS.filter((s) => !doneMap[s.id]).map((s) => s.name);
     const cardioLines = (prog.CARDIO_ITEMS || []).filter((it) => ca[it.id] && ca[it.id].done).map((it) => { const d = ca[it.id]; return `${it.label} ${d.min || "?"} min${d.w ? `, ${d.w} W` : ""}${d.hr ? `, ${d.hr} bpm` : ""}`; });
@@ -994,8 +997,8 @@ export default function Programme() {
   const backLabel = backSession ? `Séance ${backSession.name}` : "Semaine";
 
   const cardio = prog.cardioPlan ? prog.cardioPlan(week) : null;
-  const ca = state.cardio[weekKey(week)] || {};
-  const ci = state.checkin[weekKey(week)] || {};
+  const ca = state.cardio[weekStartKey(definition.startDate, week)] || {};
+  const ci = state.checkin[weekStartKey(definition.startDate, week)] || {};
   const bilanFilled = BILAN_KEYS.filter((k) => (ci[k] || "") !== "").length;
 
   if (!loaded) return <div className="min-h-screen bg-surface text-ink-muted flex items-center justify-center">Chargement du journal…</div>;

@@ -282,6 +282,14 @@ does it once, at the end of the chain. A second declaration of a version number
 is how two shapes end up sharing one number, which no migration can then
 untangle.
 
+The chain now runs to **5**. Each step takes its program knowledge from where it
+can actually find it: `MIGRATIONS[2]` needs an injected `ctx` because a v2
+journal could carry `definition: null`, a *reference* to the bundle resolved at
+read time. `MIGRATIONS[4]` (#29, cardio and check-in re-keyed by date) needs
+none, and that is a property #26 bought: from v4 on, every program carries its
+own pinned definition, so the `startDate` a migration needs is already inside the
+entry it is converting. Each cycle dates against its own.
+
 ### 2.9 Every door into the journal goes through one validator
 
 Four doors accept a journal or a definition: the stored journal (`loadJournal`),

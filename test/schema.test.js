@@ -3,14 +3,31 @@ import assert from "node:assert/strict";
 
 import {
   SCHEMA_VERSION, LEGACY_PROGRAM_ID, applyChain, migrate, versionOf,
-  weekKey, genId, dateForSlot, slotForDate, findLog, writeLog,
+  weekKey, weekStartKey, genId, dateForSlot, slotForDate, findLog, writeLog,
 } from "../src/schema.js";
 import { testCtx } from "./helpers/migration-ctx.js";
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 
-test("weekKey : format des clés cardio/check-in (#24), inchangé par #16 (hors périmètre, #29)", () => {
+test("weekKey : l'ancienne clé cardio/check-in, que plus personne n'écrit (#29)", () => {
+  /* Conservée pour une seule raison : c'est la forme que MIGRATIONS[4] doit
+     savoir reconnaître dans les journaux déjà écrits. */
   assert.equal(weekKey(1), "w1");
   assert.equal(weekKey(7), "w7");
+});
+
+test("weekStartKey : la date du premier jour de la semaine de cycle (#29)", () => {
+  assert.equal(weekStartKey("2026-09-07", 1), "2026-09-07");
+  assert.equal(weekStartKey("2026-09-07", 2), "2026-09-14");
+  assert.equal(weekStartKey("2026-09-07", 12), "2026-11-23");
+});
+
+test("weekStartKey : deux passages du même programme ne partagent aucune clé (#29)", () => {
+  /* Le défaut que l'issue corrige, énoncé comme une propriété : reprendre un
+     programme avec une startDate rafraîchie remettait le compteur à 1, et la
+     semaine 1 du second passage écrasait celle du premier. */
+  const premier = [1, 2, 3].map((w) => weekStartKey("2026-09-07", w));
+  const second = [1, 2, 3].map((w) => weekStartKey("2027-01-04", w));
+  assert.equal(new Set([...premier, ...second]).size, 6);
 });
 
 test("genId : deux appels ne renvoient jamais la même valeur", () => {
@@ -157,8 +174,13 @@ test("migrate : journal v1 (plat) migré vers la version courante, séances dat�
   const basA = logs.find((l) => l.slot === "basA");
   assert.equal(basA.kind, "deload"); // semaine 7
   assert.deepEqual(basA.ex, { squat: [{ w: "80", r: "5", rir: "2" }] });
-  assert.deepEqual(active.cardio, input.cardio); // #16 ne touche pas cardio/checkin (#29)
-  assert.deepEqual(active.checkin, input.checkin);
+  /* #29 : l'assertion que cette ligne portait — « #16 ne touche pas
+     cardio/checkin » — nommait déjà l'issue qui allait la retourner. Les clés
+     passent de `w{n}` à la date du premier jour de la semaine de cycle, tirée
+     de la startDate du programme hérité (2026-09-07, un lundi). Le contenu,
+     lui, est recopié tel quel : la migration déplace une clé. */
+  assert.deepEqual(active.cardio, { "2026-09-07": input.cardio.w1 });
+  assert.deepEqual(active.checkin, { "2026-09-07": input.checkin.w1 });
 });
 
 test("migrate : journal non versionné (v1 implicite) migré vers v3", () => {
@@ -292,4 +314,91 @@ test("applyChain : transmet ctx tel quel à chaque étape", () => {
   const fake = { 1: (d, ctx) => ({ ...d, seen: ctx.tag }) };
   const out = applyChain({ schemaVersion: 1 }, 2, fake, { tag: "x" });
   assert.equal(out.seen, "x");
+});
+
+/* ---- #29 : MIGRATIONS[4], cardio et check-in datés --------------------- */
+
+const v4 = (cardio, checkin, startDate = "2026-09-07") => ({
+  schemaVersion: 4,
+  activeProgramId: "p",
+  programs: { p: { definition: { ...LEGACY_DEFINITION, startDate }, logs: {}, cardio, checkin } },
+});
+const prog4 = (res) => res.data.programs.p;
+
+test("migrate v4 -> v5 : les clés de semaine deviennent des dates, le contenu est recopié", () => {
+  const res = migrate(v4({ w1: { z2: { done: true } }, w7: { mob: [true] } }, { w1: { poids: "90" } }), testCtx());
+  assert.equal(res.ok, true);
+  assert.equal(res.migrated, true);
+  assert.deepEqual(Object.keys(prog4(res).cardio).sort(), ["2026-09-07", "2026-10-19"]);
+  assert.deepEqual(prog4(res).cardio["2026-09-07"], { z2: { done: true } });
+  assert.deepEqual(prog4(res).checkin, { "2026-09-07": { poids: "90" } });
+});
+
+test("migrate v4 -> v5 : la date vient de la startDate du programme, pas du bundle courant", () => {
+  /* Même règle que MIGRATIONS[2] : l'historique d'un cycle se date contre le
+     programme sous lequel il a été tenu. */
+  const res = migrate(v4({ w1: { z2: {} } }, {}, "2027-03-01"), testCtx());
+  assert.deepEqual(Object.keys(prog4(res).cardio), ["2027-03-01"]);
+});
+
+test("migrate v4 -> v5 : chaque cycle se date contre sa propre startDate", () => {
+  const input = {
+    schemaVersion: 4,
+    activeProgramId: "a",
+    programs: {
+      a: { definition: { ...LEGACY_DEFINITION, startDate: "2026-09-07" }, logs: {}, cardio: { w1: { t: 1 } }, checkin: {} },
+      b: { definition: { ...LEGACY_DEFINITION, startDate: "2027-01-04" }, logs: {}, cardio: { w1: { t: 2 } }, checkin: {} },
+    },
+  };
+  const res = migrate(input, testCtx());
+  assert.deepEqual(Object.keys(res.data.programs.a.cardio), ["2026-09-07"]);
+  assert.deepEqual(Object.keys(res.data.programs.b.cardio), ["2027-01-04"]);
+});
+
+test("migrate v4 -> v5 : idempotente — une clé déjà datée traverse intacte", () => {
+  /* Gratuit, et voulu : une date ne matche pas ^wd+$, donc rejouer l'étape ne
+     change rien. La migration n'a pas besoin de savoir si elle est déjà passée. */
+  const dejaDate = { "2026-09-07": { z2: { done: true } } };
+  const res = migrate({ ...v4(dejaDate, {}), schemaVersion: 4 }, testCtx());
+  assert.deepEqual(prog4(res).cardio, dejaDate);
+});
+
+test("migrate v4 -> v5 : une clé inconnue traverse, elle ne fait pas refuser le journal", () => {
+  /* MIGRATIONS[2] lève sur une clé de log qu'elle ne reconnaît pas, et c'est
+     juste : perdre une séance en silence est inacceptable. Ici le calcul est
+     différent — ces entrées ne nourrissent ni planned() ni history(), et faire
+     perdre l'accès à deux ans d'historique pour une clé cardio inattendue
+     serait hors de proportion (#32, même raisonnement). */
+  const res = migrate(v4({ w1: { a: 1 }, "n-importe-quoi": { b: 2 } }, {}), testCtx());
+  assert.equal(res.ok, true);
+  assert.deepEqual(prog4(res).cardio["n-importe-quoi"], { b: 2 });
+  assert.deepEqual(prog4(res).cardio["2026-09-07"], { a: 1 });
+});
+
+test("migrate v4 -> v5 : une startDate inexploitable garde la clé d'origine", () => {
+  /* Les définitions des cycles inactifs ne sont pas validées au chargement
+     (#32 Q2), donc le cas est atteignable. Une clé lisible vaut mieux qu'une
+     clé fausse — « NaN-NaN-NaN » serait une donnée perdue sans le dire. */
+  for (const bad of [null, "", "pas-une-date", 42, "2026-9-7"]) {
+    const res = migrate(v4({ w1: { a: 1 } }, {}, bad), testCtx());
+    assert.equal(res.ok, true, String(bad));
+    assert.deepEqual(Object.keys(prog4(res).cardio), ["w1"], String(bad));
+  }
+  /* `undefined` se teste à part : passé à v4(), il déclencherait la valeur par
+     défaut du helper au lieu d'atteindre la migration. */
+  const sansDate = { schemaVersion: 4, activeProgramId: "p", programs: { p: { definition: {}, logs: {}, cardio: { w1: { a: 1 } }, checkin: {} } } };
+  assert.deepEqual(Object.keys(migrate(sansDate, testCtx()).data.programs.p.cardio), ["w1"]);
+});
+
+test("migrate v4 -> v5 : cardio et check-in vides ou absents ne lèvent pas", () => {
+  assert.equal(migrate(v4({}, {}), testCtx()).ok, true);
+  const sansRien = { schemaVersion: 4, activeProgramId: "p", programs: { p: { definition: LEGACY_DEFINITION, logs: {} } } };
+  assert.equal(migrate(sansRien, testCtx()).ok, true);
+});
+
+test("migrate v4 -> v5 : n'altère pas son argument", () => {
+  const input = v4({ w1: { z2: { done: true } } }, { w1: { poids: "90" } });
+  const avant = JSON.stringify(input);
+  migrate(input, testCtx());
+  assert.equal(JSON.stringify(input), avant);
 });

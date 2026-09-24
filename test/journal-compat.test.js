@@ -34,7 +34,7 @@ const active = (res) => res.journal.programs[res.journal.activeProgramId];
 const rows = (res) => Object.values(active(res).logs);
 const rowAt = (res, date, slot) => rows(res).find((r) => r.date === date && r.slot === slot);
 
-for (const name of ["v1", "v2", "v3", "v4"]) {
+for (const name of ["v1", "v2", "v3", "v4", "v5"]) {
   test(`compatibilité : un journal ${name} se charge sans verdict d'échec`, async () => {
     const { res } = await load(name);
     assert.equal(res.ok, true, `${name} rejeté : ${res.reason}`);
@@ -58,8 +58,11 @@ test("compatibilité v1 : les deux séances plates deviennent des séances daté
   assert.equal(first.kind, "calibration"); // semaine 1
   assert.ok(rowAt(res, "2026-09-14", "hautA"), "la séance de la semaine 2 a perdu sa date");
 
-  assert.deepEqual(active(res).cardio.w1.z2, { done: true, min: 30 });
-  assert.deepEqual(active(res).checkin.w1, { poids: "78.5", sommeil: "4", douleurs: "non" });
+  /* #29 : les clés cardio/check-in ne sont plus « w1 » mais la date du premier
+     jour de la semaine de cycle — 2026-09-07 pour la semaine 1 du programme
+     hérité. Le contenu, lui, traverse la migration inchangé. */
+  assert.deepEqual(active(res).cardio["2026-09-07"].z2, { done: true, min: 30 });
+  assert.deepEqual(active(res).checkin["2026-09-07"], { poids: "78.5", sommeil: "4", douleurs: "non" });
 });
 
 test("compatibilité v2 : même contenu que la v1, et la définition héritée est épinglée", async () => {
@@ -82,18 +85,37 @@ test("compatibilité v3 : les dates déjà écrites ne bougent pas, la définiti
   assert.deepEqual(first.ex.dc, [{ w: 60, r: 8, rir: 2 }, { w: 60, r: 7, rir: 1 }]);
 });
 
-test("compatibilité v4 : journal à jour chargé tel quel, sans migration ni sauvegarde", async () => {
-  const { store, res } = await load("v4");
+test("compatibilité v4 : les séances ne bougent pas, cardio et check-in se datent (#29)", async () => {
+  const { res } = await load("v4");
+  assert.equal(res.ok, true);
+  assert.equal(res.migrated, true); // #29 : la v4 migre désormais, c'est le plancher qui monte
+  assert.equal(rows(res).length, 3);
+  assert.equal(active(res).definition.id, LEGACY_DEFINITION.id);
+  assert.deepEqual(rowAt(res, "2026-09-08", "basA").ex.squat, [{ w: 80, r: 6, rir: 2 }]);
+
+  /* Le contenu est recopié tel quel sous une clé datée — la migration déplace
+     une clé, elle ne redessine rien. */
+  assert.deepEqual(Object.keys(active(res).cardio), ["2026-09-07"]);
+  assert.deepEqual(active(res).cardio["2026-09-07"].mob, [true, false, true]);
+  assert.deepEqual(active(res).checkin["2026-09-07"], { poids: "78.5", sommeil: "4", douleurs: "non" });
+});
+
+test("compatibilité v5 : journal à jour chargé tel quel, sans migration ni sauvegarde", async () => {
+  const { store, res } = await load("v5");
   assert.equal(res.ok, true);
   assert.equal(res.migrated, false);
   assert.equal(rows(res).length, 3);
   assert.equal(active(res).definition.id, LEGACY_DEFINITION.id);
   assert.deepEqual(rowAt(res, "2026-09-08", "basA").ex.squat, [{ w: 80, r: 6, rir: 2 }]);
+  /* Deux semaines datées, et elles traversent sans être touchées : c'est
+     l'idempotence de MIGRATIONS[4], vérifiée sur un vrai journal. */
+  assert.deepEqual(Object.keys(active(res).cardio), ["2026-09-07", "2026-09-14"]);
+  assert.equal(active(res).checkin["2026-09-14"].poids, "78.2");
   assert.equal([...store.data.keys()].some((k) => k.includes("backup")), false);
 });
 
 test("compatibilité : une sauvegarde d'avant-migration est écrite pour chaque version migrée", async () => {
-  for (const [name, from] of [["v1", 1], ["v2", 2], ["v3", 3]]) {
+  for (const [name, from] of [["v1", 1], ["v2", 2], ["v3", 3], ["v4", 4]]) {
     const { store, res } = await load(name);
     assert.equal(res.backupOk, true, `${name} : sauvegarde non écrite`);
     assert.equal(store.data.get(`K_backup_pre${from}`), fixture(name), `${name} : sauvegarde non verbatim`);
