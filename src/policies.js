@@ -78,9 +78,35 @@ export function resolvePolicies(program) {
    `deload: null` ou `everyNWeeks: null` ne déchargent jamais : c'est le
    critère « un programme avec deload: null ne coupe jamais, jamais ». */
 export function isDeloadWeek(week, deload) {
-  const n = deload && deload.everyNWeeks;
+  if (!deload) return false;
+  /* #14 : une décharge décidée à la main — vacances, grippe, ou une
+     recommandation acceptée — force sa semaine, quel que soit le calendrier.
+
+     C'est **le seul** point où la décision entre dans le système, et c'est
+     voulu : `setsForWeek`, `kindForWeek`, `phaseFor` et la coupe de charge de
+     `planned()` passent tous par ici. Les brancher un par un aurait laissé
+     quatre occasions de se désaccorder — c'est exactement le défaut que cette
+     issue corrige, en plus petit.
+
+     Elle s'ajoute au calendrier plutôt que de le remplacer : accepter une
+     décharge maintenant ne décale pas les suivantes. `deload: null` reste
+     souverain — quelqu'un qui ne décharge jamais n'accepte pas non plus une
+     recommandation, puisqu'il n'y en a pas. */
+  if (Array.isArray(deload.forcedWeeks) && deload.forcedWeeks.includes(week)) return true;
+  const n = deload.everyNWeeks;
   if (!Number.isInteger(n) || n < 1) return false;
   return week % (n + 1) === 0;
+}
+
+/* Les politiques, plus les semaines qu'on a décidé de décharger.
+
+   Rend l'objet reçu tel quel quand il n'y a rien à forcer : un objet neuf à
+   chaque rendu défait tout `useMemo` qui en dépend (#22, le piège que
+   `App.jsx` a déjà payé une fois). */
+export function withForcedDeloads(policies, weeks) {
+  const pol = policies || DEFAULT_POLICIES;
+  if (!pol.deload || !Array.isArray(weeks) || weeks.length === 0) return pol;
+  return { ...pol, deload: { ...pol.deload, forcedWeeks: weeks } };
 }
 
 /* Le rang du bloc de variantes, à partir de 1. Avec deux variantes par

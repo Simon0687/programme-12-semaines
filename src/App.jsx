@@ -13,7 +13,8 @@ import { unusableProgramIds, validateDefinition } from "./journal-shape.js";
 import { assess, targetsFor } from "./assertions.js";
 import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
-import { num, fmt, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind, workingSets, loadDrops, loadText, normalizeSets } from "./progression.js";
+import { isDeloadWeek, withForcedDeloads, evaluateDeload } from "./policies.js";
+import { num, fmt, phaseOf, setsFor, lastEntry, lastEntryLabel, historyBefore, history, planned, computeKind, workingSets, loadDrops, loadText, normalizeSets } from "./progression.js";
 import { setSummary, dayName, weekdayName, adviceSummary, unitColumns, cardioWhen, mobilityDayNames } from "./display.js";
 import { traitsOf } from "./units.js";
 import { EXERCISE_IDS } from "./registry.js";
@@ -69,7 +70,7 @@ const LOAD_ERROR_MESSAGE = "Le journal enregistré n'a pas pu être lu. Rien n'a
    n'est pas décorative — elle sert au compteur affiché sur l'en-tête de la
    section repliée, qui est ce qui permet de savoir où on en est sans déplier.
    « douleurs » n'y est plus : la douleur remonte des notes de séance. */
-const BILAN_KEYS = ["poids", "taille", "sommeil", "energie", "rir", "nutrition", "remarques"];
+const BILAN_KEYS = ["poids", "taille", "sommeil", "sommeilScore", "energie", "rir", "nutrition", "remarques"];
 const BILAN_FIELDS = BILAN_KEYS.length;
 const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 const addDays = (d, n) =>{ const r = new Date(d); r.setDate(r.getDate() + n); return r; };
@@ -159,7 +160,7 @@ function ProgramAdvice({ findings }) {
 }
 
 /* ---------- Carte exercice ---------- */
-function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, rows, vid, substituted, onSet, onTimer, onOpen, onSubstitute }) {
+function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, policies, state, rows, vid, substituted, isTest, onSet, onTimer, onOpen, onSubstitute }) {
   const slot = prog.SLOTS[slotId];
   const v = prog.V[vid];
   const unit = v.unit || "kg";
@@ -177,7 +178,7 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
 
      Rien de tout cela ne se stocke. Le bouton ne crée pas de ligne : il agrandit
      la grille, et la ligne naît au premier caractère tapé, comme les autres. */
-  const prescribed = setsFor(nSets, week, prog.POLICIES);
+  const prescribed = setsFor(nSets, week, policies);
   const [extra, setExtra] = useState(0);
   const sets = Math.max(prescribed + extra, rows.length);
   /* #55 : `vid` entre dans les dépendances, et c'est tout l'objet du septième
@@ -185,12 +186,28 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
      et son repos — c'est le programme qui prescrit — et la charge prévue se lit
      dans l'historique du remplaçant, qui peut n'en avoir aucun : « Paliers » et
      la charge de départ sont déjà le bon comportement pour ça. */
-  const plan = useMemo(() => planned(prog, state, slotId, week, si, date, vid), [prog, state, slotId, week, si, date, vid]);
+  const plan = useMemo(() => planned(prog, state, slotId, week, si, date, vid, policies), [prog, state, slotId, week, si, date, vid, policies]);
   const last = useMemo(() => lastEntry(prog, state, vid, date, si), [prog, state, vid, date, si]);
+  /* #14 : « par rapport au dernier test ». Une séance test est un repère, pas
+     une prescription : le moteur l'écarte de son calcul (SKIPPED_AS_BASE), donc
+     la seule chose qu'elle produise est cette comparaison-là. Sans elle, prendre
+     un repère ne servirait à rien — et un repère qui ne se compare à rien n'en
+     est pas un. */
+  const lastTest = useMemo(
+    () => (isTest ? historyBefore(prog, state, vid, date, si).filter((e) => e.kind === "test").pop() || null : null),
+    [isTest, prog, state, vid, date, si],
+  );
   const [open, setOpen] = useState(false);
-  const phase = phaseOf(week, prog.POLICIES, weeks);
-  const failOk = slot.fail && week >= 3 && week !== 7;
-  const amrap = week === weeks && slot.key;
+  const phase = phaseOf(week, policies, weeks);
+  /* #14 : « pas en décharge » se lit dans la politique, plus dans un numéro de
+     semaine écrit en dur. Un programme qui décharge en S5 autorisait encore
+     l'échec cette semaine-là, et l'interdisait en S7 où il ne déchargeait pas. */
+  const failOk = slot.fail && week >= 3 && !isDeloadWeek(week, policies.deload);
+  /* #14 : l'AMRAP automatique de la dernière semaine est retiré. C'était un
+     compte à rebours de calendrier — précisément ce que cette issue supprime —
+     et il annonçait un repère que personne n'avait décidé de prendre. Il revient
+     quand la séance est déclarée comme un test, ce qui est un geste. */
+  const amrap = isTest && slot.key;
   /* #23 : trois ternaires indépendants sur la même unité, dont deux
      n'énuméraient pas les mêmes cas. Les en-têtes viennent de display.js
      (des mots), les deux autres de units.js (du sens) : une colonne de charge
@@ -263,7 +280,7 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
           <div className="text-sm text-ink-muted mt-0.5">
             {prescribed} × {repLabel}{v.side ? " par côté" : ""}, RIR {phase.rir}
             {failOk && <span className="ml-2 inline-flex items-center gap-1 text-badge"><Zap size={13} />dernière série à l'échec OK</span>}
-            {amrap && <span className="ml-2 text-badge">S12 : dernière série AMRAP</span>}
+            {amrap && <span className="ml-2 text-badge">Séance test : dernière série AMRAP</span>}
           </div>
         </div>
         <div className="shrink-0 flex items-center gap-2">
@@ -285,6 +302,7 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
         {plan.why && <span className="text-ink-muted"> — {plan.why}</span>}
       </div>
       {last && <div className="text-sm text-ink-muted">Dernière fois ({lastEntryLabel(last)}) : {setSummary(last.sets, v)}</div>}
+      {lastTest && <div className="text-sm text-badge">Dernier test ({lastEntryLabel(lastTest)}) : {setSummary(lastTest.sets, v)}</div>}
 
       <button onClick={() => setOpen(!open)} className="mt-1 text-sm text-ink-muted inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-focus rounded">
         Technique <ChevronDown size={14} className={open ? "rotate-180" : ""} />
@@ -609,7 +627,24 @@ export default function Programme() {
     [journal, lastExport, todayIso],
   );
 
-  const phase = phaseOf(week, prog.POLICIES, definition.weeks);
+  /* #14 : les décharges décidées à la main, lues sur le check-in de leur
+     semaine. Aucun champ de premier niveau ajouté — `deload` vit à côté de
+     `poids` et `sommeil` dans un objet déjà libre, donc ni migration ni bump,
+     et son absence se lit « aucune décision prise ». Même classe de champ que
+     `sub` (#55). */
+  const deloadAt = (w) => (state.checkin[weekStartKey(definition.startDate, w)] || {}).deload || null;
+  const deloadChoice = (deloadAt(week) || {}).choice || null;
+  const forcedDeloads = useMemo(() => {
+    const out = [];
+    for (let w = 1; w <= definition.weeks; w++) if ((deloadAt(w) || {}).choice === "accepted") out.push(w);
+    return out;
+  }, [state.checkin, definition.startDate, definition.weeks]);
+  /* Les politiques réellement exécutées cette semaine : celles du programme,
+     plus les décharges acceptées. Un seul objet, mémorisé, passé partout —
+     un objet neuf à chaque rendu défait les useMemo qui en dépendent (#22). */
+  const policies = useMemo(() => withForcedDeloads(prog.POLICIES, forcedDeloads), [prog.POLICIES, forcedDeloads]);
+
+  const phase = phaseOf(week, policies, definition.weeks);
   const session = prog.SESSIONS.find((s) => s.id === sessionId);
   const si = prog.SESSIONS.findIndex((s) => s.id === sessionId);
   const log = findLog(state.logs, dateOf(session.id), session.id) || {};
@@ -694,7 +729,14 @@ export default function Programme() {
          doit pas effacer un « allégée » répondu la veille (#43, Q1). La question
          se repose en rouvrant la séance, ce que la ligne « Validée le … ·
          Rouvrir » offre juste au-dessus. */
-      const kind = cur.done ? (cur.kind ?? computeKind(week, prog.POLICIES)) : (allege ? "allege" : computeKind(week, prog.POLICIES));
+      /* #14 : une séance déclarée « test » **avant** d'être faite garde son
+         genre à la validation. C'est ce qui distingue le test de « allégée » :
+         « allégée » se constate après coup, un test se décide avant — on pousse
+         la dernière série à l'échec parce qu'on a choisi de prendre un repère,
+         pas parce que la journée s'est mal passée. */
+      const kind = cur.done
+        ? (cur.kind ?? computeKind(week, policies))
+        : (allege ? "allege" : cur.kind === "test" ? "test" : computeKind(week, policies));
       return { ...st, logs: writeLog(st.logs, d, session.id, { ex, done: true, kind }) };
     });
     setPendingLight(null);
@@ -706,11 +748,22 @@ export default function Programme() {
      validée, jamais en semaine 1 ni 7 dont le kind pilote déjà le moteur, et
      seulement si un exercice est descendu de plus d'un incrément. */
   const askThenValidate = () => {
-    if (log.done || computeKind(week, prog.POLICIES) !== "normal") return validate(false);
+    if (log.done || computeKind(week, policies) !== "normal") return validate(false);
     const drops = dropsOf(state);
     return drops.length ? setPendingLight(drops) : validate(false);
   };
   const reopen = () => updateActive((st) => ({ ...st, logs: writeLog(st.logs, dateOf(session.id), session.id, { done: false }) }));
+
+  /* #14 : déclarer — ou retirer — le genre « test » sur la séance ouverte.
+     Écrit tout de suite, et pas seulement à la validation : c'est ce qui permet
+     aux cartes d'afficher le repère AMRAP *pendant* la séance, au moment où on
+     décide de pousser la dernière série. Annuler remet le genre calculé, celui
+     que la politique donne à cette semaine. */
+  const toggleTest = () => updateActive((st) => {
+    const d = dateOf(session.id);
+    const cur = findLog(st.logs, d, session.id) || {};
+    return { ...st, logs: writeLog(st.logs, d, session.id, { kind: cur.kind === "test" ? computeKind(week, policies) : "test" }) };
+  });
 
   /* #29 : la clé est la date du premier jour de la semaine de cycle, plus un
      numéro relatif. Deux passages du même programme ont deux startDate, donc
@@ -718,6 +771,43 @@ export default function Programme() {
   const setCardio = (id, f, val) => updateActive((st) => { const k = weekStartKey(definition.startDate, week); const c = st.cardio[k] || {}; return { ...st, cardio: { ...st.cardio, [k]: { ...c, [id]: { ...(c[id] || {}), [f]: val } } } }; });
   const toggleMob = (i) => updateActive((st) => { const k = weekStartKey(definition.startDate, week); const c = st.cardio[k] || {}; const m = [...(c.mob || Array(prog.MOB_DAYS.length).fill(false))]; m[i] = !m[i]; return { ...st, cardio: { ...st.cardio, [k]: { ...c, mob: m } } }; });
   const setCheck = (f, val) => updateActive((st) => { const k = weekStartKey(definition.startDate, week); return { ...st, checkin: { ...st.checkin, [k]: { ...(st.checkin[k] || {}), [f]: val } } }; });
+
+  /* #14 : la réponse à une recommandation, enregistrée dans les deux cas.
+     « Reporté » compte autant qu'« accepté » — c'est même le plus informatif
+     des deux : une recommandation systématiquement déclinée dit que le seuil
+     est trop bas, et c'est la donnée qui permettra de le régler plutôt que de
+     le deviner. */
+  const answerDeload = (choice) => setCheck("deload", { choice, at: toIsoDate(new Date()), score: deloadAdvice ? deloadAdvice.score : null });
+
+  /* Les signaux que l'appli sait déjà calculer. Le sommeil vient du check-in
+     hebdomadaire s'il a été rempli ; les deux autres se dérivent de
+     l'historique, sans rien demander à personne. Un avis reste donc possible
+     sur les seuls signaux objectifs — régression (2) plus dérive du RIR (1)
+     atteint le seuil de 3 à lui seul. */
+  const deloadAdvice = useMemo(() => {
+    if (!policies.deload) return null;
+    const keyLifts = getKeySlots(prog).map((slotId) => {
+      const vid = prescribedVid(prog, slotId, week);
+      const v = prog.V[vid];
+      if (!v) return null;
+      const [mn, mx] = prog.SLOTS[slotId].reps;
+      return {
+        name: v.name,
+        history: history(prog, state, vid).map((e) => ({
+          date: e.date, kind: e.kind, sets: e.sets, load: workingSets(e.sets, mn, mx).load,
+        })),
+      };
+    }).filter(Boolean);
+    const checkins = Object.entries(state.checkin)
+      .map(([date, c]) => ({ date, sleep: num(c && c.sommeilScore) }))
+      .filter((c) => c.sleep != null);
+    const last = [...forcedDeloads].pop();
+    return evaluateDeload(
+      { keyLifts, checkins, lastDeload: last ? weekStartKey(definition.startDate, last) : null },
+      policies.deload,
+      todayIso,
+    );
+  }, [prog, state, week, policies, forcedDeloads, definition.startDate, todayIso]);
 
   /* #41 : le bilan sort en fichier, comme le journal — un seul geste à
      connaître pour les deux. Ça retire aussi le presse-papier du chemin, qui
@@ -1156,19 +1246,19 @@ export default function Programme() {
             <div>
               <div>
                 <div className="pt-3 pb-2">
-                  <div className="text-sm text-ink-muted">{setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week, prog.POLICIES)} séries dures + abdos. {PHASE_NOTES[phase.id]}</div>
+                  <div className="text-sm text-ink-muted">{setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week, policies)} séries dures + abdos. {PHASE_NOTES[phase.id]}</div>
                   {log.done && <div className="mt-2 text-sm text-done inline-flex items-center gap-1"><Check size={15} />Validée le {log.updatedAt && log.updatedAt.slice(0, 10)}. <button onClick={reopen} className="underline text-ink-soft ml-1 focus:outline-none">Rouvrir</button></div>}
                 </div>
                 <Section title="Échauffement">{prog.WARM[session.warm]}</Section>
                 {session.ex.map(([slotId, n], i) => (
-                  <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} state={state}
-                    vid={vidFor(prog, log, slotId, week)} substituted={isSubstituted(prog, log, slotId, week)}
+                  <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} policies={policies} state={state}
+                    vid={vidFor(prog, log, slotId, week)} substituted={isSubstituted(prog, log, slotId, week)} isTest={log.kind === "test"}
                     rows={(log.ex && log.ex[vidFor(prog, log, slotId, week)]) || []} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 <div className="pt-4 text-sm text-ink-muted">{prog.CORE[session.core].label}</div>
                 {prog.CORE[session.core].ex.map(([slotId, n], i) => (
-                  <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} state={state}
-                    vid={vidFor(prog, log, slotId, week)} substituted={isSubstituted(prog, log, slotId, week)}
+                  <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} policies={policies} state={state}
+                    vid={vidFor(prog, log, slotId, week)} substituted={isSubstituted(prog, log, slotId, week)} isTest={log.kind === "test"}
                     rows={(log.ex && log.ex[vidFor(prog, log, slotId, week)]) || []} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 {session.after && cardio && (
@@ -1206,8 +1296,19 @@ export default function Programme() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-4 flex items-center gap-3">
+                  <div className="mt-4 flex items-center gap-3 flex-wrap">
                     <Btn primary onClick={askThenValidate}><Check size={18} />{log.done ? "Mettre à jour la séance" : "Valider la séance"}</Btn>
+                    {/* #14 : le repère qu'on prend quand on décide de le prendre.
+                        Il remplace l'AMRAP automatique de la dernière semaine —
+                        un compte à rebours de calendrier que cette issue
+                        supprime. Déclaré *avant* la séance, contrairement à
+                        « allégée » qui se constate après : on ne pousse une
+                        dernière série à l'échec que si on l'a voulu. */}
+                    {!log.done && (
+                      <Btn small onClick={toggleTest}>
+                        <Zap size={15} />{log.kind === "test" ? "Séance test — annuler" : "Séance test"}
+                      </Btn>
+                    )}
                     <span className="text-xs text-ink-faint">{saveStatus}</span>
                   </div>
                 )}
@@ -1248,6 +1349,26 @@ export default function Programme() {
         {screen === "semaine" && (
           <div className="px-4">
             {cycleNote && <p className="text-sm text-notice mt-3">{cycleNote}</p>}
+            {/* #14 : recommander, jamais imposer. L'avis nomme ce sur quoi il
+                se fonde — une recommandation qu'on ne peut pas contester n'est
+                pas discutable, elle est subie — et les deux réponses sont
+                enregistrées, ce qui donnera de vraies données pour régler les
+                seuils au lieu de les deviner. */}
+            {deloadAdvice && deloadAdvice.recommended && !deloadChoice && (
+              <div className="mt-3 p-3 rounded-lg bg-surface-raised border border-rule">
+                <p className="text-sm text-ink">Une semaine de décharge se justifierait.</p>
+                <ul className="mt-1 text-sm text-ink-muted list-disc pl-4 space-y-0.5">
+                  {deloadAdvice.reasons.map((r) => <li key={r}>{r}</li>)}
+                </ul>
+                <div className="mt-2 flex gap-2 flex-wrap">
+                  <Btn small onClick={() => answerDeload("accepted")}>Décharger cette semaine</Btn>
+                  <Btn small onClick={() => answerDeload("postponed")}>Pas maintenant</Btn>
+                </div>
+              </div>
+            )}
+            {deloadChoice === "accepted" && (
+              <p className="text-sm text-notice mt-3">Semaine de décharge : volume et charges réduits, 3–4 RIR.</p>
+            )}
             <p className="text-sm text-ink-soft mt-3">{PHASE_NOTES[phase.id]}</p>
             {/* #41 : le compte remplace le badge que portait la barre du bas.
                 Il monte ici parce que Semaine devient l'écran d'accueil : ce
@@ -1326,6 +1447,12 @@ export default function Programme() {
                   <Field label="Poids moyen 7 pesées (kg)" value={ci.poids} onChange={(v) => setCheck("poids", v)} type="number" />
                   <Field label="Tour de taille au nombril (cm)" value={ci.taille} onChange={(v) => setCheck("taille", v)} type="number" />
                   <Field label="Sommeil moyen (h)" value={ci.sommeil} onChange={(v) => setCheck("sommeil", v)} type="number" />
+                  {/* #14 : la qualité, pas la durée. Les deux sont utiles et ne
+                      disent pas la même chose — sept heures hachées ne valent
+                      pas sept heures pleines — et c'est la qualité que le
+                      score de décharge lit. Le champ existant reste : le bilan
+                      hebdomadaire l'affiche depuis la v1. */}
+                  <Field label="Qualité du sommeil (1–5)" value={ci.sommeilScore} onChange={(v) => setCheck("sommeilScore", v)} type="number" />
                   <Field label="Énergie (1–5)" value={ci.energie} onChange={(v) => setCheck("energie", v)} type="number" />
                   <Field label="RIR ressenti global" value={ci.rir} onChange={(v) => setCheck("rir", v)} placeholder="ex. 1, ou dérive vers 2–3" wide />
                   {/* #41 : plus de champ « Douleurs » à ressaisir le dimanche. La

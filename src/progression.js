@@ -120,7 +120,13 @@ const loadOf = (s) => (s.w == null ? 0 : s.w);
    `allege` — le cas où TOUTES les séances sont allégées et où il n'y a rien
    d'autre sur quoi se rabattre — emprunte la branche normale. C'est le bon
    verdict : elle ne porte aucune coupe programmée à expliquer. */
-const SKIPPED_AS_BASE = new Set(["deload", "allege"]);
+/* #14 : "test" rejoint la liste. Une séance test pousse la dernière série à
+   l'échec sur les exercices clés — c'est un repère, pas une prescription — et
+   en faire la base du calcul suivant proposerait une charge tirée d'un effort
+   maximal. Exactement la raison qui y avait mis "deload" et "allege" : une
+   séance dont la charge est décidée par autre chose que la progression ne peut
+   pas servir de référence à la progression. */
+const SKIPPED_AS_BASE = new Set(["deload", "allege", "test"]);
 
 /* Haut de la fourchette. Non arrondi : les reps sont entières, donc les 37,5 du
    carry 30–45 valent « 38 ou plus » sans qu'on ait à le dire. */

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   DEFAULT_POLICIES, resolvePolicies, isDeloadWeek, blockIndex, variantOf,
-  setsForWeek, kindForWeek, phaseFor, evaluateDeload, HYSTERESIS_DAYS,
+  setsForWeek, kindForWeek, phaseFor, evaluateDeload, withForcedDeloads, HYSTERESIS_DAYS,
 } from "../src/policies.js";
 import { phaseOf, blockOf, setsFor, computeKind } from "../src/progression.js";
 
@@ -275,5 +275,44 @@ describe("evaluateDeload (#14)", () => {
       assert.equal(r.recommended, false, JSON.stringify(s));
     }
     assert.equal(evaluateDeload({}, null, TODAY).recommended, false);
+  });
+});
+
+/* ---------- withForcedDeloads : la décharge qu'on décide ---------- */
+
+describe("withForcedDeloads (#14)", () => {
+  test("une semaine forcée décharge, et le calendrier ne bouge pas", () => {
+    /* « Une action, plusieurs déclencheurs » : décharger pour des vacances ou
+       sur recommandation acceptée ne doit pas décaler les décharges prévues. */
+    const pol = withForcedDeloads(DEFAULT_POLICIES, [4]);
+    assert.equal(isDeloadWeek(4, pol.deload), true);
+    assert.equal(isDeloadWeek(7, pol.deload), true); // celle du calendrier est intacte
+    assert.equal(isDeloadWeek(5, pol.deload), false);
+  });
+
+  test("une semaine forcée coupe le volume et change la phase", () => {
+    /* Un seul point d'entrée — `isDeloadWeek` — donc les quatre lecteurs
+       suivent sans être branchés un par un. C'est ce qui évite qu'ils se
+       désaccordent, le défaut même que cette issue corrige. */
+    const pol = withForcedDeloads(DEFAULT_POLICIES, [4]);
+    assert.equal(setsForWeek(3, 4, pol.deload), 2);
+    assert.equal(kindForWeek(4, pol), "deload");
+    assert.equal(phaseFor(4, pol, 12).id, "deload");
+  });
+
+  test("sans semaine forcée, l'objet reçu est rendu tel quel", () => {
+    /* Un objet neuf à chaque rendu défait tout useMemo qui en dépend — le
+       piège qu'App.jsx a déjà payé une fois (#22). */
+    assert.equal(withForcedDeloads(DEFAULT_POLICIES, []), DEFAULT_POLICIES);
+    assert.equal(withForcedDeloads(DEFAULT_POLICIES, null), DEFAULT_POLICIES);
+  });
+
+  test("deload: null reste souverain — on ne force pas ce qui n'existe pas", () => {
+    /* Quelqu'un qui ne décharge jamais ne reçoit pas de recommandation, donc
+       n'en accepte pas : forcer une semaine sur une politique nulle n'aurait
+       aucun sens à reconstruire. */
+    const pol = withForcedDeloads({ ...DEFAULT_POLICIES, deload: null }, [4]);
+    assert.equal(pol.deload, null);
+    assert.equal(isDeloadWeek(4, pol.deload), false);
   });
 });
