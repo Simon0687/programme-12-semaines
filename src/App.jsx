@@ -26,6 +26,9 @@ import { isFirstLaunch, startingNow } from "./onboarding.js";
 import Welcome from "./Welcome.jsx";
 import ExerciseSheet from "./ExerciseSheet.jsx";
 import ExercisePicker from "./ExercisePicker.jsx";
+/* #64 : « quelles facettes décrivent cet exercice » est une question du
+   registre, pas de l'écran — la Séance la pose, exercise-filter.js y répond. */
+import { facetsOf } from "./exercise-filter.js";
 import ProgramEditor from "./ProgramEditor.jsx";
 import GenerateProgram from "./GenerateProgram.jsx";
 import { emptyDraft, draftFrom, withNewId, toDefinition, isDirty } from "./program-editor.js";
@@ -1228,8 +1231,9 @@ export default function Programme() {
 
         {screen === "seance" && (
           <div className="px-4">
-            {/* #55 Q3 = C : le registre entier, avec la facette « mouvement » du
-                créneau déjà cochée — « une autre poussée horizontale » à zéro
+            {/* #55 Q3 = C : le registre entier, avec les facettes du créneau
+                déjà cochées — mouvement, et depuis #64 le muscle dominant :
+                « une autre poussée horizontale pour les pectoraux » à zéro
                 tap, et décocher rend les 73 entrées. Les exercices que les
                 autres créneaux de la séance tiennent déjà sont inertes : `ex`
                 étant indexé par exercice, deux créneaux sur le même identifiant
@@ -1238,7 +1242,7 @@ export default function Programme() {
               <ExercisePicker
                 onChoose={(vid) => substitute(subSlot, vid)}
                 onClose={() => setSubSlot(null)}
-                initialFacets={{ pattern: prog.V[vidFor(prog, log, subSlot, week)]?.pattern || "" }}
+                initialFacets={facetsOf(prog.V[vidFor(prog, log, subSlot, week)])}
                 disabledIds={takenVids(prog, log, slotIdsOf(prog, session), week, subSlot)}
               />
             )}

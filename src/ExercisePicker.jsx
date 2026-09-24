@@ -14,9 +14,10 @@
    Deux props sont nées du second appelant :
 
    - `initialFacets` — la Séance l'ouvre avec le `pattern` du créneau déjà
-     coché (#55 Q3 = C) : « une autre poussée horizontale » à zéro tap, et
-     décocher rend le registre entier. L'éditeur n'en passe pas et garde ses
-     trois facettes vides, comme avant.
+     coché (#55 Q3 = C), et depuis #64 son muscle dominant aussi : « une autre
+     poussée horizontale pour les pectoraux » à zéro tap, et décocher rend le
+     registre entier. L'éditeur n'en passe pas et garde ses trois facettes
+     vides, comme avant.
 
    - `disabledIds` / `disabledNote` — des entrées visibles et inertes, avec la
      raison écrite. Les masquer serait pire : dans un registre fermé, une
@@ -26,7 +27,7 @@
 
 import { useMemo, useState } from "react";
 import { X, Search } from "lucide-react";
-import { filterExercises, FACET_VALUES } from "./exercise-filter.js";
+import { filterExercises, facetValues, applyFacet } from "./exercise-filter.js";
 import { MUSCLE_LABELS, PATTERN_LABELS, EQUIPMENT_LABELS } from "./display.js";
 
 const FIELD = "h-11 w-full px-3 rounded-md bg-surface-raised border border-rule text-ink focus:outline-none focus:ring-2 focus:ring-focus";
@@ -41,12 +42,17 @@ export default function ExercisePicker({ onChoose, onClose, initialFacets, disab
      permet de décocher la facette pré-sélectionnée. */
   const [facets, setFacets] = useState(() => ({ ...NO_FACETS, ...(initialFacets || {}) }));
   const results = useMemo(() => filterExercises(q, facets), [q, facets]);
+  /* #64 : ce que chaque liste déroulante propose dépend de ce qui est déjà
+     coché — « Pectoraux » ne laisse plus choisir « Dominante genou ». Le
+     calcul est dans exercise-filter.js : l'écran reçoit des listes, jamais une
+     règle (ARCHITECTURE §2.6). */
+  const values = useMemo(() => facetValues(facets), [facets]);
   const blocked = disabledIds instanceof Set ? disabledIds : new Set(disabledIds || []);
   const facet = (key, label, labels) => (
-    <select value={facets[key]} onChange={(e) => setFacets({ ...facets, [key]: e.target.value })} aria-label={label}
+    <select value={facets[key]} onChange={(e) => setFacets(applyFacet(facets, key, e.target.value))} aria-label={label}
       className="h-10 px-2 shrink-0 rounded-md bg-surface-raised border border-rule text-sm text-ink focus:outline-none focus:ring-2 focus:ring-focus">
       <option value="">{label}</option>
-      {FACET_VALUES[key].map((v) => <option key={v} value={v}>{labels[v] || v}</option>)}
+      {values[key].map((v) => <option key={v} value={v}>{labels[v] || v}</option>)}
     </select>
   );
   return (
@@ -56,7 +62,11 @@ export default function ExercisePicker({ onChoose, onClose, initialFacets, disab
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
-              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chercher un exercice" aria-label="Chercher un exercice" className={`${FIELD} pl-9`} />
+              {/* #64 : pas d'autoFocus. Le clavier couvrait la moitié de la
+                  liste avant qu'on ait rien lu, alors que parcourir les
+                  facettes est le chemin rapide et la recherche le recours.
+                  Le champ reste à un tap. */}
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chercher un exercice" aria-label="Chercher un exercice" className={`${FIELD} pl-9`} />
             </div>
             <button type="button" aria-label="Fermer le sélecteur" onClick={onClose}
               className="h-11 w-11 shrink-0 inline-flex items-center justify-center rounded-md bg-surface-raised border border-rule text-ink-soft focus:outline-none focus:ring-2 focus:ring-focus">

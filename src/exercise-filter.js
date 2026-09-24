@@ -73,16 +73,72 @@ export function filterExercises(query, facets = {}) {
     .sort((a, b) => a.name.localeCompare(b.name, "fr"));
 }
 
-/* Les valeurs de facette qu'au moins une entrée porte. EXERCISES ne change
-   pas à l'exécution : la liste se calcule une fois au chargement, et
-   l'écran n'a rien à calculer pour éviter de proposer une facette qui ne
-   rendrait rien. Le cas existe — « kettlebell » est dans le vocabulaire
-   d'équipement et aucune entrée ne le porte (test/exercise-filter.test.js) —
-   et une facette qui rend une liste vide se lit comme une panne. */
-const withMatches = (values, key) => values.filter((v) => filterExercises("", { [key]: v }).length > 0);
+/* Les valeurs de facette qu'au moins une entrée porte. Le cas existe —
+   « kettlebell » est dans le vocabulaire d'équipement et aucune entrée ne le
+   porte (test/exercise-filter.test.js) — et une facette qui rend une liste
+   vide se lit comme une panne.
 
-export const FACET_VALUES = {
-  muscle: withMatches(MUSCLE_GROUPS, "muscle"),
-  pattern: withMatches(PATTERNS, "pattern"),
-  equipment: withMatches(EQUIPMENT, "equipment"),
-};
+   #64 : la même règle, mais **compte tenu de ce qui est déjà coché**.
+   « Pectoraux » et « Dominante genou » étaient tous deux proposables, et
+   ensemble ne rendaient rien : le sélecteur affichait alors « le registre est
+   fermé », une phrase sur le registre pour un vide qu'il avait produit
+   lui-même. Chaque facette n'énumère donc que les valeurs viables avec les
+   autres.
+
+   La requête texte n'entre pas dans ce calcul, délibérément : elle se corrige
+   lettre à lettre, et des options qui bougent pendant la frappe rendraient
+   l'écran instable. Elle porte d'ailleurs sur les 73 entrées, facettes
+   comprises ou non (note d'en-tête).
+
+   Le coût est trois passes sur 73 entrées par changement de facette, soit
+   l'ordre de grandeur d'un rendu — l'écran le mémoïse sur `facets`. */
+export const FACET_KEYS = ["muscle", "pattern", "equipment"];
+const VOCAB = { muscle: MUSCLE_GROUPS, pattern: PATTERNS, equipment: EQUIPMENT };
+
+export function facetValues(facets = {}) {
+  const viable = (key) => {
+    const others = { ...facets, [key]: "" };
+    return VOCAB[key].filter((v) => filterExercises("", { ...others, [key]: v }).length > 0);
+  };
+  return { muscle: viable("muscle"), pattern: viable("pattern"), equipment: viable("equipment") };
+}
+
+/* Ce que le sélecteur propose à l'ouverture, rien de coché : la constante
+   d'avant #64, conservée telle quelle pour les appelants qui n'ont pas de
+   sélection à passer. */
+export const FACET_VALUES = facetValues({});
+
+/* Cocher une facette qui contredit une autre garde **celle qu'on vient de
+   toucher** et lâche l'autre. L'inverse — refuser le choix, ou rendre une
+   liste vide — ferait porter à l'utilisateur la correction d'un état que
+   l'écran a laissé exister.
+
+   Décocher ne peut jamais vider : on sort sans rien toucher. Sinon, les
+   autres facettes tombent une à une, dans l'ordre déclaré, et la boucle
+   s'arrête dès que la combinaison rend quelque chose — au pire il ne reste
+   que la valeur choisie, qui rend au moins une entrée puisqu'elle était
+   proposée. */
+export function applyFacet(facets, key, value) {
+  const next = { ...facets, [key]: value };
+  if (!value) return next;
+  for (const k of FACET_KEYS) {
+    if (k === key || !next[k]) continue;
+    if (filterExercises("", next).length === 0) next[k] = "";
+  }
+  return next;
+}
+
+/* Les facettes qui décrivent un exercice donné — ce que la Séance coche en
+   ouvrant le sélecteur sur un créneau (#55 Q3 = C, étendu au muscle en #64).
+   Le muscle retenu est le dominant de la répartition ; à part égale, l'ordre
+   alphabétique tranche, pour que deux ouvertures du même écran ne cochent pas
+   deux facettes différentes.
+
+   L'équipement n'en fait pas partie : remplacer un exercice parce que la
+   machine est prise est le cas courant, et pré-cocher son matériel
+   masquerait exactement les remplaçants qu'on cherche. */
+export function facetsOf(entry) {
+  const muscles = Object.entries((entry && entry.muscles) || {}).filter(([, v]) => typeof v === "number" && v > 0);
+  muscles.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return { muscle: muscles.length ? muscles[0][0] : "", pattern: (entry && entry.pattern) || "" };
+}
