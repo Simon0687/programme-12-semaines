@@ -228,6 +228,37 @@ quel vers moins de répétitions (l'erreur est du côté léger, et la progressi
 la rattrape), converti par le 10RM estimé vers plus de répétitions, sans jamais
 dépasser la charge d'origine (l'estimation ne sert qu'à alléger).
 
+### 6.7 Un cycle long, en chapitres de douze semaines (orientation du 2026-09-24)
+
+Le but n'est pas les douze semaines : c'est d'installer l'athlète dans un
+entraînement long. Changer de programme tous les deux mois est un défaut
+connu, parce qu'on remet à zéro exactement ce qui progressait. Or, à la fin des
+douze semaines, la seule porte que l'application offre aujourd'hui est d'en
+créer un autre (§1 de #77) : c'est elle qui pousse au changement, pas le
+chiffre 12.
+
+Deux formes ont été pesées :
+
+- **un cycle sans fin** — blocs de six semaines (cinq de travail, une de
+  décharge), variantes en alternance, calibration réservée aux exercices
+  nouveaux. Le moteur y est déjà prêt (décharge et rotation sont des règles
+  périodiques, `everyNWeeks: 6`), mais le format ne l'est pas : `weeks: 12`
+  est exigé par le validateur, la semaine bilan est la dernière, l'avis du Plan
+  juge un programme de douze semaines. Surtout, on perd le rendez-vous ;
+- **des chapitres de douze semaines, enchaînés sans rupture** — retenu. Les
+  douze semaines restent un point d'étape (bilan, mesures, re-baseline), et la
+  porte **par défaut** à la fin devient « Continuer ce programme » : même
+  structure, charges reportées (§6.6), départ au lundi suivant, en un geste.
+  Générer ou composer autre chose reste possible, mais devient un choix actif.
+
+Règle qui en découle :
+
+> Continuer est le chemin par défaut ; changer de programme est une décision.
+
+Réversible : le journal est une frise datée, sans rupture entre cycles. Si un
+jour le cycle sans fin s'impose, rien de ce qui aura été enregistré n'empêche
+d'y passer.
+
 ## 7. Fonctionnalités recommandées
 
 ### Priorité 1 - Fiabilité
