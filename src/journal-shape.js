@@ -37,6 +37,53 @@ import { AFTER_KINDS, MODALITY_IDS, CARDIO_KINDS, BASELINE_KEYS } from "./cardio
 const isNum = (x) => typeof x === "number" && Number.isFinite(x);
 const isObj = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
 
+/* ---------- Le vocabulaire des refus, déclaré une seule fois (#38) ----------
+
+   Il vivait dans `import.js` (`IMPORT_MESSAGES`) pendant que les raisons
+   étaient **produites** ici. Rien ne reliait les deux listes, et c'est
+   exactement comme ça qu'`unsupported-field` a survécu à #25 : la raison
+   avait cessé d'être émise, sa ligne est restée, et personne ne pouvait le
+   voir en lisant l'un ou l'autre fichier.
+
+   La déclaration est donc à l'endroit où les raisons naissent, et
+   `test/journal-shape.test.js` vérifie la bijection **dans les deux sens** :
+   aucune raison déclarée qui ne soit émise quelque part, aucune raison émise
+   qui ne soit déclarée. Une raison morte devient impossible à garder au lieu
+   d'attendre qu'on la remarque deux issues plus tard.
+
+   La phrase est le **repli** : un rejet qui porte son propre message — avec
+   son chemin JSON et la règle enfreinte — garde le sien. C'est ce que #19
+   demande d'un message : qu'il soit adressable, c'est-à-dire assez précis pour
+   qu'on agisse dessus.
+
+   Deux raisons se ressemblent et ne disent pas la même chose (#38 Q2). Elles
+   sont voisines ici pour que la différence se lise :
+
+   - `not-a-program`  : ce fichier n'est pas un programme — tu t'es trompé de
+                        fichier.
+   - `invalid-program`: c'est bien un programme, et une ligne de son catalogue
+                        custom est fausse — corrige celle-là.
+
+   Les fusionner ferait lire « ce fichier ne décrit pas un programme » à
+   quelqu'un dont le programme est bon à une faute de frappe près. */
+export const REJECTIONS = {
+  /* Reconnaissance du document — `import.js` */
+  "invalid-json": "Ce fichier n'est pas du JSON valide.",
+  "not-a-journal": "Ce JSON ne contient pas de journal (clé « logs » ou « programs » absente).",
+  "not-a-program": "Ce fichier ne décrit pas un programme.",
+  "too-new": "Ce fichier a été créé par une version plus récente de l'appli. Mets l'appli à jour, puis réimporte.",
+  "migration-failed": "Ce journal n'a pas pu être mis à jour vers le format actuel.",
+
+  /* Forme du journal et de la définition — ce module */
+  invalid: "Ce journal n'a pas la forme attendue.",
+  "missing-field": "Champ manquant dans le programme.",
+  "invalid-field": "Champ présent mais invalide dans le programme.",
+  "unsupported-weeks": "Ce programme ne compte pas 12 semaines.",
+  "invalid-program": "Le catalogue d'exercices custom (program) est mal formé.",
+  "unknown-exercise": "Le programme référence un exercice absent du registre.",
+  "unknown-cardio-rule": "Le programme référence une modalité ou une règle cardio que l'appli ne connaît pas.",
+};
+
 /* Référence à un slot dans SESSIONS[].ex ou CORE[].ex : la paire
    [id de slot, nombre de séries]. Vérifiée *avant* toute déstructuration
    (#33) — `for (const [slotId] of session.ex)` levait un TypeError sur un
