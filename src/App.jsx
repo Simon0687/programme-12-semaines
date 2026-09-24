@@ -44,6 +44,7 @@ import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { useLoadPicker, LoadPickerOverlay, PICKER_FIELD_STYLE } from "./LoadPicker.jsx";
 import { fieldSetup } from "./load-picker.js";
 import { buildBilan } from "./bilan.js";
+import { realisedRows, hasRealised, volumeText } from "./realised-volume.js";
 import { DEFAULT_DEFINITION, parseLocalDate } from "./definition.js";
 import { LEGACY_DEFINITION } from "./legacy-program.js";
 
@@ -735,6 +736,20 @@ export default function Programme() {
     return m;
   }, [prog, state, week, definition.startDate]);
   const weekDoneCount = useMemo(() => Object.values(doneMap).filter(Boolean).length, [doneMap]);
+
+  /* #73 : ce que la semaine a produit, et non ce qu'elle prévoyait. Le
+     comptage est celui du validateur — même table, même règle indirecte —
+     appliqué au journal au lieu du programme ; c'est la seule façon que le
+     prévu et le réalisé restent comparables. Les séances sont retrouvées
+     comme `doneMap` les retrouve, par leur date de créneau : la semaine
+     affichée, pas la semaine en cours.
+
+     Mémoïsé sur les logs : sans cela chaque frappe dans une série
+     recalculerait onze groupes sur quatre séances. */
+  const realised = useMemo(
+    () => realisedRows(prog.SESSIONS.map((s) => findLog(state.logs, dateOf(s.id), s.id)).filter(Boolean)),
+    [prog, state.logs, week, definition.startDate],
+  );
 
   /* #41 : l'effet qui devinait la séance à afficher est supprimé. Il n'existait
      que parce qu'on atterrissait sur Séance sans avoir choisi — il essayait le
@@ -1675,6 +1690,37 @@ export default function Programme() {
                   </button>
                 );
               })}
+            </div>
+
+            {/* #73 : le volume que la semaine a réellement produit, sous les
+                séances qui l'ont produit. Jusqu'ici l'application comptait le
+                volume du *programme* — le validateur (#19) le fait depuis
+                toujours — et ne regardait jamais le journal : elle jugeait son
+                plan sans jamais regarder le résultat.
+
+                Aucune couleur, aucun verdict : un mardi, les onze groupes sont
+                sous leur minimum, et onze alertes parce que la semaine n'est pas
+                finie apprendraient à ne plus regarder ce bloc. Le chiffre à côté
+                de sa fourchette dit ce qu'il y a à dire. */}
+            <div className="mt-5">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-sm text-ink-muted">Volume réalisé</span>
+                <span className="text-xs text-ink-faint">séries faites / cible</span>
+              </div>
+              {hasRealised(realised) ? (
+                <div className="mt-2 grid grid-cols-2 gap-x-4" style={{ fontVariantNumeric: "tabular-nums" }}>
+                  {realised.map((r) => (
+                    <div key={r.muscle} className="py-1 flex items-baseline justify-between gap-2 border-b border-rule">
+                      <span className="text-sm text-ink-soft truncate">{r.label}</span>
+                      <span className={`text-sm whitespace-nowrap ${r.sets > 0 ? "text-ink" : "text-ink-dim"}`}>{volumeText(r)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                /* Pas de tableau de onze zéros : une semaine sans séance validée
+                   n'a pas un volume nul, elle n'a pas de volume. */
+                <p className="mt-2 text-sm text-ink-faint">Aucune séance validée cette semaine : rien à compter pour l'instant.</p>
+              )}
             </div>
             {/* #41 : le cardio était déjà modifiable ici — `compact` ne cachait
                 qu'un titre. Il gagne le sien, aligné sur celui des séances,
