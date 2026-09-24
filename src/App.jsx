@@ -13,7 +13,7 @@ import { unusableProgramIds, validateDefinition } from "./journal-shape.js";
 import { assess, targetsFor } from "./assertions.js";
 import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
-import { num, fmt, blockOf, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind, workingSets, loadDrops, loadText, normalizeSets } from "./progression.js";
+import { num, fmt, phaseOf, setsFor, lastEntry, lastEntryLabel, planned, computeKind, workingSets, loadDrops, loadText, normalizeSets } from "./progression.js";
 import { setSummary, dayName, weekdayName, adviceSummary, unitColumns, cardioWhen, mobilityDayNames } from "./display.js";
 import { traitsOf } from "./units.js";
 import { EXERCISE_IDS } from "./registry.js";
@@ -1263,7 +1263,14 @@ export default function Programme() {
                    il démonte l'appli entière — écran blanc, et le journal en
                    mémoire perdu avant que l'autosave n'ait pu l'écrire. */
                 const keySlot = s.ex[0]?.[0];
-                const vid = prog.SLOTS[keySlot]?.[blockOf(week)];
+                /* #55 : le sixième site, et le seul que la Séance ne montre
+                   pas. Lu sur l'exercice prescrit, le résumé d'une séance
+                   substituée serait vide — les séries existent, sous un autre
+                   identifiant — et la ligne se lirait « pas fait ». C'est le
+                   même défaut que celui corrigé dans le bilan (Q2), à un écran
+                   près. `vidFor` retombe sur le prescrit quand il n'y a pas de
+                   substitution, donc la lecture prudente de #36 est intacte. */
+                const vid = keySlot ? vidFor(prog, l, keySlot, week) : undefined;
                 const sets = normalizeSets(vid && l && l.ex ? l.ex[vid] : null);
                 /* #41 : ce repère fait le travail de l'effet d'auto-sélection
                    qu'on supprime — dire quelle séance est celle du jour — sans
