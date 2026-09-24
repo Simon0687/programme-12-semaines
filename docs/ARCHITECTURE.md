@@ -48,6 +48,7 @@ Module dependencies, as they actually stand - every edge, no others:
 | `program-editor` | `registry`, `definition`, `legacy-program` |
 | `exercise-filter` | `registry` |
 | `assertions` | `registry` |
+| `session-sub` | `progression` |
 | `progression` | `units` |
 | `load-picker` | `units` |
 | `schema`, `registry`, `units`, `cardio`, `backup`, `default-program`, `legacy-program`, `file-io`, `export-state`, `bilan`, `screen-state` | nothing |
@@ -58,6 +59,17 @@ only `units.js` - itself one of them. `schema.js` being a leaf is
 load-bearing: it is why migrations take their program knowledge through an
 injected `ctx` instead of importing `program.js`, and why adding a migration
 never risks an import cycle.
+
+`session-sub.js` (#55) sits in that same band, and for a reason worth stating:
+`sub` is journal data, not a progression rule. Before it, the line
+`vid = prog.SLOTS[slotId][blockOf(week)]` was written six times across the app,
+and each of the six answered "which exercise does this slot carry?" by looking at
+the program alone. A one-session substitution is exactly the claim that the
+journal sometimes has a different answer, so one module now holds it and the six
+sites call it. The engine learns nothing: `planned()` gained an optional seventh
+parameter - the exercise to pronounce on - and still never reads `sub` itself,
+which is what keeps it usable by the exercise sheet as much as by the session
+screen.
 
 `display.js` and `exercise-history.js` (#17) both sit *above* `progression.js`
 and never the reverse: the engine stays a leaf. That is why `setSummary()` moved
