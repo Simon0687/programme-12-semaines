@@ -24,6 +24,9 @@
    ========================================================= */
 
 import { traitsOf } from "./units.js";
+/* #14 : la forme du cycle est une donnée. policies.js est une feuille comme
+   units.js, donc le moteur reste une feuille en la lisant (ARCHITECTURE §1). */
+import { DEFAULT_POLICIES, phaseFor, variantOf, setsForWeek, kindForWeek, isDeloadWeek } from "./policies.js";
 
 export const num = (s) => {
   if (s === "" || s == null) return null;
@@ -117,7 +120,13 @@ const loadOf = (s) => (s.w == null ? 0 : s.w);
    `allege` — le cas où TOUTES les séances sont allégées et où il n'y a rien
    d'autre sur quoi se rabattre — emprunte la branche normale. C'est le bon
    verdict : elle ne porte aucune coupe programmée à expliquer. */
-const SKIPPED_AS_BASE = new Set(["deload", "allege"]);
+/* #14 : "test" rejoint la liste. Une séance test pousse la dernière série à
+   l'échec sur les exercices clés — c'est un repère, pas une prescription — et
+   en faire la base du calcul suivant proposerait une charge tirée d'un effort
+   maximal. Exactement la raison qui y avait mis "deload" et "allege" : une
+   séance dont la charge est décidée par autre chose que la progression ne peut
+   pas servir de référence à la progression. */
+const SKIPPED_AS_BASE = new Set(["deload", "allege", "test"]);
 
 /* Haut de la fourchette. Non arrondi : les reps sont entières, donc les 37,5 du
    carry 30–45 valent « 38 ou plus » sans qu'on ait à le dire. */
@@ -169,15 +178,20 @@ export function loadDrops(entries) {
   );
 }
 
-export const phaseOf = (w) =>
-  w === 1 ? { id: "calib", label: "Calibration", rir: "2–3" }
-  : w <= 6 ? { id: "b1", label: "Bloc 1", rir: "1" }
-  : w === 7 ? { id: "deload", label: "Décharge et calibration du bloc 2", rir: "3–4" }
-  : w <= 11 ? { id: "b2", label: "Bloc 2", rir: "1" }
-  : { id: "bilan", label: "Bloc 2, semaine bilan", rir: "1" };
-export const blockOf = (w) => (w <= 6 ? "b1" : "b2");
-export const setsFor = (n, w) => (w === 7 ? Math.ceil(n / 2) : n);
-export const computeKind = (week) => (week === 1 ? "calibration" : week === 7 ? "deload" : "normal");
+/* #14 : les quatre fonctions qui portaient la forme du cycle en dur la lisent
+   désormais dans les politiques du programme. Le paramètre est optionnel et
+   vaut `DEFAULT_POLICIES`, qui *est* la forme livrée : les appels d'avant #14
+   rendent exactement ce qu'ils rendaient, et `test/progression.test.js` n'a
+   pas bougé d'une ligne — c'est le premier critère d'acceptation de l'issue,
+   et c'est aussi la seule preuve qui vaille que la traduction est fidèle.
+
+   `weeks` n'était nulle part : `phaseOf` disait « <= 11, sinon bilan », ce qui
+   fixait douze semaines dans une fonction qui n'en savait rien. Le repli sur
+   12 garde les appels muets identiques. */
+export const phaseOf = (w, policies, weeks = 12) => phaseFor(w, policies, weeks);
+export const blockOf = (w, policies) => variantOf(w, (policies || DEFAULT_POLICIES).rotation);
+export const setsFor = (n, w, policies) => setsForWeek(n, w, (policies || DEFAULT_POLICIES).deload);
+export const computeKind = (week, policies) => kindForWeek(week, policies);
 
 export function history(prog, state, vid) {
   const out = [];
@@ -219,12 +233,19 @@ export function lastEntry(prog, state, vid, date, si) {
    Le moteur ne connaît toujours pas `sub`, et ne doit pas : on lui dit sur quel
    exercice se prononcer, il ne va pas le chercher dans le journal. C'est ce qui
    le garde utilisable par la fiche exercice comme par la séance. */
-export function planned(prog, state, slotId, week, si, date, vid = prog.SLOTS[slotId][blockOf(week)]) {
+export function planned(prog, state, slotId, week, si, date, vid = prog.SLOTS[slotId][blockOf(week, prog.POLICIES)], policies = prog.POLICIES) {
   const slot = prog.SLOTS[slotId];
+  /* #14 : la coupe de décharge et son pourcentage viennent de la politique.
+     `DEFAULT_POLICIES.deload.loadFactor` vaut 0,85 — le nombre qui était écrit
+     deux fois ici en dur, et le « −15 % » du texte avec lui — donc un
+     programme sans politique rend au caractère près ce qu'il rendait. */
+  const pol = policies || DEFAULT_POLICIES;
+  const cut = (pol.deload && typeof pol.deload.loadFactor === "number") ? pol.deload.loadFactor : DEFAULT_POLICIES.deload.loadFactor;
+  const pct = Math.round((1 - cut) * 100);
   const v = prog.V[vid];
   const u = traitsOf(v.unit);
   const [mn, mx] = slot.reps;
-  const kind = computeKind(week);
+  const kind = computeKind(week, pol);
   const hist = historyBefore(prog, state, vid, date, si);
   let base = hist[hist.length - 1], prev = hist[hist.length - 2];
   if (base && SKIPPED_AS_BASE.has(base.kind) && hist.some((e) => !SKIPPED_AS_BASE.has(e.kind))) {
@@ -234,10 +255,10 @@ export function planned(prog, state, slotId, week, si, date, vid = prog.SLOTS[sl
   const label = `${mn}–${mx} ${u.repUnit}`;
 
   if (!base) {
-    if (!u.hasLoad) return { load: null, text: `Cible ${label} à ${phaseOf(week).rir} RIR`, why: "", baseLoad: null };
+    if (!u.hasLoad) return { load: null, text: `Cible ${label} à ${phaseOf(week, pol, prog.weeks).rir} RIR`, why: "", baseLoad: null };
     if (v.start == null) return { load: null, text: "Paliers", why: "50 → 75 → 100 % de la charge devinée ; la première série dans la fourchette au bon RIR devient la charge de travail", baseLoad: null };
-    const l = kind === "deload" ? roundTo(v.start * 0.85, v.incr) : v.start;
-    return { load: l, text: loadText(v, l), why: kind === "deload" ? "charge de départ −15 % (décharge)" : "charge de départ", baseLoad: null };
+    const l = kind === "deload" ? roundTo(v.start * cut, v.incr) : v.start;
+    return { load: l, text: loadText(v, l), why: kind === "deload" ? `charge de départ −${pct} % (décharge)` : "charge de départ", baseLoad: null };
   }
   /* Sans charge, il n'y a rien à regrouper : ce retour passe avant workingSets()
      plutôt qu'après, ce qui confine la règle de #31 aux unités chargées par
@@ -274,7 +295,7 @@ export function planned(prog, state, slotId, week, si, date, vid = prog.SLOTS[sl
     if (prevLow) { next = roundTo(load * 0.95, v.incr); why = "−5 % : deux séances sous la fourchette"; }
     else why = "même charge : une séance sous la fourchette, on retente";
   } else why = "même charge : viser plus de reps";
-  if (kind === "deload" && base.kind !== "deload") { next = roundTo(next * 0.85, v.incr); why = "décharge −15 %"; }
+  if (kind === "deload" && base.kind !== "deload") { next = roundTo(next * cut, v.incr); why = `décharge −${pct} %`; }
   /* Quand la séance portait plusieurs charges, le moteur tire sa réponse d'un
      *sous-ensemble* de ce que l'utilisateur voit écrit dans son historique. Sans
      cette mention, la carte annonce « Prévu : 110 kg » après une séance où il a

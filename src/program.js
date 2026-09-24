@@ -19,6 +19,7 @@
    ========================================================= */
 
 import { EXERCISES } from "./registry.js";
+import { resolvePolicies } from "./policies.js";
 import { resolveCardio } from "./cardio.js";
 import { LEGACY_DEFINITION } from "./legacy-program.js";
 
@@ -65,7 +66,11 @@ export function buildProgram(definition) {
     if (V[vid]) V[vid].start = load;
   }
   const cardio = p.cardio === null ? {} : resolveCardio(p.cardio, definition && definition.cardioBaseline);
-  return { V, SLOTS: p.SLOTS, SESSIONS: p.SESSIONS, CORE: p.CORE, WARM: p.WARM, ...cardio };
+  /* #14 : la forme du cycle — quand décharger, quand tourner les variantes —
+     est une donnée du programme, résolue une fois ici. Un programme qui ne la
+     porte pas obtient DEFAULT_POLICIES, qui *est* la forme livrée : son
+     absence se lit « comme avant », jamais « aucune politique ». */
+  return { V, SLOTS: p.SLOTS, SESSIONS: p.SESSIONS, CORE: p.CORE, WARM: p.WARM, POLICIES: resolvePolicies(p), weeks: definition.weeks, ...cardio };
 }
 
 /* ---------- Dérivations pures depuis un bundle (#22, #13) ----------

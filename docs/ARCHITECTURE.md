@@ -50,9 +50,9 @@ Module dependencies, as they actually stand - every edge, no others:
 | `assertions` | `registry` |
 | `session-sub` | `progression` |
 | `onboarding` | `program-editor` |
-| `progression` | `units` |
+| `progression` | `units`, `policies` |
 | `load-picker` | `units` |
-| `schema`, `registry`, `units`, `cardio`, `backup`, `default-program`, `legacy-program`, `file-io`, `export-state`, `bilan`, `screen-state` | nothing |
+| `schema`, `registry`, `units`, `policies`, `cardio`, `backup`, `default-program`, `legacy-program`, `file-io`, `export-state`, `bilan`, `screen-state` | nothing |
 
 `registry.js`, `units.js`, `cardio.js`, `backup.js`, `schema.js` and
 `legacy-program.js` import nothing from the app, and `progression.js` imports
