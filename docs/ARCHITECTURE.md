@@ -49,6 +49,7 @@ Module dependencies, as they actually stand - every edge, no others:
 | `exercise-filter` | `registry` |
 | `assertions` | `registry` |
 | `session-sub` | `progression` |
+| `onboarding` | `program-editor` |
 | `progression` | `units` |
 | `load-picker` | `units` |
 | `schema`, `registry`, `units`, `cardio`, `backup`, `default-program`, `legacy-program`, `file-io`, `export-state`, `bilan`, `screen-state` | nothing |
