@@ -201,13 +201,14 @@ since #33:
   since the date *is* the identity, those rows were unreachable rather than
   merely mislabelled.
 
-**Known contradiction, not yet resolved:** `App.jsx` matches today's session with
-`SESSIONS[].day === today.getDay()`, where Sunday is `0` - a different convention
-from the offset `dateForSlot` uses. The two agree only because both shipped
-programs start on a Monday. A program starting mid-week has its whole calendar
-mapping shifted, and a Sunday session cannot be expressed correctly. Documented
-in `docs/features/33-program-validator-per-field/decisions-spec.md` Q2; it needs
-its own issue before a generated program can start on any other day.
+**One convention for `day`, resolved by #39.** `App.jsx` used to match today's
+session with `SESSIONS[].day === today.getDay()`, where Sunday is `0` - a
+different convention from the offset `dateForSlot` uses, which only agreed
+because the shipped programs started on a Monday. It now reads
+`slotForDate(startDate, today)`, the inverse of `dateForSlot`, so both sides are
+the same 1-7 offset from `startDate`: a program may start on any weekday, and
+day 7 is a day like the others. The history is in
+`docs/features/33-program-validator-per-field/decisions-spec.md` Q2.
 
 ### 2.4 Frontiers return verdicts; they do not throw
 
@@ -218,15 +219,22 @@ throwing migration step and turns it into `{ ok: false, invalid: true }` for the
 same reason: no caller should need its own `try`/`catch` to stay closed by
 default.
 
-**One known gap, and it predates #17.** `isLogRow` (`journal-shape.js`) checks
-that a log row has a `date`, a `slot`, and that `ex` is an object - it never
-looks *inside* `ex`. A row where `ex.dc` holds the string `"87,5"` passes the
-filter and makes `history()` throw `TypeError: ... .map is not a function`
-(verified 2026-09-14, on the active program). A frontier therefore admits a row
-the engine then throws on. `exercise-history.js` is closed by default on that
-payload; tightening `isLogRow` would change a frontier verdict and start
-dropping rows at load, so it is tracked by #38 rather than shipped alongside a
-screen.
+**One known gap: the frontier does not look inside `ex`.** `isLogRow`
+(`journal-shape.js`) checks that a log row has a `date`, a `slot`, and that `ex`
+is an object - never what each `ex[vid]` holds. A row where `ex.dc` is the
+string `"87,5"` is admitted. Tightening `isLogRow` would change a frontier
+verdict and start dropping rows at load, so the gap is closed on the reading
+side instead: `normalizeSets()` (`progression.js`, #23) turns any payload into
+an array of sets, and the engine reads through it - `history()`,
+`exerciseHistory()` and the display summaries no longer throw on that row.
+
+What remains is the readers that bypass it. In `App.jsx`, `onSet`,
+`sessionSets`, `dropsOf`, `bilanText` and the `rows` handed to `ExerciseCard`
+read `ex[vid]` raw, and `|| []` guards nothing, since a non-empty string is
+truthy: `.map` on a string throws during session validation, and spreading
+one splits it into characters. A throw during render unmounts the whole app. It
+takes a hand-edited or imported journal to get there, and it is tracked by #86 -
+one accessor, `setsOf(log, vid)`, for every reader.
 
 Everything else holds. #32 closed the stored-journal half (see 2.9) and #33
 closed the last one: `validateProgram` destructures no pair it has not checked
@@ -264,8 +272,11 @@ in scope, so "the sheet needs no session context" would have been an
 honour-system claim; a prop list makes it checkable.
 
 The corollary is a rule about where code goes: anything that can be decided
-without rendering belongs outside a component. What remains inside `App.jsx`
-today is debt, tracked by #23; `setSummary()` left with #17.
+without rendering belongs outside a component. #23 moved the pure display and
+summary logic out (`setSummary()` had already left with #17); what remains
+inside `App.jsx` today is still debt. The next step, two mechanical extractions
+that touch no state (`ExerciseCard`, and the pure Plan components), is tracked
+by #87.
 
 ### 2.7 The store is injected, never reached for
 
