@@ -1,0 +1,32 @@
+# #88 : les tests tournent déjà chez Cloudflare, qui garde le déploiement.
+# Ce workflow ne remplace rien : il rend le même verdict visible sur GitHub,
+# là où se décide un merge dev → staging → main.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [dev, staging, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # Le build que Cloudflare fera derrière : un import cassé ou un JSX
+      # invalide passe les tests (aucun test ne monte React) mais pas esbuild.
+      - run: npm run build
