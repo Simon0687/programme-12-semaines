@@ -50,11 +50,22 @@
    ========================================================= */
 
 import { EXERCISES } from "./registry.js";
+import { normalizeCardio, cardioTargets, MODALITIES } from "./cardio.js";
+import { dayName } from "./display.js";
 
 const kg = (n) => String(n).replace(".", ",");                       // 72.5 -> "72,5"
 const sp = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");   // 3150 -> "3 150"
 
-export const PLAN_INTRO = "Référence du programme. Les modifications se font dans le chat, le fichier est régénéré.";
+/* La phrase disait « les modifications se font dans le chat, le fichier est
+   régénéré » : c'était vrai tant que produire un programme voulait dire le
+   faire écrire par un LLM et charger le JSON qu'il rendait. #36 a livré
+   l'éditeur et #58 le moteur (decisions-moteur.md Q1 = B, 2026-09-15), et les
+   deux boutons sont dans cet onglet, sous la section Programme. Un lecteur
+   qui suivait l'ancienne consigne cherchait un chat qui n'existe pas.
+   Relevé par la revue Claude Design du 2026-09-17, qui recopiait fidèlement
+   la ligne dans sa maquette (docs/reviews/2026-09-17-plan-drill-in-triage.md
+   §4). */
+export const PLAN_INTRO = "Référence du programme. Pour en changer : compose ou génère un programme depuis la section Programme, ci-dessous.";
 
 /* Ancres du cycle : les exercices clés que le bloc 2 ne fait pas tourner
    (b1 === b2). Dérivé plutôt qu'écrit en dur — c'est une propriété du
@@ -76,6 +87,80 @@ function startLoadsText(startingLoads) {
   return `${parts.join(" ; ")}. Tout le reste en paliers : 50 → 75 → 100 % de la charge devinée, la première série dans la fourchette à 2–3 RIR devient la charge de travail.`;
 }
 
+
+/* ---------- La section cardio, dérivée (#34) ----------
+
+   Trois paragraphes écrits en dur décrivaient le rameur de Simon sous
+   n'importe quel programme demandant du cardio. Chaque morceau vient
+   maintenant d'où il appartient :
+
+     la modalité et le nombre de séances  -> program.cardio.sessions
+     les cibles chiffrées                 -> definition.cardioBaseline
+     la forme de la montée, les seuils    -> la méthode, ci-dessous
+
+   La courbe reste écrite ici parce qu'elle est la même pour tout le monde :
+   35 min qui montent de 5 en 5 toutes les deux semaines, 30 min faciles en
+   S7. C'est la description en prose de `cardioCurve()` (cardio.js), et les
+   deux bougeront ensemble le jour où #14 remplacera les numéros de semaine.
+
+   Chaque paragraphe disparaît quand sa matière n'existe pas : pas
+   d'intervalles déclarés, pas de paragraphe d'intervalles — au lieu d'un
+   texte qui prescrit ce que le programme ne contient pas. */
+const NUMBER_WORDS = ["zéro", "une", "deux", "trois", "quatre", "cinq", "six", "sept"];
+const times = (n) => `${NUMBER_WORDS[n] || n} fois par semaine`;
+
+function cardioSection(spec, baseline) {
+  if (spec === null) return null;
+  const c = normalizeCardio(spec, baseline);
+  if (!c || !c.sessions.length) return null;
+
+  const blocks = [];
+  const z2 = c.sessions.filter((s) => s.kind === "z2");
+  const iv = c.sessions.filter((s) => s.kind === "intervals");
+
+  if (z2.length) {
+    const label = (MODALITIES[c.modalityOf("z2")] || {}).label || c.modalityOf("z2");
+    const targets = cardioTargets(c.modalityOf("z2"), c.baseline);
+    /* « la puissance ensuite » ne veut rien dire sans puissance prescrite :
+       sur une modalité qui n'en porte pas, la phrase s'arrête à la durée. */
+    const order = c.baseline && c.baseline.power
+      ? " La durée progresse d'abord, la puissance ensuite."
+      : " La durée progresse d'abord.";
+    blocks.push({
+      t: "p",
+      text: `${label} Z2 ${times(z2.length)} : 35 min en S1–S2, +5 min toutes les deux semaines jusqu'à 60 min en S12, 30 min faciles en S7.`
+        + (targets ? ` Cibles ${targets}.` : "")
+        + order,
+    });
+  }
+
+  if (iv.length) {
+    const m = MODALITIES[c.modalityOf("intervals")];
+    /* La cadence de rameur est une consigne de rameur : elle limite la charge
+       lombaire d'un mouvement que la marche inclinée n'a pas. */
+    const cadence = m && m.terms.includes("cadence") ? ", cadence 24–28 pour limiter la charge lombaire" : "";
+    blocks.push({
+      t: "p",
+      text: `Intervalles (optionnel, S2–S6 et S8–S11) : 4 × 4 min en Z4 puis 5 × 4 min en bloc 2, 3 min de récupération${cadence}.`
+        + " Toujours à 48 h d'une séance jambes. C'est la première chose qu'on retire si un déclencheur de décharge s'allume.",
+    });
+  }
+
+  if (c.mobilityDays.length) {
+    blocks.push({
+      t: "p",
+      text: `Mobilité 10–15 min, ${c.mobilityDays.length} fois par semaine : McGill Big 3 en pyramide descendante, 90/90 et couch stretch, thoracique, épaules. Échauffement spécifique avant chaque séance (voir la séance).`,
+    });
+  }
+
+  if (!blocks.length) return null;
+  /* Le compte que 1c demande, et celui qui n'était pas dicible avant #34 :
+     sous « default », il aurait compté les séances de Simon sous n'importe
+     quel programme. */
+  const days = c.sessions.map((s) => s.day).sort((a, b) => a - b);
+  const meta = `${c.sessions.length} séance${c.sessions.length > 1 ? "s" : ""} · ${days.map(dayName).join(", ")}`;
+  return { id: "cardio", title: "Cardio et mobilité", group: "programme", meta, blocks };
+}
 export function buildPlan(definition) {
   const program = definition.program || {};
   const SLOTS = program.SLOTS || {};
@@ -87,6 +172,8 @@ export function buildPlan(definition) {
     {
       id: "structure",
       title: `Structure des ${definition.weeks} semaines`,
+      group: "methode",
+      meta: "Calibration, bloc 1, décharge, bloc 2, bilan",
       open: true,
       blocks: [
         {
@@ -112,6 +199,8 @@ export function buildPlan(definition) {
     program.volume && program.volume.length ? {
       id: "volume",
       title: "Volume par semaine, et où il se fait",
+      group: "programme",
+      meta: `${program.volume.length} groupes · ${Math.max(...program.volume.map((r) => Number(r[1]) || 0))} séries max`,
       blocks: [
         { t: "table", variant: "volume", rows: program.volume },
         { t: "p", text: "Une « série dure » = une série de travail menée à 1 RIR (ou à l'échec). Les séries d'échauffement ne comptent pas." },
@@ -121,6 +210,8 @@ export function buildPlan(definition) {
     {
       id: "progression",
       title: "Règles de progression",
+      group: "methode",
+      meta: "Double progression · incréments par exercice",
       blocks: [
         { t: "p", text: "Double progression. Quand toutes les séries faites à ta charge de travail atteignent le haut de la fourchette — 8 reps sur du 4–8 —, la charge monte à la séance suivante : barre +2,5 kg haut du corps, +5 kg bas du corps ; haltères +2 kg ; machines et poulies +5 kg ou le plus petit incrément disponible. Si 2 séries ou plus tombent sous le bas de la fourchette, on garde la charge ; si ça se répète, −5 %. L'appli calcule la charge prévue à partir de tes séances validées." },
         /* Rien ici sur le choix de la charge de travail quand une séance en
@@ -147,6 +238,8 @@ export function buildPlan(definition) {
     {
       id: "deload",
       title: "Décharge : déclencheurs et recette",
+      group: "methode",
+      meta: "5 déclencheurs · 2 recettes",
       blocks: [
         { t: "p", text: "Déclencheurs : baisse de performance sur ≥ 2 exercices clés pendant 2 séances de suite malgré sommeil et alimentation corrects ; douleur articulaire ≥ 3/10 qui persiste plus de 48 h ou augmente ; sommeil < 6 h plusieurs nuits ; FC de repos ou HRV dégradées 3 jours ou plus ; RIR ressenti qui dérive." },
         { t: "p", text: "Décharge complète : mêmes exercices, volume −50 %, charges −10 à −20 %, 3–4 RIR, une semaine. Allègement ciblé (une articulation qui se plaint) : on retire uniquement les exercices qui la sollicitent, on garde le reste, on remplace par une variante indolore. Toute douleur nouvelle = arrêt de l'exercice concerné, avis médical si elle persiste." },
@@ -156,22 +249,18 @@ export function buildPlan(definition) {
     program.fallback && program.fallback.length ? {
       id: "fallback",
       title: "Plan de repli (séances manquées)",
+      group: "programme",
+      meta: `${program.fallback.length} cas de figure`,
       blocks: program.fallback.map((text) => ({ t: "p", text })),
     } : null,
 
-    program.cardio !== null ? {
-      id: "cardio",
-      title: "Cardio et mobilité",
-      blocks: [
-        { t: "p", text: "Rameur Z2 deux fois par semaine : 35 min en S1–S2, +5 min toutes les deux semaines jusqu'à 60 min en S12, 30 min faciles en S7. Cibles ~105–115 W, 130–138 bpm, cadence 18–20, drag factor 110–120. La durée progresse d'abord, la puissance ensuite." },
-        { t: "p", text: "Intervalles (optionnel, S2–S6 et S8–S11) : 4 × 4 min en Z4 puis 5 × 4 min en bloc 2, 3 min de récupération, cadence 24–28 pour limiter la charge lombaire. Toujours à 48 h d'une séance jambes. C'est la première chose qu'on retire si un déclencheur de décharge s'allume." },
-        { t: "p", text: "Mobilité 10–15 min, 3 fois par semaine : McGill Big 3 en pyramide descendante, 90/90 et couch stretch, thoracique, épaules. Échauffement spécifique avant chaque séance (voir la séance)." },
-      ],
-    } : null,
+    cardioSection(program.cardio, definition.cardioBaseline),
 
     profile ? {
       id: "nutrition",
       title: "Nutrition",
+      group: "programme",
+      meta: `${sp(profile.startKcal)} kcal · ${profile.macros.p}/${profile.macros.f}/${profile.macros.c} g`,
       blocks: [
         { t: "p", text: `Maintenance estimée ≈ ${sp(profile.maintenanceKcal)} kcal. Départ : ${sp(profile.startKcal)} kcal par jour, 7 jours sur 7. Protéines ${profile.macros.p} g, lipides ${profile.macros.f} g, glucides ${profile.macros.c} g. Quatre repas à 40–50 g de protéines, glucides concentrés autour des séances.` },
         { t: "p", text: "Lecture des deux premières semaines : +0,5 à 1 kg d'eau et de glycogène en S1, on juge la pente entre la moyenne de S2 et celle de S4. Pente +0,2–0,3 kg/sem → maintenance confirmée." },
@@ -185,6 +274,8 @@ export function buildPlan(definition) {
     Object.keys(startingLoads).length ? {
       id: "startloads",
       title: "Charges de départ (S1)",
+      group: "programme",
+      meta: `${Object.keys(startingLoads).length} exercices renseignés`,
       blocks: [{ t: "p", text: startLoadsText(startingLoads) }],
     } : null,
   ];

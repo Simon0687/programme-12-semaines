@@ -21,26 +21,18 @@
 
 import { migrate } from "./schema.js";
 import { DEFAULT_DEFINITION } from "./definition.js";
-import { sanitizeJournal, validateDefinition, validateEnvelope, validatePreMigration } from "./journal-shape.js";
+import { REJECTIONS, sanitizeJournal, validateDefinition, validateEnvelope, validatePreMigration } from "./journal-shape.js";
 
-export const IMPORT_MESSAGES = {
-  /* #15 : « le texte collé » a cessé d'être vrai — le journal arrive par un
-     fichier, et parseProgramImport n'a jamais connu que cette route. */
-  "invalid-json": "Ce fichier n'est pas du JSON valide.",
-  "not-a-journal": "Ce JSON ne contient pas de journal (clé « logs » ou « programs » absente).",
-  "too-new": "Ce fichier a été créé par une version plus récente de l'appli. Mets l'appli à jour, puis réimporte.",
-  "migration-failed": "Ce journal n'a pas pu être mis à jour vers le format actuel.",
-  "not-a-program": "Ce fichier ne décrit pas un programme.",
-  "missing-field": "Champ manquant dans le programme.",
-  "invalid-field": "Champ présent mais invalide dans le programme.",
-  "unsupported-field": "Ce programme utilise une possibilité que l'appli ne sait pas encore exécuter.",
-  "unsupported-weeks": "Ce programme ne compte pas 12 semaines.",
-  "invalid-program": "Le catalogue d'exercices custom (program) est mal formé.",
-  "unknown-exercise": "Le programme référence un exercice absent du registre.",
-  "unknown-cardio-rule": "Le programme référence une règle cardio inconnue.",
-};
+/* #38 : le vocabulaire est déclaré là où les raisons sont produites —
+   `journal-shape.js` — et réexporté ici sous le nom que l'appli connaît.
+   Deux listes, l'une produisant et l'autre déclarant, sont ce qui a laissé
+   `unsupported-field` survivre à #25 sans que personne puisse le voir.
 
-const reject = (reason, message) => ({ ok: false, reason, message: message || IMPORT_MESSAGES[reason] });
+   Le nom `IMPORT_MESSAGES` reste : c'est celui qu'`App.jsx` importe, et le
+   renommer coûterait un diff sans rien apprendre à personne. */
+export { REJECTIONS as IMPORT_MESSAGES };
+
+const reject = (reason, message) => ({ ok: false, reason, message: message || REJECTIONS[reason] });
 
 export function parseJournalImport(text, ctx) {
   let parsed;

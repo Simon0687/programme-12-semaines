@@ -26,28 +26,47 @@ import { EXERCISES } from "./registry.js";
 import { exerciseHistory, recordsFor, seriesByCycle, chartMode, headline, ESTIMATE_REPS } from "./exercise-history.js";
 import { loadText, fmt } from "./progression.js";
 import { setSummary, dateShort, periodLabel, chartGeometry, axisLabel, detailRows, valueText, deltaText, KIND_LABELS } from "./display.js";
+import { traitsOf } from "./units.js";
 
 const CHART = { w: 358, h: 162 };
 
 /* Copie, pas logique : ce que l'axe et la table de records annoncent selon
    l'unité de l'exercice. La règle des records est écrite sous la table
    parce qu'une table de records qu'on ne sait pas lire est un piège — et
-   parce que « ou plus » est exactement ce qui la rend décroissante. */
+   parce que « ou plus » est exactement ce qui la rend décroissante, et ce qui
+   fait depuis #63 qu'une charge n'y figure qu'une fois. La phrase dit donc la
+   règle de lecture, ligne à ligne, et non le calcul qui la produit. */
+/* #67 : « 10RM estimé », « Records », « Historique », « Technique »,
+   « Détails » — cinq titres au même poids que les chiffres qu'ils
+   introduisent, et la page se lisait comme cinq dalles. #49 avait sorti le
+   chiffre de tête de cette égalité en le passant à 32 px ; les quatre
+   intertitres restants descendent ici d'un cran, en petites capitales.
+
+   Ils ne disparaissent pas : un intertitre en petites capitales se repère à sa
+   forme avant de se lire, ce qu'un libellé de 14 px au milieu de valeurs de
+   14 px ne fait pas. La hiérarchie se joue sur la casse et la taille, pas sur
+   une couleur de plus — l'écran n'a toujours qu'un ambre, celui de la courbe.
+
+   La forme n'est pas inventée ici : c'est exactement celle des intertitres de
+   groupe de l'index du Plan (`PlanIndex`, #62). Deux écrans qui nomment un
+   groupe de contenus doivent le nommer pareil. */
+const SECTION = "mt-6 text-xs uppercase tracking-wider text-ink-muted";
+
 const COPY = {
   kg: {
     chart: "10RM estimé",
     note: `Charge estimée pour dix répétitions, calculée sur la meilleure série du jour. Grisée en dessous de ${ESTIMATE_REPS.min} reps ou au-dessus de ${ESTIMATE_REPS.max}, où l'estimation cesse d'être crédible.`,
-    rule: "Charge la plus lourde jamais portée sur ce nombre de reps ou plus.",
+    rule: "Chaque charge une fois, au meilleur nombre de reps jamais tenu dessus.",
   },
   carry: {
     chart: "Tenue et charge de la meilleure série",
     note: "Deux progressions sur une même abscisse : la tenue en courbe, la charge en barres. Aucune estimation ici — extrapoler une charge portée sur un temps donnerait un résultat qui ne veut rien dire.",
-    rule: "Charge la plus lourde jamais portée sur ce nombre de reps ou plus.",
+    rule: "Chaque charge une fois, au meilleur nombre de reps jamais tenu dessus.",
   },
   bw: {
     chart: "Reps et lest de la meilleure série",
     note: "Deux progressions sur une même abscisse : les reps en courbe, le lest en barres. Aucune estimation ici — un 10RM calculé sur six tractions donnerait un lest négatif.",
-    rule: "Lest le plus lourd jamais porté sur ce nombre de reps ou plus.",
+    rule: "Chaque lest une fois, au meilleur nombre de reps jamais tenu avec lui.",
   },
   time: { chart: "Tenue de la meilleure série", rule: "Aucune charge sur cet exercice : le record est la tenue la plus longue.", best: "Meilleure tenue" },
   reps: { chart: "Répétitions de la meilleure série", rule: "Aucune charge sur cet exercice : le record est la meilleure série.", best: "Meilleure série" },
@@ -190,14 +209,14 @@ function Records({ records, v, copy }) {
   const cell = "flex items-center h-10 border-b border-rule";
   return (
     <>
-      <div className="mt-6 text-sm text-ink-muted">Records</div>
+      <div className={SECTION}>Records</div>
       <div className="mt-0.5 text-xs text-ink-faint leading-4">{copy.rule}</div>
       <div className="mt-2 border-t border-rule">
         {records.mode === "best" ? (
           <div className={`${cell} justify-between gap-2`}>
             <div className="text-sm text-ink-muted">{copy.best}</div>
             <div className="flex items-center gap-4">
-              <span className="text-[15px] font-medium text-ink">{records.best}{v.unit === "time" ? " s" : " reps"}</span>
+              <span className="text-[15px] font-medium text-ink">{records.best} {traitsOf(v.unit).repUnit}</span>
               <span className="text-sm text-ink-muted">{dateShort(records.date)}</span>
             </div>
           </div>
@@ -235,7 +254,7 @@ function Details({ rows }) {
   const label = "w-36 shrink-0 text-sm text-ink-muted";
   return (
     <>
-      <div className="mt-6 text-sm text-ink-muted">Détails</div>
+      <div className={SECTION}>Détails</div>
       <div className="mt-2 flex h-2 rounded-full overflow-hidden bg-surface-raised">
         {rows.muscles.map((m, i) => (
           <div key={m.key} className={shadeOf(i)} style={{ width: `${m.pct}%` }} />
@@ -339,7 +358,7 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
 
             {hasRecords && <Records records={records} v={v} copy={copy} />}
 
-            <div className="mt-6 text-sm text-ink-muted">Historique</div>
+            <div className={SECTION}>Historique</div>
             {/* Un en-tête par cycle, le premier compris. Il ne manquait qu'au
                 groupe le plus récent, et c'est ce qui a fait passer pour un bug
                 une séance du 7 sept. enregistrée dans deux cycles différents
@@ -370,7 +389,7 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
 
         {v.cue && (
           <>
-            <div className="mt-6 text-sm text-ink-muted">Technique</div>
+            <div className={SECTION}>Technique</div>
             <p className="mt-1 text-sm text-ink-soft leading-relaxed">{v.cue}</p>
           </>
         )}

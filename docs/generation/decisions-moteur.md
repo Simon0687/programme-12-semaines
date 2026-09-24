@@ -7,7 +7,9 @@ Portée : **choix produit** — ce que l'app fabrique elle-même et ce qu'elle
 délègue. Les choix d'implémentation du registre (Q7/Q8) sont tranchés et
 intouchés ; ce document ne les rouvre pas.
 Langue : français, comme le reste de `docs/generation/`.
-Statut : en attente des réponses de Simon.
+Statut : les quatre questions sont tranchées — réponses de Simon du 2026-09-15,
+enregistrées sous chaque question. Les suites à donner sont listées en fin de
+document (« Comment appliquer »).
 
 ---
 
@@ -327,3 +329,28 @@ Une fois les quatre cases remplies :
 5. **Issues à ouvrir**, dans cet ordre : l'éditeur manuel (Q2), le validateur
    des 6 assertions (Q3), puis le moteur ou le pack selon Q1. #19 est réécrite
    ou fermée en fonction.
+
+### Où ça en est (2026-09-17)
+
+Les cinq points sont traités. #36 a livré l'éditeur (Q2), #37 puis #57 le
+validateur et sa surface (Q3), #58 le moteur (Q1 = B) et ses trois écrans de
+collecte (Q4 = A, périmètre réduit au matériel et aux deux nombres). Le
+non-goal n°3 d'`ARCHITECTURE.md` est réécrit, et `src/generator.js` y a sa
+place dans la bande des modules.
+
+Deux choses que l'écriture du code a apprises, et qui ne sont pas dans ce
+document :
+
+- **Le §3 raisonne en séries, jamais en créneaux.** Son test de faisabilité
+  compare des séries à un plafond de séries, mais une séance porte au plus six
+  exercices et un petit groupe ne se stimule que par un exercice à lui. À deux
+  séances, douze créneaux pour onze muscles : le budget en séries tient, celui
+  en créneaux non. `src/generator.js` répartit donc les créneaux avant de
+  sélectionner, et déclare ce qu'il n'a pas pu loger.
+- **L'assertion 2 est plus stricte que la table dont elle sort.** Le §7 demande
+  une fréquence de stimulation ≥ 1,5 pour tous les muscles, là où la colonne
+  « Fréq. cible » du §3 étape 2 dit 1–2 pour les trois deltoïdes. `#37` a
+  implémenté le §7. La conséquence se voit : à deux séances, aucun programme ne
+  peut la satisfaire pour tout le monde. À trancher dans sa propre issue — ce
+  n'est pas un bug du moteur, c'est une contradiction du document de méthode,
+  la cinquième après les quatre listées dans `decisions.md` de #25.

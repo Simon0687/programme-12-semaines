@@ -1,5 +1,5 @@
 {
-  "formatVersion": 2,
+  "formatVersion": 3,
   "id": "simon-12s-2026-09",
   "name": "Haut/Bas 5 jours — définition musculaire et condition",
   "weeks": 12,
@@ -27,6 +27,12 @@
     "ohp_db": 26,
     "pullup": 0,
     "pd_close": 90
+  },
+  "cardioBaseline": {
+    "power": [105, 115],
+    "hr": [130, 138],
+    "cadence": [18, 20],
+    "drag": [110, 120]
   },
   "program": {
     "SLOTS": {
@@ -455,7 +461,14 @@
       "upper": "5–10 min : rotations externes à l'élastique 2 × 15 ; open book ou extension thoracique sur rouleau, 10 par côté ; glissés au mur 10 ; puis montée en charge sur le premier exercice : 50 % × 8, 70 % × 4, 85 % × 2.",
       "lower": "5–10 min : cat-camel 10 ; 90/90 hanches 1 min par côté ; dorsiflexion cheville au mur 10 par côté ; pont fessier 15 ; McGill court (curl-up 5, planche latérale 15 s par côté, bird dog 5 par côté) ; montée en charge sur le squat ou le hip thrust : 50 % × 6, 70 % × 4, 85 % × 2."
     },
-    "cardio": "default",
+    "cardio": {
+      "sessions": [
+        { "id": "z2a", "modality": "rameur", "kind": "z2", "day": 3, "anchor": "hautB", "note": "ou le soir" },
+        { "id": "int", "modality": "rameur", "kind": "intervals", "day": 4 },
+        { "id": "z2b", "modality": "rameur", "kind": "z2", "day": 7 }
+      ],
+      "mobility": { "days": [2, 4, 7] }
+    },
     "volume": [
       [
         "Delt latéraux",

@@ -17,7 +17,16 @@
    La sécurité qui excluait un point de décharge (week === 7) de la base de
    calcul du suivant devient kind === "deload" ; la calibration (base.week
    === 1 || 7) devient kind === "calibration" || "deload".
+   #23 : le module reste une feuille, mais il en importe une autre —
+   `units.js`, qui n'importe rien non plus et porte ce que chaque unité
+   implique. C'est le seul import de ce fichier, et le sens de la flèche est
+   le bon : le moteur lit une table de traits, aucune table ne lit le moteur.
    ========================================================= */
+
+import { traitsOf } from "./units.js";
+/* #14 : la forme du cycle est une donnée. policies.js est une feuille comme
+   units.js, donc le moteur reste une feuille en la lisant (ARCHITECTURE §1). */
+import { DEFAULT_POLICIES, phaseFor, variantOf, setsForWeek, kindForWeek } from "./policies.js";
 
 export const num = (s) => {
   if (s === "" || s == null) return null;
@@ -26,6 +35,29 @@ export const num = (s) => {
 };
 export const fmt = (n) => (n == null ? "—" : String(Math.round(n * 100) / 100).replace(".", ","));
 export const roundTo = (x, inc) => (inc ? Math.round(x / inc) * inc : x);
+
+/* ---------- Les séries telles que le moteur les lit (#23) ----------
+
+   Le journal stocke ce que les champs de saisie ont produit : des chaînes,
+   « 72,5 » comme « », et une ligne peut être vide parce que la série n'a pas
+   été faite. Les ramener à des nombres et écarter celles sans répétitions
+   était écrit quatre fois — ici, deux fois dans App.jsx, une dans
+   exercise-history.js — dont deux copies sans les gardes des deux autres.
+
+   La règle porte du sens, ce n'est pas de la plomberie : **une série sans
+   répétitions n'a pas eu lieu.** C'est elle qui fait qu'une ligne laissée
+   vide sur une séance validée ne compte pas. La charge seule ne suffit
+   pas : un poids réglé sur la barre puis reposé n'est pas une série.
+
+   Les deux gardes viennent de exercise-history.js, qui lit des journaux que
+   personne n'a validés (#32) : elles ne changent rien aux appelants dont la
+   donnée est déjà jugée, et évitent que le prochain lecteur brut refasse sa
+   propre copie pour les ajouter. */
+export const normalizeSets = (rows) =>
+  (Array.isArray(rows) ? rows : [])
+    .filter((x) => typeof x === "object" && x !== null && !Array.isArray(x))
+    .map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) }))
+    .filter((x) => x.r != null);
 
 /* ---------- La charge de travail d'une séance (#31) ----------
 
@@ -88,7 +120,13 @@ const loadOf = (s) => (s.w == null ? 0 : s.w);
    `allege` — le cas où TOUTES les séances sont allégées et où il n'y a rien
    d'autre sur quoi se rabattre — emprunte la branche normale. C'est le bon
    verdict : elle ne porte aucune coupe programmée à expliquer. */
-const SKIPPED_AS_BASE = new Set(["deload", "allege"]);
+/* #14 : "test" rejoint la liste. Une séance test pousse la dernière série à
+   l'échec sur les exercices clés — c'est un repère, pas une prescription — et
+   en faire la base du calcul suivant proposerait une charge tirée d'un effort
+   maximal. Exactement la raison qui y avait mis "deload" et "allege" : une
+   séance dont la charge est décidée par autre chose que la progression ne peut
+   pas servir de référence à la progression. */
+const SKIPPED_AS_BASE = new Set(["deload", "allege", "test"]);
 
 /* Haut de la fourchette. Non arrondi : les reps sont entières, donc les 37,5 du
    carry 30–45 valent « 38 ou plus » sans qu'on ait à le dire. */
@@ -140,15 +178,20 @@ export function loadDrops(entries) {
   );
 }
 
-export const phaseOf = (w) =>
-  w === 1 ? { id: "calib", label: "Calibration", rir: "2–3" }
-  : w <= 6 ? { id: "b1", label: "Bloc 1", rir: "1" }
-  : w === 7 ? { id: "deload", label: "Décharge et calibration du bloc 2", rir: "3–4" }
-  : w <= 11 ? { id: "b2", label: "Bloc 2", rir: "1" }
-  : { id: "bilan", label: "Bloc 2, semaine bilan", rir: "1" };
-export const blockOf = (w) => (w <= 6 ? "b1" : "b2");
-export const setsFor = (n, w) => (w === 7 ? Math.ceil(n / 2) : n);
-export const computeKind = (week) => (week === 1 ? "calibration" : week === 7 ? "deload" : "normal");
+/* #14 : les quatre fonctions qui portaient la forme du cycle en dur la lisent
+   désormais dans les politiques du programme. Le paramètre est optionnel et
+   vaut `DEFAULT_POLICIES`, qui *est* la forme livrée : les appels d'avant #14
+   rendent exactement ce qu'ils rendaient, et `test/progression.test.js` n'a
+   pas bougé d'une ligne — c'est le premier critère d'acceptation de l'issue,
+   et c'est aussi la seule preuve qui vaille que la traduction est fidèle.
+
+   `weeks` n'était nulle part : `phaseOf` disait « <= 11, sinon bilan », ce qui
+   fixait douze semaines dans une fonction qui n'en savait rien. Le repli sur
+   12 garde les appels muets identiques. */
+export const phaseOf = (w, policies, weeks = 12) => phaseFor(w, policies, weeks);
+export const blockOf = (w, policies) => variantOf(w, (policies || DEFAULT_POLICIES).rotation);
+export const setsFor = (n, w, policies) => setsForWeek(n, w, (policies || DEFAULT_POLICIES).deload);
+export const computeKind = (week, policies) => kindForWeek(week, policies);
 
 export function history(prog, state, vid) {
   const out = [];
@@ -156,44 +199,74 @@ export function history(prog, state, vid) {
     if (!rec.done) continue;
     const si = prog.SESSIONS.findIndex((s) => s.id === rec.slot);
     if (si < 0) continue; // slot d'un autre programme (custom chargé puis remplacé, #6) : hors du prog courant
-    const sets = ((rec.ex && rec.ex[vid]) || []).map((x) => ({ w: num(x.w), r: num(x.r), rir: num(x.rir) })).filter((x) => x.r != null);
+    const sets = normalizeSets(rec.ex && rec.ex[vid]);
     if (sets.length) out.push({ date: rec.date, si, kind: rec.kind, session: prog.SESSIONS[si].name, sets });
   }
   out.sort((a, b) => (a.date === b.date ? a.si - b.si : a.date < b.date ? -1 : 1));
   return out;
 }
+/* ---------- « Ce qui précède ce créneau » (#23) ----------
+
+   Depuis #16 un créneau s'identifie par (date, rang de la séance dans la
+   journée) et non par un numéro de semaine. « Avant » se dit donc en deux
+   clauses, et `si` n'est pas un détail : deux séances du même jour se
+   classent entre elles, ce qu'une comparaison de dates seule ne fait pas.
+
+   `lastEntry()` (la ligne « Dernière fois » de la carte) et `planned()` (le
+   moteur) filtraient chacun de leur côté, à la clause près. Les laisser
+   séparés, c'était accepter que l'écran finisse par citer une séance que le
+   calcul a ignorée. */
+export const historyBefore = (prog, state, vid, date, si) =>
+  history(prog, state, vid).filter((e) => e.date < date || (e.date === date && e.si < si));
+
 export function lastEntry(prog, state, vid, date, si) {
-  const h = history(prog, state, vid).filter((e) => e.date < date || (e.date === date && e.si < si));
+  const h = historyBefore(prog, state, vid, date, si);
   return h[h.length - 1] || null;
 }
-export function planned(prog, state, slotId, week, si, date) {
+/* `vid` est optionnel et vaut, par défaut, l'exercice que le créneau prescrit :
+   les appels d'avant #55 ne le passent pas et obtiennent exactement ce qu'ils
+   obtenaient. Le passer ne sert qu'à un cas — une substitution de séance
+   (session-sub.js), où le créneau garde sa fourchette, son RIR et son repos
+   (c'est le programme qui prescrit) pendant que la charge prévue se lit dans
+   l'historique du remplaçant.
+
+   Le moteur ne connaît toujours pas `sub`, et ne doit pas : on lui dit sur quel
+   exercice se prononcer, il ne va pas le chercher dans le journal. C'est ce qui
+   le garde utilisable par la fiche exercice comme par la séance. */
+export function planned(prog, state, slotId, week, si, date, vid = prog.SLOTS[slotId][blockOf(week, prog.POLICIES)], policies = prog.POLICIES) {
   const slot = prog.SLOTS[slotId];
-  const vid = slot[blockOf(week)];
+  /* #14 : la coupe de décharge et son pourcentage viennent de la politique.
+     `DEFAULT_POLICIES.deload.loadFactor` vaut 0,85 — le nombre qui était écrit
+     deux fois ici en dur, et le « −15 % » du texte avec lui — donc un
+     programme sans politique rend au caractère près ce qu'il rendait. */
+  const pol = policies || DEFAULT_POLICIES;
+  const cut = (pol.deload && typeof pol.deload.loadFactor === "number") ? pol.deload.loadFactor : DEFAULT_POLICIES.deload.loadFactor;
+  const pct = Math.round((1 - cut) * 100);
   const v = prog.V[vid];
-  const unit = v.unit || "kg";
+  const u = traitsOf(v.unit);
   const [mn, mx] = slot.reps;
-  const kind = computeKind(week);
-  const hist = history(prog, state, vid).filter((e) => e.date < date || (e.date === date && e.si < si));
+  const kind = computeKind(week, pol);
+  const hist = historyBefore(prog, state, vid, date, si);
   let base = hist[hist.length - 1], prev = hist[hist.length - 2];
   if (base && SKIPPED_AS_BASE.has(base.kind) && hist.some((e) => !SKIPPED_AS_BASE.has(e.kind))) {
     const nd = hist.filter((e) => !SKIPPED_AS_BASE.has(e.kind));
     base = nd[nd.length - 1]; prev = nd[nd.length - 2];
   }
-  const label = unit === "time" ? `${mn}–${mx} s` : unit === "carry" ? `${mn}–${mx} s` : `${mn}–${mx} reps`;
+  const label = `${mn}–${mx} ${u.repUnit}`;
 
   if (!base) {
-    if (unit === "time" || unit === "reps") return { load: null, text: `Cible ${label} à ${phaseOf(week).rir} RIR`, why: "", baseLoad: null };
+    if (!u.hasLoad) return { load: null, text: `Cible ${label} à ${phaseOf(week, pol, prog.weeks).rir} RIR`, why: "", baseLoad: null };
     if (v.start == null) return { load: null, text: "Paliers", why: "50 → 75 → 100 % de la charge devinée ; la première série dans la fourchette au bon RIR devient la charge de travail", baseLoad: null };
-    const l = kind === "deload" ? roundTo(v.start * 0.85, v.incr) : v.start;
-    return { load: l, text: loadText(v, l), why: kind === "deload" ? "charge de départ −15 % (décharge)" : "charge de départ", baseLoad: null };
+    const l = kind === "deload" ? roundTo(v.start * cut, v.incr) : v.start;
+    return { load: l, text: loadText(v, l), why: kind === "deload" ? `charge de départ −${pct} % (décharge)` : "charge de départ", baseLoad: null };
   }
   /* Sans charge, il n'y a rien à regrouper : ce retour passe avant workingSets()
      plutôt qu'après, ce qui confine la règle de #31 aux unités chargées par
      construction au lieu d'une garde. Le verdict y reste calculé sur toutes les
      séries, comme il l'a toujours été. */
-  if (unit === "time" || unit === "reps") {
+  if (!u.hasLoad) {
     const top = base.sets.every((s) => s.r >= mx);
-    const t = top ? `progresser : ${unit === "time" ? "+5 s" : "+1 rep ou amplitude"}` : `viser le haut de la fourchette (${label})`;
+    const t = top ? `progresser : ${u.repUnit === "s" ? "+5 s" : "+1 rep ou amplitude"}` : `viser le haut de la fourchette (${label})`;
     return { load: null, text: `Cible ${label}`, why: `dernière fois ${base.sets.map((s) => s.r).join("/")} — ${t}`, baseLoad: null };
   }
 
@@ -222,7 +295,7 @@ export function planned(prog, state, slotId, week, si, date) {
     if (prevLow) { next = roundTo(load * 0.95, v.incr); why = "−5 % : deux séances sous la fourchette"; }
     else why = "même charge : une séance sous la fourchette, on retente";
   } else why = "même charge : viser plus de reps";
-  if (kind === "deload" && base.kind !== "deload") { next = roundTo(next * 0.85, v.incr); why = "décharge −15 %"; }
+  if (kind === "deload" && base.kind !== "deload") { next = roundTo(next * cut, v.incr); why = `décharge −${pct} %`; }
   /* Quand la séance portait plusieurs charges, le moteur tire sa réponse d'un
      *sous-ensemble* de ce que l'utilisateur voit écrit dans son historique. Sans
      cette mention, la carte annonce « Prévu : 110 kg » après une séance où il a
@@ -256,6 +329,9 @@ export function lastEntryLabel(last) {
 
 export function loadText(v, l) {
   if (l == null) return "—";
-  if ((v.unit || "kg") === "bw") return l > 0 ? `PDC + ${fmt(l)} kg` : "Poids du corps";
+  /* `bodyweight` et non `unit === "bw"` : ce qui décide de la forme est que
+     la charge s'ajoute au corps au lieu d'être le total soulevé, et c'est ce
+     que la table nomme. */
+  if (traitsOf(v.unit).bodyweight) return l > 0 ? `PDC + ${fmt(l)} kg` : "Poids du corps";
   return `${fmt(l)} kg${v.perHand ? " / main" : ""}`;
 }

@@ -19,10 +19,11 @@
    ========================================================= */
 
 import { EXERCISES } from "./registry.js";
-import { cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./cardio.js";
+import { resolvePolicies } from "./policies.js";
+import { resolveCardio } from "./cardio.js";
 import { LEGACY_DEFINITION } from "./legacy-program.js";
 
-export { cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./cardio.js";
+export { resolveCardio, MODALITIES, KIND_LABELS } from "./cardio.js";
 
 /* ---------- Construction du bundle actif (#6, #25) ----------
    Un cycle fige un catalogue — celui de definition.program — et y injecte
@@ -43,9 +44,20 @@ export { cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES } from "./cardio.j
    muterait sinon le registre partagé, et un deuxième cycle en mémoire
    écraserait les charges du premier. Affectation sans condition — pullup
    vaut 0 (poids du corps), un `if (load)` le perdrait.
-   cardio résout la règle nommée : "default" (ou absent) -> la règle
-   bundlée cardioPlan/CARDIO_ITEMS/MOB_DAYS/CARDIO_DAY_NOTES ; null ->
-   aucune donnée cardio (rendu conditionnel laissé à #13). */
+   cardio, depuis #34 : `null` -> aucune donnée (rendu conditionnel de #13) ;
+   un objet -> la structure du programme, jointe aux nombres de la personne
+   (`definition.cardioBaseline`) et à la courbe, qui reste de la méthode ;
+   `"default"` ou absent -> la structure et les nombres de Simon, figés dans
+   cardio.js. Cette dernière branche est un alias hérité et rien d'autre :
+   des journaux stockés portent cette chaîne, et ARCHITECTURE 2.1 interdit
+   qu'elle se mette à désigner autre chose. `haut-bas-5j.json` ne l'emploie
+   plus — il porte sa structure en clair — donc elle n'a plus d'utilisateur
+   vivant, seulement des utilisateurs stockés.
+
+   Le repli par omission est conservé pour la même raison, et pour elle
+   seule : un fichier d'avant #34 sans champ `cardio` désignait le rameur de
+   Simon, et doit continuer de le désigner. Un fichier au format 3 ne peut
+   plus omettre le champ — le validateur l'exige (journal-shape.js). */
 export function buildProgram(definition) {
   const p = (definition && definition.program) || LEGACY_DEFINITION.program;
   const V = structuredClone(EXERCISES);
@@ -53,10 +65,12 @@ export function buildProgram(definition) {
   for (const [vid, load] of Object.entries(startingLoads)) {
     if (V[vid]) V[vid].start = load;
   }
-  const cardio = p.cardio === null
-    ? {}
-    : { cardioPlan, CARDIO_ITEMS, MOB_DAYS, CARDIO_DAY_NOTES };
-  return { V, SLOTS: p.SLOTS, SESSIONS: p.SESSIONS, CORE: p.CORE, WARM: p.WARM, ...cardio };
+  const cardio = p.cardio === null ? {} : resolveCardio(p.cardio, definition && definition.cardioBaseline);
+  /* #14 : la forme du cycle — quand décharger, quand tourner les variantes —
+     est une donnée du programme, résolue une fois ici. Un programme qui ne la
+     porte pas obtient DEFAULT_POLICIES, qui *est* la forme livrée : son
+     absence se lit « comme avant », jamais « aucune politique ». */
+  return { V, SLOTS: p.SLOTS, SESSIONS: p.SESSIONS, CORE: p.CORE, WARM: p.WARM, POLICIES: resolvePolicies(p), weeks: definition.weeks, ...cardio };
 }
 
 /* ---------- Dérivations pures depuis un bundle (#22, #13) ----------
@@ -75,23 +89,29 @@ export function getKeySlots(prog) {
     .map(([id]) => id);
 }
 
-/* Jours (0 = dimanche … 6 = samedi) qui ont une note cardio mais aucune
-   séance. Un jour avec à la fois une séance et une note cardio (ex. mercredi :
-   Haut B + rameur après) n'en fait pas partie : la note y complète la séance,
-   elle ne la remplace pas.
+/* Jours qui portent du cardio ou de la mobilité mais aucune séance de force,
+   en décalages de 1 à 7 depuis startDate (#39). Un jour qui porte les deux
+   (mercredi : Haut B puis rameur) n'en fait pas partie : le cardio y complète
+   la séance, il ne la remplace pas.
 
-   #41 : plus aucun appelant dans src/. Son unique consommateur était l'effet
-   qui devinait la séance à ouvrir — il servait à basculer directement sur
-   « Cardio et mobilité » les jours sans séance — et cet effet est supprimé
-   depuis qu'on choisit sa séance depuis Semaine. La fonction et
-   CARDIO_DAY_NOTES restent : ce dernier appartient au format de programme, et
-   le retirer parce qu'une UI a cessé de le lire est une décision de #34, pas
-   un nettoyage à faire en passant. */
+   **C'était une table, c'est devenu un calcul (#34).** `CARDIO_DAY_NOTES`
+   énumérait à la main des jours que la structure porte désormais, et ses clés
+   étaient la dernière chose du format indexée par Date#getDay() — le second
+   vocabulaire que #39 a supprimé partout ailleurs. Une table qui redit ce que
+   la donnée sait déjà est une table qui finira par la contredire.
+
+   #41 : plus aucun appelant dans src/. Son unique consommateur était
+   l'effet qui devinait la séance à ouvrir, supprimé depuis qu'on choisit sa
+   séance depuis Semaine. Gardée parce que la question — « quels jours sont
+   des jours de cardio seul ? » — se reposera au premier écran qui voudra le
+   dire, et qu'elle ne coûte plus de donnée à personne. */
 export function getCardioDayNotes(prog) {
   const sessionDays = new Set(prog.SESSIONS.map((s) => s.day));
-  return Object.keys(prog.CARDIO_DAY_NOTES || {})
-    .map(Number)
-    .filter((day) => !sessionDays.has(day));
+  const days = [
+    ...(prog.CARDIO_ITEMS || []).map((it) => it.day),
+    ...(prog.MOB_DAYS || []),
+  ];
+  return [...new Set(days)].filter((d) => d != null && !sessionDays.has(d)).sort((a, b) => a - b);
 }
 
 /* #13 : cardio et mobilité sont deux affordances indépendantes — un bundle

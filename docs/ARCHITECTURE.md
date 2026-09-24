@@ -15,6 +15,7 @@ Related, and deliberately not repeated here:
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | process, commits, versioning rules, pre-migration backups |
 | [WORKFLOW.md](../WORKFLOW.md) | branches, CI/CD, releases |
 | [.claude/WORKFLOW.md](../.claude/WORKFLOW.md) | how much documentation an issue needs (A/B/C) |
+| [docs/data-model.html](data-model.html) | what is stored, field by field, and the three joins between a logged session and its program |
 | [docs/generation/README.md](generation/README.md) | the three JSON contracts of program generation |
 | `docs/features/<n>-<slug>/` | why one specific issue was decided the way it was |
 
@@ -41,22 +42,87 @@ Module dependencies, as they actually stand - every edge, no others:
 | `journal-shape` | `registry`, `definition` |
 | `program` | `registry`, `cardio`, `legacy-program` |
 | `definition` | `default-program` |
-| `plan` | `registry` |
-| `display` | `progression` |
-| `exercise-history` | `progression` |
-| `schema`, `registry`, `progression`, `cardio`, `backup`, `default-program`, `legacy-program`, `file-io`, `export-state`, `bilan`, `screen-state` | nothing |
+| `plan` | `registry`, `cardio`, `display` |
+| `display` | `progression`, `units` |
+| `exercise-history` | `progression`, `units` |
+| `program-editor` | `registry`, `definition`, `legacy-program` |
+| `exercise-filter` | `registry` |
+| `assertions` | `registry` |
+| `session-sub` | `progression` |
+| `onboarding` | `program-editor` |
+| `progression` | `units`, `policies` |
+| `load-picker` | `units` |
+| `schema`, `registry`, `units`, `policies`, `cardio`, `backup`, `default-program`, `legacy-program`, `file-io`, `export-state`, `bilan`, `screen-state` | nothing |
 
-`progression.js`, `registry.js`, `cardio.js`, `backup.js`, `schema.js` and
-`legacy-program.js` import nothing from the app. `schema.js` being a leaf is
+`registry.js`, `units.js`, `cardio.js`, `backup.js`, `schema.js` and
+`legacy-program.js` import nothing from the app, and `progression.js` imports
+only `units.js` - itself one of them. `schema.js` being a leaf is
 load-bearing: it is why migrations take their program knowledge through an
 injected `ctx` instead of importing `program.js`, and why adding a migration
 never risks an import cycle.
+
+`session-sub.js` (#55) sits in that same band, and for a reason worth stating:
+`sub` is journal data, not a progression rule. Before it, the line
+`vid = prog.SLOTS[slotId][blockOf(week)]` was written six times across the app,
+and each of the six answered "which exercise does this slot carry?" by looking at
+the program alone. A one-session substitution is exactly the claim that the
+journal sometimes has a different answer, so one module now holds it and the six
+sites call it. The engine learns nothing: `planned()` gained an optional seventh
+parameter - the exercise to pronounce on - and still never reads `sub` itself,
+which is what keeps it usable by the exercise sheet as much as by the session
+screen.
 
 `display.js` and `exercise-history.js` (#17) both sit *above* `progression.js`
 and never the reverse: the engine stays a leaf. That is why `setSummary()` moved
 to `display.js` rather than next to `loadText()` as #23 expected, and why
 `loadText()` did not move at all - `planned()` calls it, so following #23 to the
 letter would have made a leaf of the engine import a view module.
+
+`units.js` (#23) is the same argument taken the other way. What each unit
+implies - does it carry a load, is that load added to the body, is the middle
+column reps or seconds, what shape does its chart take - was decided by eight
+independent ternaries across five modules, two of them identical branches
+written twice. #23 asked for one table in `program.js`; `progression.js` needs
+it and `program.js` sits above the engine, so the table went *below* instead,
+as a leaf the engine may import without becoming anything else. The split that
+keeps that honest is by kind of fact: `units.js` carries meaning, `display.js`
+carries the French words for it (`UNIT_COLUMNS`, `unitLoadLabel`), next to
+`MUSCLE_LABELS` and for the same reason. A table the engine imports cannot
+carry screen text.
+
+`program-editor.js` and `exercise-filter.js` (#36) are the same shape one level
+further: everything the editor screen decides - the draft mutations, the
+generated ids, the filtering of the registry - is a pure function under them, and
+`ProgramEditor.jsx` only turns the result into markup (2.6). Neither imports
+`journal-shape`: the editor does not validate, it calls the validator from the
+save handler, which keeps the judgment in one place (2.9).
+
+`assertions.js` (#37) sits in the same band, above `registry.js` and below
+nothing at all. Since #57 exactly one screen calls it: Plan hands `assess()` the
+`prog` bundle - what the app actually executes, LEGACY fallback included - and
+renders its findings verbatim at the end of the Programme section. It judges a
+program as *training* - the six acceptance assertions of
+`docs/generation/moteur-generation-programme.md` §7 - where `journal-shape.js`
+judges it as *data*. The two are deliberately not connected, and 2.9 is why: a
+volume imbalance is an opinion, not malformed data, so it must not reach a
+frontier that rejects. `assess()` therefore never calls `validateProgram()`, and
+no import door calls `assess()` - the Plan call of #57 lands after loading, on
+whatever program ended up active, never on the way in. It defends itself the way
+#33 taught `validateProgram` to - structural guards, never a `try`/`catch` -
+because the two doors being independent means it does run on programs the other
+one would refuse.
+
+`generator.js` (#58) is the one module that sits *above* `assertions.js` and
+calls it rather than being judged by it: `targetsFor()` is its volume model and
+its time budget, not a checker bolted on afterwards - which is the argument
+`decisions-moteur.md` Q1 recorded for building the engine in the app at all. It
+produces a `definition` and hands it to the editor; it never writes, never
+validates and never grades its own output. So the chain a generated program
+travels is the one a loaded file travels: `generator.js` → `program-editor.js` →
+`journal-shape.js` → `storage.js`, with `assess()` giving its opinion at the end,
+on Plan, like on any other program. Since #58 that opinion is no longer partial
+for a generated cycle: the definition carries an `intent`, and the three
+assertions that need targets finally run.
 
 `journal-shape.js` (#32) is the one module both import doors and the storage
 adapter depend on - see 2.9. It was made a separate module rather than an
@@ -216,17 +282,36 @@ does it once, at the end of the chain. A second declaration of a version number
 is how two shapes end up sharing one number, which no migration can then
 untangle.
 
+The chain now runs to **5**. Each step takes its program knowledge from where it
+can actually find it: `MIGRATIONS[2]` needs an injected `ctx` because a v2
+journal could carry `definition: null`, a *reference* to the bundle resolved at
+read time. `MIGRATIONS[4]` (#29, cardio and check-in re-keyed by date) needs
+none, and that is a property #26 bought: from v4 on, every program carries its
+own pinned definition, so the `startDate` a migration needs is already inside the
+entry it is converting. Each cycle dates against its own.
+
 ### 2.9 Every door into the journal goes through one validator
 
-Three doors accept a journal or a definition: the stored journal (`loadJournal`),
-a pasted journal (`parseJournalImport`), a program file (`parseProgramImport`).
-Since #32 all three call `src/journal-shape.js`, and none of them judges shape on
-its own.
+Four doors accept a journal or a definition: the stored journal (`loadJournal`),
+a pasted journal (`parseJournalImport`), a program file (`parseProgramImport`),
+and since #36 the editor's save (`saveDraft`, `App.jsx`). All four call
+`src/journal-shape.js`, and none of them judges shape on its own.
 
 The rule is not "validate the input" - it is **one callee, so the bar cannot
 drift**. Before #32 only the file door was guarded; the pasted door, which is the
 documented escape hatch from a blocked store (#12), had no validator at all, and
 a definition rejected as a file installed happily inside a pasted journal.
+
+The fourth door is the one that proves the rule was worth writing. The editor
+composes a definition *inside* the app, so nothing about it arrived from a file
+and it would have been easy to argue it needs no check - and just as easy to
+write a second, laxer bar by hand. It calls `validateDefinition()` and shows
+`bad.message`, the same sentence a rejected file gets. What the editor adds is
+upstream: `src/program-editor.js` cannot *produce* most of the shapes the
+validator refuses (ids are generated so two sessions cannot share one, a removed
+row prunes its slot so no dangling reference survives, the picker only offers
+`EXERCISE_IDS`). The validator stays the judge; the draft model just stops
+arguing with it.
 
 Three consequences worth keeping:
 
@@ -242,6 +327,17 @@ Three consequences worth keeping:
   the original bytes are copied to `<key>_backup_dropped` before the filtered
   journal can be rewritten - the same rule as a pre-migration backup (#8): a
   rejection is never a rewrite.
+
+And one fact that the editor rests on, worth stating where the storage rules
+live: **slot ids are invisible to storage.** A log row is `{ date, slot, ex }`
+where `slot` is the *session* id (`writeLog`, `src/schema.js`) and `ex` is keyed
+by *exercise* id (`history`, `src/progression.js`). Nothing stored ever names a
+slot id. That is what makes direct editing of a `program` safe: creating,
+forking or deleting a slot cannot rewrite anything already recorded - so the
+editor forks a slot shared by two sessions before writing to it, and prunes the
+ones nothing references any more, without a migration in sight. Session ids and
+exercise ids are the opposite: they are addresses in the journal, which is why
+the editor generates the first and never invents the second.
 
 ---
 

@@ -32,10 +32,57 @@
 
 import { EXERCISE_IDS } from "./registry.js";
 import { DEFINITION_FORMAT_VERSION, parseLocalDate } from "./definition.js";
-import { AFTER_KINDS } from "./cardio.js";
+import { AFTER_KINDS, MODALITY_IDS, CARDIO_KINDS, BASELINE_KEYS } from "./cardio.js";
 
 const isNum = (x) => typeof x === "number" && Number.isFinite(x);
 const isObj = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
+
+/* ---------- Le vocabulaire des refus, déclaré une seule fois (#38) ----------
+
+   Il vivait dans `import.js` (`IMPORT_MESSAGES`) pendant que les raisons
+   étaient **produites** ici. Rien ne reliait les deux listes, et c'est
+   exactement comme ça qu'`unsupported-field` a survécu à #25 : la raison
+   avait cessé d'être émise, sa ligne est restée, et personne ne pouvait le
+   voir en lisant l'un ou l'autre fichier.
+
+   La déclaration est donc à l'endroit où les raisons naissent, et
+   `test/journal-shape.test.js` vérifie la bijection **dans les deux sens** :
+   aucune raison déclarée qui ne soit émise quelque part, aucune raison émise
+   qui ne soit déclarée. Une raison morte devient impossible à garder au lieu
+   d'attendre qu'on la remarque deux issues plus tard.
+
+   La phrase est le **repli** : un rejet qui porte son propre message — avec
+   son chemin JSON et la règle enfreinte — garde le sien. C'est ce que #19
+   demande d'un message : qu'il soit adressable, c'est-à-dire assez précis pour
+   qu'on agisse dessus.
+
+   Deux raisons se ressemblent et ne disent pas la même chose (#38 Q2). Elles
+   sont voisines ici pour que la différence se lise :
+
+   - `not-a-program`  : ce fichier n'est pas un programme — tu t'es trompé de
+                        fichier.
+   - `invalid-program`: c'est bien un programme, et une ligne de son catalogue
+                        custom est fausse — corrige celle-là.
+
+   Les fusionner ferait lire « ce fichier ne décrit pas un programme » à
+   quelqu'un dont le programme est bon à une faute de frappe près. */
+export const REJECTIONS = {
+  /* Reconnaissance du document — `import.js` */
+  "invalid-json": "Ce fichier n'est pas du JSON valide.",
+  "not-a-journal": "Ce JSON ne contient pas de journal (clé « logs » ou « programs » absente).",
+  "not-a-program": "Ce fichier ne décrit pas un programme.",
+  "too-new": "Ce fichier a été créé par une version plus récente de l'appli. Mets l'appli à jour, puis réimporte.",
+  "migration-failed": "Ce journal n'a pas pu être mis à jour vers le format actuel.",
+
+  /* Forme du journal et de la définition — ce module */
+  invalid: "Ce journal n'a pas la forme attendue.",
+  "missing-field": "Champ manquant dans le programme.",
+  "invalid-field": "Champ présent mais invalide dans le programme.",
+  "unsupported-weeks": "Ce programme ne compte pas 12 semaines.",
+  "invalid-program": "Le catalogue d'exercices custom (program) est mal formé.",
+  "unknown-exercise": "Le programme référence un exercice absent du registre.",
+  "unknown-cardio-rule": "Le programme référence une modalité ou une règle cardio que l'appli ne connaît pas.",
+};
 
 /* Référence à un slot dans SESSIONS[].ex ou CORE[].ex : la paire
    [id de slot, nombre de séries]. Vérifiée *avant* toute déstructuration
@@ -183,10 +230,11 @@ export function validateProgram(program) {
        étiquetées, elles devenaient introuvables par findLog et non triables
        par history(). Une plage, pas un test d'analyse : day: 99 produit une
        vraie date, quatorze semaines plus loin.
-       Note : App.jsx compare encore ce champ à today.getDay() (0 = dimanche),
-       ce qui ne coïncide avec l'offset que si startDate tombe un lundi. La
-       plage retenue est correcte sous les deux conventions pour 1-6 ; la
-       contradiction elle-même est une issue à part (design.md, suivis). */
+       La contradiction que cette note signalait — App.jsx comparait ce champ
+       à today.getDay(), qui ne coïncide avec le décalage que si startDate
+       tombe un lundi — est levée par #39 : plus aucun lecteur ne fait de
+       getDay() sur un `session.day`, et la plage 1-7 est désormais la plage
+       de la seule convention qui reste. */
     if (!Number.isInteger(session.day) || session.day < 1 || session.day > 7) {
       return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].day (entier de 1 à 7 attendu)` };
     }
@@ -202,6 +250,18 @@ export function validateProgram(program) {
     }
 
     if (!Array.isArray(session.ex)) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].ex (tableau attendu)` };
+    /* Au moins un exercice (#36). Une séance vide n'est pas une séance
+       maigre, c'est une séance que l'appli ne sait pas rendre : l'écran
+       Semaine résume chaque ligne par son premier exercice (App.jsx:931),
+       la fiche n'a rien à afficher et le bilan n'a pas d'exercice clé à
+       reprendre. Le refus vit ici parce qu'il vaut pour les deux portes
+       (§2.9) : un fichier importé porte le même trou qu'un brouillon
+       enregistré trop tôt, et l'éditeur n'a aucune règle de forme à lui. */
+    if (session.ex.length === 0) {
+      const named = typeof session.name === "string" && session.name.trim();
+      const who = named ? `La séance « ${named} »` : `program.SESSIONS[${i}]`;
+      return { reason: "invalid-program", message: `${who} ne porte aucun exercice ; une séance doit en porter au moins un.` };
+    }
     for (const [j, e] of session.ex.entries()) {
       if (!isSlotRef(e)) return { reason: "invalid-program", message: `Champ invalide : program.SESSIONS[${i}].ex[${j}] (paire [slot, nombre de séries] attendue, séries entier positif)` };
       if (!(e[0] in SLOTS)) return { reason: "invalid-program", message: `program.SESSIONS[${i}].ex : « ${e[0]} » n'est pas un slot de program.SLOTS.` };
@@ -217,10 +277,175 @@ export function validateProgram(program) {
     }
   }
 
-  if (program.cardio !== undefined && program.cardio !== "default" && program.cardio !== null) {
-    return { reason: "unknown-cardio-rule", message: `program.cardio : « ${program.cardio} » n'est pas une règle cardio connue (attendu "default" ou null).` };
+  const badCardio = validateCardio(program.cardio, SESSIONS);
+  if (badCardio) return badCardio;
+
+  const badPolicies = validatePolicies(program.policies);
+  if (badPolicies) return badPolicies;
+
+  return null;
+}
+
+/* Politiques de cycle (#14). Le champ est **optionnel** : son absence se lit
+   « la forme livrée », pas « aucune politique » — c'est ce qui laisse tous les
+   programmes d'avant #14 continuer de décharger en semaine 7.
+
+   Ce qui est refusé est ce qui rendrait le cycle inexécutable ou
+   silencieusement faux, jamais ce qui est seulement inhabituel : décharger
+   toutes les deux semaines est un choix discutable, pas une incohérence, et
+   ce module ne juge que la forme.
+
+   `deload: null` passe, et c'est une valeur légitime — « ne décharge
+   jamais ». C'est la distinction que `resolvePolicies()` tient aussi. */
+function validatePolicies(policies) {
+  if (policies == null) return null;
+  if (!isObj(policies)) {
+    return { reason: "invalid-program", message: "Champ invalide : program.policies (objet attendu)" };
   }
 
+  const { deload, rotation, test } = policies;
+
+  if (deload != null) {
+    if (!isObj(deload)) return { reason: "invalid-program", message: "Champ invalide : program.policies.deload (objet ou null attendu)" };
+    /* `null` dit « jamais », un entier dit « toutes les n semaines ». Zéro ou
+       un négatif ne disent rien : `week % (n + 1)` y rendrait une décharge à
+       chaque semaine, ou une division par le mauvais nombre. */
+    if (deload.everyNWeeks != null && !(Number.isInteger(deload.everyNWeeks) && deload.everyNWeeks >= 1)) {
+      return { reason: "invalid-program", message: "Champ invalide : program.policies.deload.everyNWeeks (entier ≥ 1, ou null pour ne jamais décharger)" };
+    }
+    for (const f of ["loadFactor", "volumeFactor"]) {
+      if (deload[f] == null) continue;
+      /* Strictement entre 0 et 1 : à 0 la décharge supprime la séance, au-delà
+         de 1 elle l'alourdit — deux façons de faire l'inverse de ce que le mot
+         annonce, et qui ne se verraient qu'à l'usage. */
+      if (!isNum(deload[f]) || deload[f] <= 0 || deload[f] > 1) {
+        return { reason: "invalid-program", message: `Champ invalide : program.policies.deload.${f} (nombre entre 0 exclu et 1 inclus)` };
+      }
+    }
+    if (deload.signalThreshold != null && !isNum(deload.signalThreshold)) {
+      return { reason: "invalid-program", message: "Champ invalide : program.policies.deload.signalThreshold (nombre attendu)" };
+    }
+  }
+
+  if (rotation != null) {
+    if (!isObj(rotation)) return { reason: "invalid-program", message: "Champ invalide : program.policies.rotation (objet attendu)" };
+    if (rotation.mode != null && !ROTATION_MODES.includes(rotation.mode)) {
+      return { reason: "invalid-program", message: `program.policies.rotation.mode : « ${rotation.mode} » n'est pas un mode connu (attendu : ${ROTATION_MODES.join(", ")}).` };
+    }
+    if (rotation.mode === "everyNWeeks" && !(Number.isInteger(rotation.n) && rotation.n >= 1)) {
+      return { reason: "invalid-program", message: "Champ invalide : program.policies.rotation.n (entier ≥ 1, requis par le mode « everyNWeeks »)" };
+    }
+  }
+
+  if (test != null) {
+    if (!isObj(test)) return { reason: "invalid-program", message: "Champ invalide : program.policies.test (objet attendu)" };
+    if (test.mode != null && !TEST_MODES.includes(test.mode)) {
+      return { reason: "invalid-program", message: `program.policies.test.mode : « ${test.mode} » n'est pas un mode connu (attendu : ${TEST_MODES.join(", ")}).` };
+    }
+  }
+
+  return null;
+}
+
+/* Vocabulaires fermés des politiques. `onPlateau` est accepté par le
+   validateur et traité comme « pas de rotation » par `blockIndex()` : la forme
+   est réservée (#14, Notes), le déclencheur n'est pas construit. Écrire un
+   programme qui la porte ne doit pas être refusé aujourd'hui pour être accepté
+   demain — le fichier serait alors invalide entre deux versions de l'appli,
+   ce qui est exactement le piège de `DEFINITION_FORMAT_VERSION`. */
+const ROTATION_MODES = ["none", "everyNWeeks", "onPlateau"];
+const TEST_MODES = ["manual", "afterNSessions", "afterNDeloads"];
+
+/* ---------- La structure de conditionnement (#34) ----------
+
+   Le champ acceptait `"default"` ou `null` et rien de plus ; il accepte
+   désormais une structure. Ce qui la rend vérifiable est la fermeture que
+   #25 a posée sur les exercices : une modalité et un genre se choisissent
+   dans un catalogue, ils ne s'inventent pas. Un programme généré ou importé
+   ne peut donc pas décrire un conditionnement que l'appli ne saurait pas
+   rendre — c'était le risque que la spec nommait.
+
+   `anchor` est l'identifiant d'une séance du programme, jamais du texte : la
+   spec demandait qu'une référence pendante soit refusée à l'import plutôt
+   que rendue telle quelle, et « après Haut B » sous un programme qui n'a pas
+   de Haut B est exactement ça.
+
+   Une seule modalité par genre, parce que `cardioPlan(w).z2` est une phrase
+   unique : deux modalités en Z2 n'auraient pas de prescription à partager.
+   La contrainte est dite ici plutôt que devinée à la résolution.
+
+   Les messages nomment le champ fautif et énoncent la contrainte, sans
+   référence au code — la règle de #19, qui vaut toujours sans IA au bout du
+   fil : elle a simplement pour lecteur une personne. */
+function validateCardio(cardio, SESSIONS) {
+  if (cardio === undefined || cardio === "default" || cardio === null) return null;
+  if (typeof cardio === "string") {
+    return { reason: "unknown-cardio-rule", message: `program.cardio : « ${cardio} » n'est pas une règle cardio connue (attendu un objet, "default" ou null).` };
+  }
+  if (!isObj(cardio)) {
+    return { reason: "invalid-program", message: "Champ invalide : program.cardio (objet, « default » ou null attendu)" };
+  }
+  if (!Array.isArray(cardio.sessions)) {
+    return { reason: "invalid-program", message: "Champ invalide : program.cardio.sessions (tableau attendu)" };
+  }
+
+  const ids = new Set();
+  const sessionIds = new Set((SESSIONS || []).map((s) => s.id));
+  const modalityByKind = {};
+  for (const [i, x] of cardio.sessions.entries()) {
+    const at = `program.cardio.sessions[${i}]`;
+    if (!isObj(x)) return { reason: "invalid-program", message: `Champ invalide : ${at} (objet attendu)` };
+    if (typeof x.id !== "string" || x.id === "") return { reason: "invalid-program", message: `Champ invalide : ${at}.id (chaîne non vide attendue)` };
+    if (ids.has(x.id)) return { reason: "invalid-program", message: `${at}.id : « ${x.id} » apparaît deux fois ; chaque séance de cardio a un identifiant unique.` };
+    ids.add(x.id);
+    if (!MODALITY_IDS.has(x.modality)) {
+      return { reason: "unknown-cardio-rule", message: `${at}.modality : « ${x.modality} » n'est pas une modalité connue (attendu : ${[...MODALITY_IDS].join(", ")}).` };
+    }
+    if (!CARDIO_KINDS.includes(x.kind)) {
+      return { reason: "unknown-cardio-rule", message: `${at}.kind : « ${x.kind} » n'est pas un genre connu (attendu : ${CARDIO_KINDS.join(", ")}).` };
+    }
+    if (!Number.isInteger(x.day) || x.day < 1 || x.day > 7) {
+      return { reason: "invalid-program", message: `Champ invalide : ${at}.day (entier de 1 à 7 attendu, décalage depuis startDate)` };
+    }
+    if (x.anchor != null && !sessionIds.has(x.anchor)) {
+      return { reason: "invalid-program", message: `${at}.anchor : « ${x.anchor} » n'est pas une séance de program.SESSIONS.` };
+    }
+    if (x.note != null && typeof x.note !== "string") {
+      return { reason: "invalid-program", message: `Champ invalide : ${at}.note (chaîne attendue)` };
+    }
+    if (modalityByKind[x.kind] && modalityByKind[x.kind] !== x.modality) {
+      return { reason: "invalid-program", message: `${at} : les séances de genre « ${x.kind} » partagent toutes la même modalité (« ${modalityByKind[x.kind]} » plus haut, « ${x.modality} » ici).` };
+    }
+    modalityByKind[x.kind] = x.modality;
+  }
+
+  if (cardio.mobility != null) {
+    if (!isObj(cardio.mobility)) return { reason: "invalid-program", message: "Champ invalide : program.cardio.mobility (objet attendu)" };
+    if (!Array.isArray(cardio.mobility.days)) return { reason: "invalid-program", message: "Champ invalide : program.cardio.mobility.days (tableau attendu)" };
+    for (const [i, d] of cardio.mobility.days.entries()) {
+      if (!Number.isInteger(d) || d < 1 || d > 7) {
+        return { reason: "invalid-program", message: `Champ invalide : program.cardio.mobility.days[${i}] (entier de 1 à 7 attendu, décalage depuis startDate)` };
+      }
+    }
+  }
+
+  return null;
+}
+
+/* Les nombres de la personne, pas ceux du programme. Même forme de contrôle
+   que `startingLoads`, et même raison d'être : deux bornes, des nombres, et
+   une clé qui appartient au vocabulaire. */
+function validateCardioBaseline(baseline) {
+  if (baseline == null) return null;
+  if (!isObj(baseline)) return { reason: "invalid-field", message: "Champ invalide : cardioBaseline (objet attendu)" };
+  for (const [k, v] of Object.entries(baseline)) {
+    if (!BASELINE_KEYS.includes(k)) {
+      return { reason: "invalid-field", message: `cardioBaseline : « ${k} » n'est pas une cible connue (attendu : ${BASELINE_KEYS.join(", ")}).` };
+    }
+    if (!Array.isArray(v) || v.length < 2 || !v.slice(0, 2).every(isNum)) {
+      return { reason: "invalid-field", message: `Champ invalide : cardioBaseline.${k} (deux nombres attendus, borne basse puis borne haute)` };
+    }
+  }
   return null;
 }
 
@@ -234,6 +459,12 @@ export function isLogRow(row) {
   if (typeof row.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)) return false;
   if (typeof row.slot !== "string" || row.slot === "") return false;
   if (row.ex != null && !isObj(row.ex)) return false;
+  /* #55 : `sub` est jugé sur sa forme et rien d'autre. Pas de contrôle que les
+     valeurs sont des exercices du registre ni que les clés sont des créneaux
+     connus : vidFor() (session-sub.js) retombe déjà sur l'exercice prescrit
+     pour tout ce qu'elle ne reconnaît pas, et une ligne de séance n'a pas à
+     être écartée — avec ses séries — pour un champ dont la lecture est sûre. */
+  if (row.sub != null && !isObj(row.sub)) return false;
   return true;
 }
 
@@ -331,6 +562,12 @@ export function validateDefinition(definition) {
     if (!isNum(load)) return { reason: "invalid-field", message: `Charge de départ invalide pour ${vid} (nombre attendu)` };
     if (!EXERCISE_IDS.has(vid)) return { reason: "unknown-exercise", message: `startingLoads : « ${vid} » n'est pas un exercice du registre.` };
   }
+
+  /* #34 : les cibles de cardio sont à `startingLoads` ce que les watts sont
+     aux kilos — la calibration d'une personne, pas la méthode. D'où leur
+     place ici, sur la définition, et non dans `program`. */
+  const badBaseline = validateCardioBaseline(definition.cardioBaseline);
+  if (badBaseline) return badBaseline;
 
   return null;
 }

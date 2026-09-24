@@ -2,9 +2,10 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  isLogRow, sanitizeJournal, unusableProgramIds,
+  REJECTIONS, isLogRow, sanitizeJournal, unusableProgramIds,
   validateDefinition, validateEnvelope, validatePreMigration, validateProgram, validateProgramEntry,
 } from "../src/journal-shape.js";
+import { readFileSync } from "node:fs";
 import { LEGACY_DEFINITION, LEGACY_DEFINITION as BASE } from "../src/legacy-program.js";
 import { DEFAULT_DEFINITION as NEUTRAL } from "../src/default-program.js";
 import { dateForSlot } from "../src/schema.js";
@@ -75,6 +76,17 @@ describe("isLogRow", () => {
     assert.equal(isLogRow(row()), true);
   });
 
+  test("#55 : sub absent, vide ou peuplé — les trois passent", () => {
+    /* Un journal d'avant #55 ne porte pas le champ, et "absent" s'y lit
+       "aucune substitution" : c'est exactement ce qui s'est passé. */
+    assert.equal(isLogRow({ date: "2026-09-07", slot: "hautA" }), true);
+    assert.equal(isLogRow({ date: "2026-09-07", slot: "hautA", sub: {} }), true);
+    assert.equal(isLogRow({ date: "2026-09-07", slot: "hautA", sub: { dc: "dc_db" } }), true);
+    /* Les valeurs ne sont pas vérifiées contre le registre : vidFor() retombe
+       sur le prescrit, et une ligne n'a pas à perdre ses séries pour ça. */
+    assert.equal(isLogRow({ date: "2026-09-07", slot: "hautA", sub: { dc: "nexiste-pas" } }), true);
+  });
+
   for (const [label, value] of [
     ["null", null],
     ["nombre", 42],
@@ -85,6 +97,10 @@ describe("isLogRow", () => {
     ["sans slot", { date: "2026-09-07" }],
     ["slot vide", { date: "2026-09-07", slot: "" }],
     ["ex non-objet", { date: "2026-09-07", slot: "hautA", ex: 3 }],
+    /* #55 : `sub` est jugé sur sa forme, et sur rien d'autre — voir
+       l'en-tête d'isLogRow. */
+    ["sub chaîne", { date: "2026-09-07", slot: "hautA", sub: "dc_db" }],
+    ["sub tableau", { date: "2026-09-07", slot: "hautA", sub: ["dc_db"] }],
   ]) {
     test(`rejette : ${label}`, () => assert.equal(isLogRow(value), false));
   }
@@ -195,6 +211,28 @@ describe("validateProgram : paires [slot, séries] (#33)", () => {
   });
 });
 
+/* Une séance sans exercice (#36). Le trou vient de l'éditeur — un écran
+   neuf enregistré tout de suite — mais un fichier importé peut le porter
+   aussi, et c'est le même refus : l'appli n'a rien à exécuter, et l'écran
+   Semaine résume chaque séance par son premier exercice. */
+describe("validateProgram : une séance porte au moins un exercice (#36)", () => {
+  test("refuse une séance vide, en la nommant", () => {
+    const bad = validateProgram(prog((p) => { p.SESSIONS[0].ex = []; }));
+    assert.equal(bad.reason, "invalid-program");
+    assert.match(bad.message, /aucun exercice/);
+    assert.match(bad.message, new RegExp(BASE.program.SESSIONS[0].name));
+  });
+
+  test("sans nom exploitable, le refus donne l'adresse de la séance", () => {
+    const bad = validateProgram(prog((p) => { p.SESSIONS[1].ex = []; delete p.SESSIONS[1].name; }));
+    assert.ok(bad.message.startsWith("program.SESSIONS[1] ne porte aucun exercice"), bad.message);
+  });
+
+  test("un bloc de gainage vide reste accepté : c'est « pas de gainage », pas un trou", () => {
+    assert.equal(validateProgram(prog((p) => { p.CORE[firstCore()].ex = []; })), null);
+  });
+});
+
 describe("validateProgram : jour de séance (#33)", () => {
   for (const [label, value] of [
     ["absent", undefined],
@@ -280,6 +318,267 @@ describe("validateProgram : indice post-séance (#33)", () => {
     assert.equal(validateProgram(prog((p) => { delete p.SESSIONS[0].after; })), null);
     for (const kind of AFTER_KINDS) {
       assert.equal(validateProgram(prog((p) => { p.SESSIONS[0].after = kind; })), null, kind);
+    }
+  });
+});
+
+/* ---------- La structure de conditionnement (#34) ----------
+
+   Le champ acceptait deux valeurs et rien d'autre ; il accepte désormais une
+   structure, et ce qui la rend sûre est la fermeture que #25 a posée sur les
+   exercices. Ces cas tiennent les deux bouts : ce qui doit continuer de
+   passer, et ce qui doit être refusé **à l'import** plutôt que rendu. */
+describe("validateProgram : cardio (#34)", () => {
+  const withCardio = (cardio) => prog((p) => { p.cardio = cardio; });
+  const ok = { sessions: [{ id: "z2", modality: "rameur", kind: "z2", day: 3 }] };
+
+  test("les deux anciennes valeurs restent valides", () => {
+    assert.equal(validateProgram(withCardio("default")), null);
+    assert.equal(validateProgram(withCardio(null)), null);
+    assert.equal(validateProgram(prog((p) => { delete p.cardio; })), null, "un fichier d'avant #34 n'a pas le champ");
+  });
+
+  test("une structure complète passe, mobilité comprise", () => {
+    assert.equal(validateProgram(withCardio({ ...ok, mobility: { days: [2, 4, 7] } })), null);
+  });
+
+  test("une modalité inventée est refusée, et la liste des modalités est dite", () => {
+    const bad = validateProgram(withCardio({ sessions: [{ id: "z2", modality: "trottinette", kind: "z2", day: 3 }] }));
+    assert.equal(bad.reason, "unknown-cardio-rule");
+    assert.match(bad.message, /trottinette/);
+    assert.match(bad.message, /rameur/, "le message nomme ce qui est attendu, sans renvoyer au code");
+  });
+
+  test("un genre inventé est refusé", () => {
+    const bad = validateProgram(withCardio({ sessions: [{ id: "x", modality: "rameur", kind: "fartlek", day: 3 }] }));
+    assert.equal(bad.reason, "unknown-cardio-rule");
+    assert.match(bad.message, /fartlek/);
+  });
+
+  test("une ancre pendante est refusée à l'import, pas rendue telle quelle", () => {
+    /* « après Haut B » sous un programme qui n'a pas de Haut B : c'est le cas
+       que la spec demandait de refuser, et c'est pour ça que l'ancre est un
+       identifiant de séance et non du texte libre. */
+    const bad = validateProgram(withCardio({ sessions: [{ id: "z2", modality: "rameur", kind: "z2", day: 3, anchor: "seanceQuiNexistePas" }] }));
+    assert.equal(bad.reason, "invalid-program");
+    assert.match(bad.message, /anchor/);
+  });
+
+  test("une ancre qui désigne une vraie séance passe", () => {
+    const p = prog((x) => { x.cardio = { sessions: [{ id: "z2", modality: "rameur", kind: "z2", day: 3, anchor: x.SESSIONS[0].id }] }; });
+    assert.equal(validateProgram(p), null);
+  });
+
+  test("un jour hors de 1-7 est refusé, sous les deux bouts de la plage", () => {
+    /* La même plage que `SESSIONS[].day` : depuis #39 il n'y a plus qu'une
+       convention, un décalage depuis startDate, et 0 n'en fait pas partie. */
+    for (const day of [0, 8, 3.5, "mercredi", undefined]) {
+      const bad = validateProgram(withCardio({ sessions: [{ id: "z2", modality: "rameur", kind: "z2", day }] }));
+      assert.ok(bad, `day ${JSON.stringify(day)} accepté à tort`);
+    }
+    for (const d of [0, 8]) {
+      assert.ok(validateProgram(withCardio({ ...ok, mobility: { days: [d] } })), `mobility.days ${d} accepté à tort`);
+    }
+  });
+
+  test("deux séances du même genre ne peuvent pas être sur deux appareils", () => {
+    /* `cardioPlan(w).z2` est une phrase unique : deux modalités en Z2
+       n'auraient pas de prescription à partager. Dit ici plutôt que deviné à
+       la résolution. */
+    const bad = validateProgram(withCardio({
+      sessions: [
+        { id: "a", modality: "rameur", kind: "z2", day: 3 },
+        { id: "b", modality: "course", kind: "z2", day: 7 },
+      ],
+    }));
+    assert.equal(bad.reason, "invalid-program");
+    assert.match(bad.message, /modalité/);
+  });
+
+  test("deux genres différents peuvent l'être", () => {
+    assert.equal(validateProgram(withCardio({
+      sessions: [
+        { id: "a", modality: "rameur", kind: "z2", day: 3 },
+        { id: "b", modality: "course", kind: "intervals", day: 5 },
+      ],
+    })), null);
+  });
+
+  test("un identifiant en double est refusé", () => {
+    const bad = validateProgram(withCardio({
+      sessions: [
+        { id: "z2", modality: "rameur", kind: "z2", day: 3 },
+        { id: "z2", modality: "rameur", kind: "z2", day: 7 },
+      ],
+    }));
+    assert.ok(bad);
+    assert.match(bad.message, /unique/);
+  });
+
+  test("une forme qui n'est ni objet ni valeur connue ne lève pas, elle rend un verdict", () => {
+    for (const value of [42, true, [], "maison", { sessions: "trois" }]) {
+      const bad = validateProgram(withCardio(value));
+      assert.ok(bad, `cardio ${JSON.stringify(value)} accepté à tort`);
+      assert.equal(typeof bad.message, "string");
+    }
+  });
+});
+
+describe("validateDefinition : cardioBaseline (#34)", () => {
+  test("absent, vide, ou partiel : tous valides", () => {
+    assert.equal(validateDefinition({ ...BASE, cardioBaseline: undefined }), null);
+    assert.equal(validateDefinition({ ...BASE, cardioBaseline: {} }), null);
+    assert.equal(validateDefinition({ ...BASE, cardioBaseline: { hr: [130, 140] } }), null);
+  });
+
+  test("une cible inconnue est refusée, et la liste est dite", () => {
+    const bad = validateDefinition({ ...BASE, cardioBaseline: { vo2max: [50, 55] } });
+    assert.equal(bad.reason, "invalid-field");
+    assert.match(bad.message, /vo2max/);
+    assert.match(bad.message, /power/);
+  });
+
+  test("une cible doit porter deux nombres, borne basse puis haute", () => {
+    for (const v of [110, "105-115", [105], ["a", "b"], null]) {
+      const bad = validateDefinition({ ...BASE, cardioBaseline: { power: v } });
+      assert.ok(bad, `power ${JSON.stringify(v)} accepté à tort`);
+    }
+  });
+
+  test("le fichier de Simon, qui en porte un, passe le validateur", () => {
+    assert.equal(validateDefinition(BASE), null);
+    assert.ok(BASE.cardioBaseline, "haut-bas-5j.json porte ses cibles depuis #34");
+  });
+});
+
+/* ---------- #38 : un vocabulaire, un endroit, et il le reste ----------
+
+   Le test qui donne sa valeur à la passe. `unsupported-field` a survécu à #25
+   parce que la liste qui *déclare* les raisons et le code qui les *émet*
+   vivaient dans deux fichiers sans lien : la raison avait cessé d'être
+   produite, sa ligne est restée, et rien ne pouvait le signaler.
+
+   La bijection se vérifie donc dans les deux sens, sur le source lui-même.
+   Lire le fichier plutôt que d'exercer 73 chemins de rejet est un choix
+   assumé : ce qu'on veut interdire est qu'une ligne existe sans emploi, et
+   c'est une propriété du texte, pas du comportement. Les 73 comportements
+   sont couverts ailleurs, par les tests qui les provoquent. */
+describe("le vocabulaire des refus (#38)", () => {
+  const sources = ["../src/journal-shape.js", "../src/import.js", "../src/storage.js"]
+    .map((rel) => readFileSync(new URL(rel, import.meta.url), "utf8"));
+  /* La déclaration elle-même est retirée de journal-shape avant la recherche :
+     sinon chaque raison se trouverait elle-même et le test ne dirait rien. */
+  const body = [
+    sources[0].slice(sources[0].indexOf("const isSlotRef")),
+    ...sources.slice(1),
+  ].join("\n");
+
+  const emitted = new Set(
+    [...body.matchAll(/reason: "([a-z-]+)"/g)].map((m) => m[1])
+      .concat([...body.matchAll(/reject\("([a-z-]+)"/g)].map((m) => m[1])),
+  );
+
+  test("aucune raison déclarée n'est inémettable", () => {
+    /* Le sens qui aurait attrapé `unsupported-field` le jour où #25 a cessé
+       de l'émettre, au lieu de deux issues plus tard. */
+    const mortes = Object.keys(REJECTIONS).filter((r) => !emitted.has(r));
+    assert.deepEqual(mortes, [], `raisons déclarées que rien n'émet : ${mortes.join(", ")}`);
+  });
+
+  test("aucune raison émise n'est indéclarée", () => {
+    /* L'autre sens : une raison produite sans phrase de repli s'afficherait
+       comme `undefined` dans le panneau, ou ferait tomber l'appelant sur son
+       message générique sans qu'on sache pourquoi. */
+    const verdictsDeStorage = new Set(["absent", "no-store", "corrupt", "unreadable", "cancelled"]);
+    const orphelines = [...emitted].filter((r) => !(r in REJECTIONS) && !verdictsDeStorage.has(r));
+    assert.deepEqual(orphelines, [], `raisons émises que rien ne déclare : ${orphelines.join(", ")}`);
+  });
+
+  test("chaque phrase est une phrase, pas un identifiant", () => {
+    for (const [reason, phrase] of Object.entries(REJECTIONS)) {
+      assert.equal(typeof phrase, "string", reason);
+      assert.ok(phrase.length > 20, `${reason} : « ${phrase} » est trop court pour dire quoi faire`);
+      assert.ok(/[.!]$/.test(phrase), `${reason} : une phrase se termine`);
+    }
+  });
+});
+
+/* ---------- #14 : les politiques de cycle ---------- */
+
+describe("validateProgram : policies (#14)", () => {
+  const withPolicies = (policies) => validateProgram({ ...BASE.program, policies });
+
+  test("absentes : accepté — l'absence se lit « la forme livrée »", () => {
+    assert.equal(validateProgram(BASE.program), null);
+    assert.equal(withPolicies(undefined), null);
+    assert.equal(withPolicies(null), null);
+  });
+
+  test("la forme livrée, écrite explicitement : acceptée", () => {
+    assert.equal(withPolicies({
+      deload: { everyNWeeks: 6, loadFactor: 0.85, volumeFactor: 0.5, signalThreshold: 3 },
+      rotation: { mode: "everyNWeeks", n: 6 },
+      test: { mode: "manual" },
+    }), null);
+  });
+
+  test("deload: null est accepté — c'est « ne décharge jamais »", () => {
+    assert.equal(withPolicies({ deload: null }), null);
+  });
+
+  test("everyNWeeks à 0 ou négatif est refusé, avec sa raison", () => {
+    /* `week % (n + 1)` y rendrait une décharge chaque semaine : une politique
+       qui fait l'inverse de ce qu'elle annonce, et qui ne se verrait qu'à
+       l'usage. */
+    for (const n of [0, -3, 1.5, "6"]) {
+      const bad = withPolicies({ deload: { everyNWeeks: n } });
+      assert.ok(bad, String(n));
+      assert.equal(bad.reason, "invalid-program");
+      assert.match(bad.message, /everyNWeeks/);
+    }
+  });
+
+  test("un facteur hors de ]0, 1] est refusé", () => {
+    /* À 0 la décharge supprime la séance, au-delà de 1 elle l'alourdit. */
+    for (const f of [0, -0.5, 1.2, "0.85"]) {
+      for (const champ of ["loadFactor", "volumeFactor"]) {
+        const bad = withPolicies({ deload: { [champ]: f } });
+        assert.ok(bad, `${champ} = ${f}`);
+        assert.match(bad.message, new RegExp(champ));
+      }
+    }
+    assert.equal(withPolicies({ deload: { loadFactor: 1 } }), null); // la borne haute est incluse
+  });
+
+  test("un mode de rotation inconnu est refusé et nomme les modes connus", () => {
+    const bad = withPolicies({ rotation: { mode: "quand-je-veux" } });
+    assert.equal(bad.reason, "invalid-program");
+    assert.match(bad.message, /everyNWeeks/);
+  });
+
+  test("« everyNWeeks » sans n est refusé", () => {
+    assert.ok(withPolicies({ rotation: { mode: "everyNWeeks" } }));
+    assert.ok(withPolicies({ rotation: { mode: "everyNWeeks", n: 0 } }));
+    assert.equal(withPolicies({ rotation: { mode: "everyNWeeks", n: 4 } }), null);
+  });
+
+  test("« onPlateau » est accepté bien que le déclencheur ne soit pas construit", () => {
+    /* Forme réservée (#14, Notes). La refuser aujourd'hui pour l'accepter
+       demain rendrait un même fichier invalide entre deux versions de
+       l'appli — le piège que DEFINITION_FORMAT_VERSION existe pour éviter. */
+    assert.equal(withPolicies({ rotation: { mode: "onPlateau" } }), null);
+    assert.equal(withPolicies({ test: { mode: "afterNSessions", n: 10 } }), null);
+  });
+
+  test("un mode de test inconnu est refusé", () => {
+    assert.ok(withPolicies({ test: { mode: "tous-les-lundis" } }));
+  });
+
+  test("des politiques non-objet sont refusées, elles ne lèvent pas", () => {
+    for (const p of ["oui", 42, ["deload"]]) {
+      const bad = withPolicies(p);
+      assert.ok(bad, JSON.stringify(p));
+      assert.match(bad.message, /policies/);
     }
   });
 });

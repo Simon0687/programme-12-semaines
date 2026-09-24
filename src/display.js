@@ -24,49 +24,80 @@
    ========================================================= */
 
 import { fmt } from "./progression.js";
+import { traitsOf } from "./units.js";
 
 /* ---------- Résumé des séries (déplacé depuis App.jsx, #23) ---------- */
 
-/* La forme compacte — « 72,5 kg 8/8/10 » — prenait la charge **maximale** et
-   concaténait **toutes** les reps. Elle fabriquait donc des séries qui
-   n'existent pas : 8 à 90, 8 à 85 puis 10 à 70 se lisait « 90 kg 8/8/10 », et
-   on croyait avoir fait 10 reps à 90 (constaté à l'usage le 2026-09-14).
+/* Trois formes se sont succédé, et les deux premières se lisent dans la
+   troisième.
 
-   La règle est maintenant : **compact tant que la charge ne bouge pas, explicite
-   dès qu'elle bouge.** Quand les trois séries partagent la même charge, la forme
-   compacte est exacte au caractère près et reste la plus lisible — c'est le cas
-   courant, `planned()` ne prescrivant qu'une seule charge de travail. Dès que
-   deux séries diffèrent, chaque série porte la sienne : « 8@90/8@85/10@70 kg ».
-   Une ligne qui change de forme est d'ailleurs elle-même l'information : elle
-   signale une séance où la charge a dû descendre.
+   **La compacte d'origine** — « 72,5 kg 8/8/10 » — prenait la charge
+   **maximale** et concaténait **toutes** les reps. Elle fabriquait donc des
+   séries qui n'ont pas eu lieu : 8 à 90, 8 à 85 puis 10 à 70 se lisait
+   « 90 kg 8/8/10 », et on croyait avoir fait 10 reps à 90 (constaté à l'usage
+   le 2026-09-14).
 
-   Le RIR passe de « @ » à « · » parce que « @ » désigne désormais la charge
-   d'une série, et « 8@90 @ 1 RIR » ne se lit pas. Un RIR non saisi ne s'écrit
-   plus « @ ? RIR » : on n'affiche rien. */
+   **L'explicite** — « 8@90/8@85/10@70 kg » — l'a corrigée en rendant à chaque
+   série sa charge. Elle ne ment pas, mais elle est l'objet le plus large des
+   deux écrans qui la portent (fiche exercice et liste Semaine), et depuis la
+   molette de charge (#46) la variation qu'elle traite comme l'exception est
+   devenue le cas courant : ajuster la charge en cours de séance est un geste.
+
+   **La forme bornée** (#50) — « 70 → 72,5 kg 8/8/8 » — garde l'exactitude de
+   l'explicite dans la largeur de la compacte. Elle n'affirme que « rien
+   au-dessus de 72,5, rien en dessous de 70 », ce qui est vrai, là où la
+   compacte d'origine affirmait une série à 90 × 10 qui n'existait pas. Ce
+   qu'elle abandonne est l'appariement reps ↔ charge, et aucun lecteur ne s'en
+   sert : le moteur lit la charge de travail (`workingSets()`), pas le couple,
+   et dans le cas ordinaire — une charge qui monte, ou qui descend — l'ordre le
+   restitue.
+
+   D'où **les bornes dans l'ordre observé et non triées** : une séance qui
+   descend écrit « 90 → 70 ». Le sens de la flèche est la seule trace qui reste
+   de la chronologie, et c'est elle qui distingue une montée d'un décrochage.
+
+   Charge constante : la compacte est exacte au caractère près et ne bouge pas.
+   C'est toujours le cas d'une séance menée comme prescrite, `planned()` ne
+   prescrivant qu'une seule charge de travail.
+
+   Le RIR se sépare par « · » et non « @ » : hérité de l'explicite, où « @ »
+   désignait la charge d'une série. Un RIR non saisi ne s'écrit pas. */
 export function setSummary(sets, v) {
   if (!sets || !sets.length) return "—";
+  const u = traitsOf(v.unit);
   const unit = v.unit || "kg";
-  const secs = unit === "time" || unit === "carry";
-  const loaded = unit !== "time" && unit !== "reps";
+  const secs = u.repUnit === "s";
+  const loaded = u.hasLoad;
 
   const reps = (s) => (s.r == null ? "?" : fmt(s.r));
-  /* Au poids du corps, « PDC+10 » plutôt que « +10 kg » : la mention porte son
-     unité, donc la liste n'a pas à traîner un « kg » final qui suivrait un
-     « PDC » nu. */
-  const load = (w) => (unit === "bw" ? (w > 0 ? `PDC+${fmt(w)}` : "PDC") : fmt(w));
+  /* Au poids du corps chaque borne porte son unité — « PDC → PDC+10 » — parce
+     qu'un « kg » final suivrait un « PDC » nu. Partout ailleurs les deux
+     bornes partagent le même « kg », posé une fois derrière la seconde. */
+  const bounds = (a, b) => {
+    const bw = (w) => (w > 0 ? `PDC+${fmt(w)}` : "PDC");
+    return u.bodyweight ? `${bw(a)} → ${bw(b)} ` : `${fmt(a)} → ${fmt(b)} kg `;
+  };
 
   const loads = sets.map((s) => (s.w == null ? 0 : s.w));
   const varies = loaded && new Set(loads).size > 1;
 
-  let body;
-  if (varies) {
-    body = sets.map((s, i) => `${reps(s)}${secs ? " s" : ""}@${load(loads[i])}`).join("/");
-    if (unit !== "bw") body += " kg";
+  let head;
+  if (!loaded) {
+    head = "";
+  } else if (varies) {
+    /* Bornes, pas extrémités : sur 70 / 90 / 80 la flèche doit encadrer le 90,
+       que la dernière série ne porte pas. L'ordre est celui de la première des
+       deux rencontrée, donc celui de la séance. */
+    const lo = Math.min(...loads), hi = Math.max(...loads);
+    const [a, b] = loads.find((w) => w === lo || w === hi) === hi ? [hi, lo] : [lo, hi];
+    head = bounds(a, b);
   } else {
-    const head = !loaded ? "" : unit === "bw" ? (loads[0] > 0 ? `+${fmt(loads[0])} kg ` : "PDC ") : `${fmt(loads[0])} kg `;
-    body = `${head}${sets.map(reps).join("/")}${secs ? " s" : ""}`;
+    /* La forme à charge constante est figée : elle est ce que trois écrans
+       affichent depuis #17, et les tests l'épinglent au caractère. */
+    head = u.bodyweight ? (loads[0] > 0 ? `+${fmt(loads[0])} kg ` : "PDC ") : `${fmt(loads[0])} kg `;
   }
 
+  const body = `${head}${sets.map(reps).join("/")}${secs ? " s" : ""}`;
   const rir = [...new Set(sets.map((s) => s.rir).filter((x) => x != null))];
   return rir.length ? `${body} · ${rir.join("-")} RIR` : body;
 }
@@ -78,6 +109,31 @@ const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "aoû
 /* Numéro de jour absolu depuis une chaîne ISO, sans passer par le fuseau
    local : la courbe n'a besoin que d'écarts, et parseLocalDate()
    (definition.js) ferait entrer une dépendance pour rien. */
+/* ---------- Ce qu'une série remplie vaut à l'écran (#66) ----------
+
+   Deux définitions de « faite » coexistent, et les confondre serait le bug.
+   Le moteur dit : **une série sans répétitions n'a pas eu lieu**
+   (`normalizeSets`, #23) — la charge seule ne suffit pas, un poids réglé puis
+   reposé n'est pas une série. L'écran dit plus : une série est faite quand
+   elle porte *toutes* ses valeurs, charge comprise là où l'unité en a une.
+   C'est ce que la coche verte et la bordure ambre de #42 racontent depuis
+   qu'elles existent, et c'est plus strict que le moteur à dessein : une charge
+   oubliée est une saisie à finir, pas une série de plus.
+
+   Le RIR n'entre pas dans le critère : `planned()` ne le lit jamais, et il
+   reste vide en calibration et en décharge, où la cible est une fourchette.
+
+   Écrit ici plutôt que dans la carte parce que la Séance repliée en a besoin
+   aussi (#66) : sans ça, « 2 séries sur 3 » et la coche de la troisième
+   pourraient se contredire — deux endroits, deux règles. */
+const filled = (row, f) => String((row && row[f]) ?? "").trim() !== "";
+
+export const rowIsDone = (row, unit) =>
+  filled(row, "r") && (traitsOf(unit).hasLoad ? filled(row, "w") : true);
+
+export const completedSets = (rows, unit) =>
+  (Array.isArray(rows) ? rows : []).filter((row) => rowIsDone(row, unit)).length;
+
 export function dayNumber(iso) {
   const [y, m, d] = String(iso).split("-").map(Number);
   return Date.UTC(y, m - 1, d) / 86400000;
@@ -105,6 +161,21 @@ export function periodLabel(fromIso, toIso) {
    régression qui n’en est pas une. */
 export const KIND_LABELS = { calibration: "calibration", deload: "décharge", allege: "allégée" };
 
+/* ---------- La ligne de tête de l'avis (#57) ----------
+
+   Le bloc d'avis de Plan > Programme s'ouvre sur un compte, et rien d'autre.
+   La phrase vit ici et non dans App.jsx pour la raison d'ARCHITECTURE §2.6 :
+   un texte composé dans un .jsx n'est atteignable par aucun test, et
+   celui-ci porte un accord en nombre — dont la règle française, pluriel à
+   partir de deux, ne se relit pas, elle s'épingle.
+
+   Elle ne dit ni « problèmes » ni « erreurs » : assess() conseille et ne
+   bloque jamais (decisions-moteur.md Q3), et le compte inclut la ligne
+   « non vérifié » que le module ajoute faute d'intention déclarée — la vue,
+   elle, ne lit jamais `code`. « Points à regarder » est ce qui reste vrai
+   des deux. */
+export const adviceSummary = (n) => `${n} point${n > 1 ? "s" : ""} à regarder sur ce programme`;
+
 function isoOfDay(n) {
   return new Date(n * 86400000).toISOString().slice(0, 10);
 }
@@ -116,16 +187,20 @@ function isoOfDay(n) {
    le libellé au-dessus du cadre les nomme et la gouttière de gauche ne fait
    que 34 px. */
 export function axisLabel(value, unit) {
-  if (unit === "time") return `${fmt(value)} s`;
-  return fmt(value);
+  /* Nue, sauf les secondes : la gouttière fait 34 px, et un « kg » ou un
+     « reps » répété sur chaque graduation dirait ce que le libellé au-dessus
+     du cadre dit déjà une fois. Les secondes font exception parce qu'un
+     nombre nu s'y lirait comme des répétitions. */
+  return traitsOf(unit).repUnit === "s" ? `${fmt(value)} s` : fmt(value);
 }
 
 /* Le chiffre de tête porte son unité, là où l'axe la laisse nue : au-dessus du
    cadre il n'y a plus de titre de section pour la nommer (#49). */
 export function valueText(value, unit) {
-  if (unit === "time") return `${fmt(value)} s`;
-  if (unit === "reps") return `${fmt(value)} reps`;
-  return `${fmt(value)} kg`;
+  /* Un axe sans charge porte l'unité de sa mesure, un axe chargé porte des
+     kilos : les trois cas de la table, sans en énumérer aucun. */
+  const u = traitsOf(unit);
+  return `${fmt(value)} ${u.hasLoad ? "kg" : u.repUnit}`;
 }
 
 /* Le signe est toujours écrit, y compris le zéro : une variation nulle est un
@@ -165,6 +240,110 @@ export const JOINT_LABELS = {
 };
 
 export const TYPE_LABELS = { compose: "Composé", isolation: "Isolation" };
+
+/* ---------- Les mots d'une unité (#23) ----------
+
+   `units.js` dit ce qu'une unité *implique* — porte-t-elle une charge, se
+   compte-t-elle en secondes. Ce qui suit dit comment elle se **nomme à
+   l'écran**, et c'est ici pour la raison qui a mis MUSCLE_LABELS ici : une
+   table que `progression.js` importerait ne peut pas porter de texte
+   d'interface sans faire du moteur un module de vue (ARCHITECTURE §1).
+
+   Les trois colonnes de la grille de saisie, dans leur ordre : la charge
+   quand il y en a une, la mesure, le RIR. « s / côté » plutôt que « s »
+   parce que les deux exercices concernés (planche latérale, farmer's walk)
+   se tiennent un côté à la fois et que la valeur saisie est celle du côté. */
+export const UNIT_COLUMNS = {
+  kg: ["kg", "reps", "RIR"],
+  bw: ["lest kg", "reps", "RIR"],
+  carry: ["kg", "s / côté", "RIR"],
+  time: ["s / côté", "RIR"],
+  reps: ["reps", "RIR"],
+};
+export const unitColumns = (unit) => UNIT_COLUMNS[unit] || UNIT_COLUMNS.kg;
+
+/* L'unité dans laquelle se tape une charge, avec les mots que loadText()
+   emploie déjà à l'écran Séance : « lest » au poids du corps, « / main » aux
+   haltères. Les deux se composent — la table donne le premier terme, le
+   registre le second — plutôt que de se choisir dans un ternaire, qui faisait
+   du « / main » l'exclusif du kilo sans qu'aucune règle ne le dise. */
+export const unitLoadLabel = (v) =>
+  `${traitsOf(v.unit).bodyweight ? "lest kg" : "kg"}${v.perHand ? " / main" : ""}`;
+
+/* Les seize patterns du registre, pour les facettes du sélecteur
+   d'exercices (#36). Même raison d'être que MUSCLE_LABELS juste au-dessus :
+   `registry.js` est une feuille de clés, et « charniere_hanche » n'est pas
+   un texte d'interface. */
+export const PATTERN_LABELS = {
+  poussee_horizontale: "Poussée horizontale",
+  poussee_verticale: "Poussée verticale",
+  tirage_vertical: "Tirage vertical",
+  tirage_horizontal: "Tirage horizontal",
+  dominante_genou: "Dominante genou",
+  charniere_hanche: "Charnière de hanche",
+  extension_hanche: "Extension de hanche",
+  mollets: "Mollets",
+  abdominaux: "Abdominaux",
+  iso_pectoraux: "Isolation pectoraux",
+  iso_deltoide_lateral: "Isolation deltoïde latéral",
+  iso_deltoide_posterieur: "Isolation deltoïde postérieur",
+  iso_biceps: "Isolation biceps",
+  iso_triceps: "Isolation triceps",
+  iso_quadriceps: "Isolation quadriceps",
+  iso_ischios: "Isolation ischios",
+};
+
+/* ---------- Jours : deux questions, deux fonctions (#39) ----------
+
+   `session.day` est un **décalage de 1 à 7 depuis startDate** (dateForSlot,
+   src/schema.js), pas un jour de la semaine. Les deux se ressemblent tant
+   que startDate tombe un lundi, où 1 se lit lundi et 7 dimanche, et c'est
+   exactement ce qui a permis à la confusion de #39 de vivre : App.jsx
+   comparait un décalage à un `Date#getDay()` (0 = dimanche), qui coïncidait
+   sur les deux programmes livrés.
+
+   D'où deux fonctions plutôt qu'une, et un nom qui dit laquelle on demande :
+
+   - `dayName(day)` nomme un **décalage de cycle**. La liste commence à lundi
+     et la fonction fait le −1, plutôt que de porter un tableau troué en tête
+     — c'est ce qui empêche de la passer à un getDay() par accident.
+   - `weekdayName(date)` nomme le **jour de semaine réel** d'une date du
+     calendrier. Elle sert là où la question porte vraiment sur le calendrier
+     — « le programme commence mercredi 4 mars » — et jamais sur un
+     `session.day`. Le +6 % 7 ramène getDay() sur la même liste, sans en
+     créer une seconde à tenir en accord.
+
+   Un jour hors plage rend la chaîne vide et non « undefined » : le rendu de
+   #36 tombait dessus sur une séance du dimanche. */
+export const DAY_NAMES = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
+
+export const dayName = (day) => DAY_NAMES[day - 1] || "";
+
+export const weekdayName = (date) => DAY_NAMES[(date.getDay() + 6) % 7];
+
+/* ---------- Quand se fait une séance de cardio (#34) ----------
+
+   « mercredi, après Haut B (ou le soir) » était écrit en dur dans
+   `CARDIO_ITEMS`, et suivait donc le programme de Simon sous n'importe quel
+   programme. Les trois morceaux viennent maintenant de la donnée : le jour
+   est un décalage de 1 à 7 (#39), l'ancre est l'**identifiant** d'une séance
+   du programme — que le validateur vérifie, donc jamais une référence
+   pendante — et la note est libre.
+
+   La composition vit ici et non dans `cardio.js` pour la raison habituelle :
+   nommer un jour demande DAY_NAMES, et un module de méthode que `program.js`
+   importe n'a pas à porter de vocabulaire d'écran. */
+export function cardioWhen(item, sessions) {
+  const anchor = item.anchor && (sessions || []).find((s) => s.id === item.anchor);
+  return `${dayName(item.day)}${anchor ? `, après ${anchor.name}` : ""}${item.note ? ` (${item.note})` : ""}`;
+}
+
+/* Les jours de mobilité se stockent comme des décalages et s'affichent comme
+   des jours. Les cases à cocher restent indexées par **position** dans la
+   liste (`ca.mob[i]`, src/App.jsx), donc l'ordre croissant que rend
+   `resolveCardio` est ce qui garde les coches de Simon en face des bons
+   jours — mardi, jeudi, dimanche, dans cet ordre, comme avant #34. */
+export const mobilityDayNames = (days) => (days || []).map(dayName);
 
 const capitalize = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 const joinLabels = (keys, table) =>

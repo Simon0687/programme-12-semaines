@@ -6,6 +6,7 @@ import { phaseOf } from "../src/progression.js";
 /* #26 : le plan se vérifie contre le programme hérité — le bundle par défaut
    ne portera plus ni charges de départ ni valeurs personnelles. */
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
+import { DEFAULT_DEFINITION as NEUTRAL } from "../src/default-program.js";
 const { profile: PROFILE, startingLoads: STARTING_LOADS } = LEGACY_DEFINITION;
 const withDef = (over) => ({ ...LEGACY_DEFINITION, ...over });
 
@@ -139,5 +140,107 @@ describe("buildPlan : sections pilotées par la définition (#26)", () => {
     const text = anchored.find((s) => s.id === "structure").blocks[1].text;
     assert.match(text, /développé couché barre/i);
     assert.doesNotMatch(text, /élévations latérales/i); // ni clé, ni fixe
+  });
+});
+
+/* ---------- La section cardio, dérivée (#34) ----------
+
+   Trois paragraphes écrits en dur décrivaient le rameur de Simon sous tout
+   programme qui demandait du cardio. Le premier test est l'invariant : sa
+   section ne bouge pas d'un caractère. Les suivants montrent qu'elle bouge
+   pour les autres. */
+describe("buildPlan : cardio (#34)", () => {
+  const sectionOf = (def) => buildPlan(def).filter(Boolean).find((s) => s.id === "cardio");
+
+  test("le programme de Simon rend exactement les trois paragraphes d'avant #34", () => {
+    assert.deepEqual(sectionOf(LEGACY_DEFINITION).blocks.map((b) => b.text), [
+      "Rameur Z2 deux fois par semaine : 35 min en S1–S2, +5 min toutes les deux semaines jusqu'à 60 min en S12, 30 min faciles en S7. Cibles ~105–115 W, 130–138 bpm, cadence 18–20, drag factor 110–120. La durée progresse d'abord, la puissance ensuite.",
+      "Intervalles (optionnel, S2–S6 et S8–S11) : 4 × 4 min en Z4 puis 5 × 4 min en bloc 2, 3 min de récupération, cadence 24–28 pour limiter la charge lombaire. Toujours à 48 h d'une séance jambes. C'est la première chose qu'on retire si un déclencheur de décharge s'allume.",
+      "Mobilité 10–15 min, 3 fois par semaine : McGill Big 3 en pyramide descendante, 90/90 et couch stretch, thoracique, épaules. Échauffement spécifique avant chaque séance (voir la séance).",
+    ]);
+  });
+
+  test("cardio: null — la section reste absente", () => {
+    assert.equal(sectionOf({ ...LEGACY_DEFINITION, program: { ...LEGACY_DEFINITION.program, cardio: null } }), undefined);
+  });
+
+  test("un autre programme décrit son conditionnement, pas celui de Simon", () => {
+    const def = {
+      ...LEGACY_DEFINITION,
+      cardioBaseline: { hr: [125, 135] },
+      program: {
+        ...LEGACY_DEFINITION.program,
+        cardio: { sessions: [{ id: "m", modality: "marche", kind: "z2", day: 2 }], mobility: { days: [5, 7] } },
+      },
+    };
+    const texts = sectionOf(def).blocks.map((b) => b.text);
+    assert.equal(texts.length, 2, "pas d'intervalles déclarés, pas de paragraphe d'intervalles");
+    assert.match(texts[0], /^Marche inclinée Z2 une fois par semaine/);
+    assert.match(texts[0], /Cibles 125–135 bpm\./);
+    /* Le point qui motivait l'issue : plus un mot du rameur, des watts ni des
+       jours de Simon. */
+    for (const t of texts) {
+      assert.doesNotMatch(t, /[Rr]ameur/);
+      assert.doesNotMatch(t, /105/);
+    }
+    assert.match(texts[1], /2 fois par semaine/);
+  });
+
+  test("sans cibles, la phrase s'arrête au lieu de promettre une puissance", () => {
+    const def = {
+      ...LEGACY_DEFINITION,
+      cardioBaseline: undefined,
+      program: { ...LEGACY_DEFINITION.program, cardio: { sessions: [{ id: "z", modality: "course", kind: "z2", day: 2 }] } },
+    };
+    const text = sectionOf(def).blocks[0].text;
+    assert.doesNotMatch(text, /Cibles/);
+    assert.match(text, /La durée progresse d'abord\.$/);
+  });
+});
+
+/* ---------- Groupes et comptes (revue Claude Design, 1c) ----------
+
+   L'idée porteuse de 1c n'est pas la navigation : c'est que chaque ligne de
+   l'index **mesure** le programme actif. Un compte ne peut pas être vague là
+   où un paragraphe le pouvait, et c'est pour ça qu'il ne pouvait pas arriver
+   avant #34 — sous « default », la ligne Cardio aurait compté les séances de
+   Simon sous n'importe quel programme. */
+describe("buildPlan : groupes et comptes", () => {
+  const byId = (def) => Object.fromEntries(buildPlan(def).map((s) => [s.id, s]));
+
+  test("chaque section déclare un groupe connu et un compte non vide", () => {
+    for (const def of [LEGACY_DEFINITION, NEUTRAL]) {
+      for (const s of buildPlan(def)) {
+        assert.ok(["methode", "programme", "appareil"].includes(s.group), `${s.id} : groupe « ${s.group} »`);
+        assert.equal(typeof s.meta, "string", `${s.id} : meta`);
+        assert.ok(s.meta.length > 0, `${s.id} : meta vide`);
+      }
+    }
+  });
+
+  test("le groupe est la ligne que #25 et #26 ont tracée, pas un choix de mise en page", () => {
+    /* Méthode = ce qui vaut pour tout le monde et ne disparaît jamais.
+       Programme = ce qui vient de la donnée, et qui disparaît avec elle. */
+    const L = byId(LEGACY_DEFINITION);
+    for (const id of ["structure", "progression", "deload"]) assert.equal(L[id].group, "methode", id);
+    for (const id of ["volume", "fallback", "cardio", "nutrition", "startloads"]) assert.equal(L[id].group, "programme", id);
+  });
+
+  test("les comptes du programme mesurent ce programme-là", () => {
+    const L = byId(LEGACY_DEFINITION), N = byId(NEUTRAL);
+    assert.equal(N.volume.meta, "11 groupes · 7 séries max");
+    assert.equal(L.volume.meta, "12 groupes · 10 séries max");
+    assert.equal(L.cardio.meta, "3 séances · mercredi, jeudi, dimanche");
+    assert.equal(L.startloads.meta, "6 exercices renseignés");
+  });
+
+  test("les comptes de la méthode sont les mêmes des deux côtés, et c'est normal", () => {
+    /* Une référence a le droit de ne pas bouger. Ce qui compte est que ça se
+       voie : trois lignes constantes sur huit est une information, pas un
+       défaut à cacher. */
+    const L = byId(LEGACY_DEFINITION), N = byId(NEUTRAL);
+    for (const id of ["structure", "progression", "deload"]) {
+      assert.equal(L[id].meta, N[id].meta, id);
+    }
   });
 });

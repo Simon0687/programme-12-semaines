@@ -16,10 +16,23 @@
      { ok: false, reason: "no-store" }  // store indisponible (#21 Edge cases)
      { ok: false, reason: "absent" }    // pas de clé : première utilisation
      { ok: false, reason: "too-new" }   // écrit par une version plus récente
-     { ok: false, reason: "invalid" }   // schemaVersion hors bornes (#10),
-                                         // ou activeProgramId sans entrée
-                                         // correspondante dans programs
+     { ok: false, reason: "invalid", detail? } // schemaVersion hors bornes
+                                         // (#10), activeProgramId sans entrée
+                                         // correspondante, ou forme refusée
      { ok: false, reason: "corrupt" }   // JSON.parse a échoué (#10)
+
+   `detail` (#38 Q4) porte la phrase du refus — chemin JSON et règle
+   enfreinte — quand le verdict vient de journal-shape. Avant, les 73 rejets
+   distincts du validateur arrivaient ici et en repartaient tous en
+   « invalid », message jeté : le panneau Données ne pouvait dire que « ton
+   journal a été refusé », jamais pourquoi. Le message était pourtant déjà
+   écrit, et déjà écrit pour être **adressable** (#19) — produit puis jeté au
+   dernier mètre.
+
+   C'est un **ajout**, jamais un remplacement : `reason` garde exactement ses
+   cinq valeurs, donc les quatre branches d'App.jsx ne bougent pas d'une
+   ligne. C'est aussi ce qui garantit que ce changement ne peut pas casser le
+   chemin de chargement.
 
    ctx (#16) est transmis tel quel à migrate() : ce module ne sait pas ce
    qu'il contient (aujourd'hui { legacyDefinition, buildProgram }, requis
@@ -56,7 +69,8 @@ export async function loadJournal(store, key, ctx) {
   /* Même refus d ambiguïté que du côté collé (#32) : un journal stocké dont
      le schemaVersion a disparu serait relu comme un journal v1 et perdrait ses
      cycles à la migration. */
-  if (validatePreMigration(parsed)) return { ok: false, reason: "invalid" };
+  const badPre = validatePreMigration(parsed);
+  if (badPre) return { ok: false, reason: "invalid", detail: badPre.message };
 
   const res = migrate(parsed, ctx);
   if (res.tooNew) return { ok: false, reason: "too-new" };
@@ -68,7 +82,8 @@ export async function loadJournal(store, key, ctx) {
      Absorbe les cas plus anciens que validateEnvelope couvre aussi — item 5
      de #21 (activeProgramId sans entrée) et l'entrée sans définition de #26,
      App.jsx lisant `active.definition` sans repli. */
-  if (validateEnvelope(res.data)) return { ok: false, reason: "invalid" };
+  const badEnvelope = validateEnvelope(res.data);
+  if (badEnvelope) return { ok: false, reason: "invalid", detail: badEnvelope.message };
 
   const { activeProgramId, programs } = res.data;
 
@@ -79,7 +94,8 @@ export async function loadJournal(store, key, ctx) {
      Les cycles inactifs ne sont pas jugés ici — ils ne sont pas exécutés, et
      les rejeter fermerait l'accès à un journal dont le cycle courant va
      parfaitement bien. */
-  if (validateDefinition(programs[activeProgramId].definition)) return { ok: false, reason: "invalid" };
+  const badDefinition = validateDefinition(programs[activeProgramId].definition);
+  if (badDefinition) return { ok: false, reason: "invalid", detail: badDefinition.message };
 
   /* Filtrage des lignes illisibles (#32). La copie de l'original précède le
      retour : le journal rendu ici est celui que l'autosave réécrira, donc

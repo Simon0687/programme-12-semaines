@@ -19,6 +19,10 @@
    diff mécanique et relisible, et ce qui rend #49 bon marché ensuite
    (séparer deux sens devient l'édition d'une ligne ici).
 
+   Ce jour est arrivé en #67 : `alert` vaut désormais `red-400`, et le
+   diff est bien la ligne annoncée. Les cinq autres ambres restent
+   groupés — aucun ne dit un refus, seul `alert` le dit.
+
    Les valeurs sont lues dans la palette Tailwind plutôt que recopiées en
    hexadécimal : un token doit être identique au littéral, pas
    approximativement identique.
@@ -38,7 +42,18 @@ module.exports = {
         done: colors.emerald[400],            // validé : série, séance, semaine. Jamais un succès générique.
 
         /* ---- Ce qui interpelle ---- */
-        alert: colors.amber[400],             // erreurs de saisie et d'import, avec role="alert"
+        /* #67 : le premier token qui quitte la famille ambre, et la raison
+           d'être de #51 (« separating two meanings becomes the edit of one
+           line here »). Une erreur écrite de la couleur d'une valeur n'alerte
+           pas : « Prévu : 28 kg » et « Charge invalide » se lisaient dans le
+           même ambre, à quelques centimètres l'un de l'autre.
+
+           Le rouge n'élargit pas le vocabulaire pour le plaisir : c'est la
+           seule couleur dont personne n'a à apprendre le sens, et elle ne
+           désigne ici qu'une chose — ce que l'appli refuse. Les trois autres
+           tokens ambre restent groupés, comme #51 l'avait tranché : aucun ne
+           dit un refus. */
+        alert: colors.red[400],               // erreurs de saisie et d'import, avec role="alert"
         notice: colors.amber[400],            // stockage indisponible, note de cycle, « à remplir »
 
         /* ---- Surfaces et traits ---- */

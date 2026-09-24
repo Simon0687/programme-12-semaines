@@ -1,49 +1,86 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  setSummary, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS,
+  setSummary, rowIsDone, completedSets, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, weekdayName, adviceSummary, unitColumns, unitLoadLabel,
 } from "../src/display.js";
-import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS } from "../src/registry.js";
+import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS, PATTERNS } from "../src/registry.js";
+import { fmt } from "../src/progression.js";
 
 /* ---------- setSummary ----------
 
    Les chaînes à charge constante sont celles que produisait App.jsx:66-74
    avant #17 : elles restent le filet du déplacement de #23, au séparateur de
-   RIR près.
+   RIR près. Elles n'ont pas bougé depuis, et ne bougent pas ici.
 
    Ce qui a changé le 2026-09-14 : la forme compacte prenait la charge maximale
    et concaténait toutes les reps, donc elle inventait des séries dès que la
-   charge variait. Elle ne sert plus que lorsqu'elle est exacte. */
+   charge variait. L'explicite — « 8@90/8@85/10@70 kg » — l'a remplacée.
 
-test("setSummary : charge constante, la forme compacte est exacte et reste", () => {
+   Ce qui change avec #50 : l'explicite était l'objet le plus large des deux
+   écrans qui la portent, pour un cas devenu ordinaire depuis la molette (#46).
+   La forme bornée — « 90 → 70 kg 8/8/10 » — dit la même vérité dans la largeur
+   de la compacte. Les attentes ci-dessous sont donc réécrites, pas reformulées :
+   c'est le contrat qui change. Ce qu'il faut continuer d'interdire est nommé
+   par le test des bornes : aucune charge affichée qu'aucune série n'a portée. */
+
+test("setSummary : charge constante, la forme compacte est exacte et ne bouge pas", () => {
   const sets = [{ w: 87.5, r: 6, rir: 1 }, { w: 87.5, r: 5, rir: 1 }, { w: 87.5, r: 5, rir: 1 }];
   assert.equal(setSummary(sets, { name: "Développé couché barre" }), "87,5 kg 6/5/5 · 1 RIR");
 });
 
-test("setSummary : charge variable, chaque série porte la sienne", () => {
+test("setSummary : charge variable, les deux bornes et les reps", () => {
   /* Le cas relevé sur capture : « 90 kg 8/8/10 » laissait croire à dix reps à
-     90 kg, alors que le 10 avait été fait à 70. */
+     90 kg, alors que le 10 avait été fait à 70. Les bornes ne le laissent pas
+     croire — elles n'apparient plus rien — mais elles n'effacent pas le 90. */
   const sets = [{ w: 90, r: 8, rir: 1 }, { w: 85, r: 8, rir: 1 }, { w: 70, r: 10, rir: 2 }];
-  assert.equal(setSummary(sets, {}), "8@90/8@85/10@70 kg · 1-2 RIR");
+  assert.equal(setSummary(sets, {}), "90 → 70 kg 8/8/10 · 1-2 RIR");
+});
+
+test("setSummary : le sens de la flèche suit la séance, il n'est pas trié", () => {
+  /* Une charge qui monte et une charge qui décroche sont deux séances
+     différentes ; triées, elles s'écriraient pareil. */
+  const monte = [{ w: 70, r: 8 }, { w: 70, r: 8 }, { w: 72.5, r: 8 }];
+  assert.equal(setSummary(monte, {}), "70 → 72,5 kg 8/8/8");
+  const descend = [{ w: 72.5, r: 8 }, { w: 70, r: 8 }, { w: 70, r: 8 }];
+  assert.equal(setSummary(descend, {}), "72,5 → 70 kg 8/8/8");
+});
+
+test("setSummary : des bornes, pas les extrémités de la séance", () => {
+  /* 90 n'est ni la première ni la dernière charge. L'encadrer est tout l'objet
+     de la forme : « rien au-dessus de 90 » resterait faux sans lui. */
+  assert.equal(setSummary([{ w: 70, r: 8 }, { w: 90, r: 5 }, { w: 80, r: 6 }], {}), "70 → 90 kg 8/5/6");
+});
+
+test("setSummary : aucune charge affichée qui n'ait été portée", () => {
+  /* La règle que la compacte d'origine violait, tenue sur un échantillon :
+     toute charge qui paraît dans la sortie est celle d'une série réelle. */
+  const sets = [{ w: 62.5, r: 10 }, { w: 67.5, r: 8 }, { w: 65, r: 8 }];
+  const out = setSummary(sets, {});
+  const shown = out.match(/\d+(?:,\d+)?(?= (?:→|kg))/g) || [];
+  assert.deepEqual(shown, ["62,5", "67,5"]);
+  for (const s of shown) assert.ok(sets.some((x) => fmt(x.w) === s), `${s} n'a été portée par aucune série`);
 });
 
 test("setSummary : poids du corps lesté et poids du corps nu", () => {
   assert.equal(setSummary([{ w: 10, r: 6, rir: 1 }, { w: 10, r: 5, rir: 1 }], { unit: "bw" }), "+10 kg 6/5 · 1 RIR");
   assert.equal(setSummary([{ w: 0, r: 8, rir: 3 }, { w: 0, r: 8, rir: 3 }], { unit: "bw" }), "PDC 8/8 · 3 RIR");
-  /* Lest variable : « PDC+10 » porte son unité, donc aucun « kg » final qui
+  /* Lest variable : chaque borne porte son unité, donc aucun « kg » final qui
      suivrait un « PDC » nu. */
-  assert.equal(setSummary([{ w: 10, r: 6, rir: 1 }, { w: 0, r: 8, rir: 1 }], { unit: "bw" }), "6@PDC+10/8@PDC · 1 RIR");
+  assert.equal(setSummary([{ w: 10, r: 6, rir: 1 }, { w: 0, r: 8, rir: 1 }], { unit: "bw" }), "PDC+10 → PDC 6/8 · 1 RIR");
 });
 
 test("setSummary : secondes, répétitions et porté", () => {
   assert.equal(setSummary([{ w: null, r: 60, rir: 2 }, { w: null, r: 55, rir: 2 }], { unit: "time" }), "60/55 s · 2 RIR");
   assert.equal(setSummary([{ w: null, r: 10, rir: 1 }], { unit: "reps" }), "10 · 1 RIR");
   assert.equal(setSummary([{ w: 24, r: 40, rir: 2 }], { unit: "carry" }), "24 kg 40 s · 2 RIR");
-  assert.equal(setSummary([{ w: 24, r: 40, rir: 2 }, { w: 20, r: 45, rir: 2 }], { unit: "carry" }), "40 s@24/45 s@20 kg · 2 RIR");
+  /* Le porté garde ses secondes derrière les reps, et ses kilos devant : les
+     deux unités du même exercice ne se rencontrent pas. */
+  assert.equal(setSummary([{ w: 24, r: 40, rir: 2 }, { w: 20, r: 45, rir: 2 }], { unit: "carry" }), "24 → 20 kg 40/45 s · 2 RIR");
 });
 
-test("setSummary : sans charge, aucune série explicite — il n'y a rien à confondre", () => {
+test("setSummary : sans charge, jamais de bornes — il n'y a rien à encadrer", () => {
   assert.equal(setSummary([{ w: null, r: 60, rir: 2 }, { w: null, r: 45, rir: 2 }], { unit: "time" }), "60/45 s · 2 RIR");
+  assert.equal(setSummary([{ w: null, r: 12 }, { w: null, r: 10 }], { unit: "reps" }), "12/10");
 });
 
 test("setSummary : plusieurs RIR sont joints par un tiret", () => {
@@ -58,7 +95,7 @@ test("setSummary : un RIR non saisi ne s'affiche pas", () => {
 
 test("setSummary : valeurs manquantes rendues « ? », jamais une exception", () => {
   assert.equal(setSummary([{ w: 80, r: null, rir: 1 }], {}), "80 kg ? · 1 RIR");
-  assert.equal(setSummary([{ w: 90, r: null, rir: 1 }, { w: 70, r: 8, rir: 1 }], {}), "?@90/8@70 kg · 1 RIR");
+  assert.equal(setSummary([{ w: 90, r: null, rir: 1 }, { w: 70, r: 8, rir: 1 }], {}), "90 → 70 kg ?/8 · 1 RIR");
 });
 
 test("setSummary : aucune série => tiret cadratin", () => {
@@ -328,4 +365,124 @@ test("valueText et deltaText : le chiffre de tête porte son unité et son signe
   assert.equal(deltaText(7.5, "kg"), "+7,5 kg");
   assert.equal(deltaText(-2.5, "kg"), "−2,5 kg");
   assert.equal(deltaText(0, "kg"), "0 kg", "un plateau se dit, il ne se masque pas");
+});
+
+/* ---------- Libellés de facettes et jours (#36) ---------- */
+
+test("PATTERN_LABELS couvre les seize patterns du registre, et rien d'autre", () => {
+  assert.deepEqual(Object.keys(PATTERN_LABELS).sort(), [...PATTERNS].sort());
+});
+
+test("dayName lit un décalage de 1 à 7, pas un getDay()", () => {
+  assert.equal(dayName(1), "lundi");
+  assert.equal(dayName(6), "samedi");
+  assert.equal(dayName(7), "dimanche", "le dimanche affichait « undefined » avant #36");
+  assert.equal(dayName(0), "", "0 n'est pas un jour de séance : rien, jamais « dimanche »");
+  assert.equal(dayName(8), "");
+});
+
+test("weekdayName lit une date du calendrier, là où dayName lit un décalage (#39)", () => {
+  /* Les deux fonctions rendent des chaînes de la même liste et répondent à
+     deux questions différentes. Sur un départ le lundi elles s'accordent, ce
+     qui est exactement ce qui a permis à la confusion de #39 de vivre — la
+     paire du mercredi est ce qui les sépare. */
+  assert.equal(weekdayName(new Date(2026, 0, 5)), "lundi");
+  assert.equal(weekdayName(new Date(2026, 2, 4)), "mercredi");
+  assert.equal(weekdayName(new Date(2026, 9, 25)), "dimanche", "getDay() rend 0 ; la liste commence à lundi");
+  assert.equal(dayName(1), "lundi");
+  assert.notEqual(weekdayName(new Date(2026, 2, 4)), dayName(1), "un mercredi de départ n'est pas « lundi »");
+});
+
+/* ---------- adviceSummary (#57) ----------
+
+   La seule phrase que #57 fabrique : tout le reste du bloc d'avis vient mot
+   pour mot de assess(). Elle est testée pour son accord en nombre, qui est
+   la seule chose qu'elle puisse rater. */
+
+test("adviceSummary : au singulier à partir d'un point", () => {
+  assert.equal(adviceSummary(1), "1 point à regarder sur ce programme");
+});
+
+test("adviceSummary : au pluriel à partir de deux", () => {
+  assert.equal(adviceSummary(2), "2 points à regarder sur ce programme");
+  assert.equal(adviceSummary(5), "5 points à regarder sur ce programme");
+});
+
+/* Zéro ne s'affiche pas — le bloc ne rend rien quand assess() ne trouve rien.
+   La règle est pinnée quand même, parce que l'accord français du zéro est
+   singulier et qu'un « 0 points » écrit par erreur signalerait un compte
+   devenu faux ailleurs. */
+test("adviceSummary : zéro reste au singulier", () => {
+  assert.equal(adviceSummary(0), "0 point à regarder sur ce programme");
+});
+
+/* ---------- Les mots d'une unité (#23) ---------- */
+
+test("unitColumns : la colonne de charge n'existe que là où il y a une charge", () => {
+  assert.deepEqual(unitColumns("kg"), ["kg", "reps", "RIR"]);
+  assert.deepEqual(unitColumns("bw"), ["lest kg", "reps", "RIR"]);
+  assert.deepEqual(unitColumns("carry"), ["kg", "s / côté", "RIR"]);
+  assert.deepEqual(unitColumns("time"), ["s / côté", "RIR"]);
+  assert.deepEqual(unitColumns("reps"), ["reps", "RIR"]);
+  assert.deepEqual(unitColumns(undefined), unitColumns("kg"), "une unité absente est du kilo");
+});
+
+test("unitLoadLabel : « lest » et « / main » se composent au lieu de s'exclure", () => {
+  /* L'ancien ternaire faisait du « / main » l'exclusif du kilo sans qu'aucune
+     règle ne le dise — le registre n'a simplement pas d'entrée qui soit à la
+     fois au poids du corps et par main. La composition reste juste le jour où
+     il en aurait une. */
+  assert.equal(unitLoadLabel({ unit: "bw" }), "lest kg");
+  assert.equal(unitLoadLabel({ perHand: true }), "kg / main");
+  assert.equal(unitLoadLabel({ unit: "carry" }), "kg");
+  assert.equal(unitLoadLabel({}), "kg");
+  assert.equal(unitLoadLabel({ unit: "bw", perHand: true }), "lest kg / main");
+});
+
+/* ---------- Une série faite, à l'écran (#66) ----------
+
+   Plus strict que `normalizeSets` du moteur, et c'est voulu : le moteur dit
+   qu'une série sans reps n'a pas eu lieu, l'écran dit qu'une série sans sa
+   charge n'est pas finie de saisir. Les deux règles sont justes, elles ne
+   répondent pas à la même question. */
+
+test("rowIsDone : charge et reps quand l'unité porte une charge", () => {
+  assert.equal(rowIsDone({ w: "80", r: "8", rir: "1" }, "kg"), true);
+  assert.equal(rowIsDone({ w: "80", r: "8" }, "kg"), true, "le RIR n'entre pas dans le critère");
+  assert.equal(rowIsDone({ w: "", r: "8" }, "kg"), false, "une charge manquante est une saisie à finir");
+  assert.equal(rowIsDone({ w: "80", r: "" }, "kg"), false);
+  assert.equal(rowIsDone({ w: "80", r: "  " }, "kg"), false, "des espaces ne sont pas une valeur");
+});
+
+test("rowIsDone : les reps seules suffisent là où il n'y a pas de charge", () => {
+  assert.equal(rowIsDone({ r: "45" }, "time"), true);
+  assert.equal(rowIsDone({ r: "12" }, "reps"), true);
+  assert.equal(rowIsDone({ w: "", r: "" }, "time"), false);
+});
+
+test("rowIsDone : au poids du corps la charge est le lest, donc exigée", () => {
+  /* `bw` porte une charge (le lest), et zéro est une valeur : une traction à
+     vide se saisit « 0 », pas en laissant le champ vide. */
+  assert.equal(rowIsDone({ w: "0", r: "8" }, "bw"), true);
+  assert.equal(rowIsDone({ r: "8" }, "bw"), false);
+});
+
+test("rowIsDone : rien du tout", () => {
+  assert.equal(rowIsDone(null, "kg"), false);
+  assert.equal(rowIsDone(undefined, "kg"), false);
+  assert.equal(rowIsDone({}, "kg"), false);
+});
+
+test("completedSets : compte les séries finies, pas les lignes", () => {
+  const rows = [{ w: "80", r: "8" }, { w: "80", r: "7" }, { w: "80", r: "" }, {}];
+  assert.equal(completedSets(rows, "kg"), 2);
+  assert.equal(completedSets([], "kg"), 0);
+  assert.equal(completedSets(null, "kg"), 0);
+});
+
+test("completedSets : une ligne trouée au milieu ne bloque pas le compte", () => {
+  /* Le compte sert à dire « 2 séries sur 3 », pas à dire où on en est :
+     `nextIdx` s'en charge sur la carte ouverte. */
+  const rows = [{ w: "80", r: "8" }, { w: "", r: "" }, { w: "80", r: "8" }];
+  assert.equal(completedSets(rows, "kg"), 2);
 });

@@ -4,7 +4,7 @@
   "description": "Programme d'entraînement 12 semaines — Simon",
   "type": "module",
   "scripts": {
-    "dev": "esbuild src/main.jsx --bundle --watch=forever --servedir=public --outfile=public/dist/app.js --loader:.jsx=jsx --jsx=automatic --define:process.env.NODE_ENV='\"development\"'",
+    "dev": "node scripts/dev-url.mjs && esbuild src/main.jsx --bundle --watch=forever --servedir=public \"--serve=[::]:8000\" --outfile=public/dist/app.js --loader:.jsx=jsx --jsx=automatic --define:process.env.NODE_ENV='\"development\"'",
     "dev:css": "tailwindcss -c tailwind.config.js -i input.css -o public/dist/app.css --watch",
     "build": "npm run build:js && npm run build:css",
     "build:js": "esbuild src/main.jsx --bundle --minify --format=iife --loader:.jsx=jsx --jsx=automatic --define:process.env.NODE_ENV='\"production\"' --outfile=public/dist/app.js",

@@ -3,13 +3,16 @@ import assert from "node:assert/strict";
 
 import { buildProgram } from "../src/program.js";
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
-import { planned, history, lastEntry, lastEntryLabel, computeKind, workingSets, loadDrops } from "../src/progression.js";
+import { planned, history, lastEntry, lastEntryLabel, computeKind, workingSets, loadDrops, normalizeSets, historyBefore } from "../src/progression.js";
 import { dateForSlot } from "../src/schema.js";
 
-/* Pins the behaviour of planned() as it shipped in 1.0.0, before #3-#6
-   start moving the program data around. Every expected value here is the
-   current output of the code, not an independent recalculation - a drift
-   is a regression to investigate, not a test to "fix". Q2/Q3/Q5 are
+/* Pins the behaviour of planned() as it shipped in 1.0.0. #3-#6 have long
+   since moved the program data out, #16 re-keyed the journal by date, #31
+   changed which load the verdict is pronounced on and #23 pulled the shared
+   readers out of the duplicated copies - and every expected value below has
+   survived all four unchanged, which is the point of the file. They are the
+   current output of the code, not an independent recalculation: a drift is a
+   regression to investigate, not a test to "fix". Q2/Q3/Q5 are
    pinned as-is per docs/features/2-tests-progression-logic/spec.md.
    The RIR<=1 gate on the top-of-range branch, originally pinned here, was
    superseded by #28: reaching the top of the range now increases the load
@@ -705,5 +708,128 @@ describe("loadDrops", () => {
     assert.deepEqual(loadDrops([]), []);
     assert.deepEqual(loadDrops(null), []);
     assert.deepEqual(loadDrops([null, undefined]), []);
+  });
+});
+
+/* ---------- normalizeSets et historyBefore (#23) ----------
+
+   Quatre copies de la normalisation, deux copies du filtre « avant ce
+   créneau ». Ce qui suit épingle ce que les copies faisaient, pour que la
+   version partagée ne puisse pas s'en écarter en silence. */
+
+describe("normalizeSets", () => {
+  test("les chaînes du journal deviennent des nombres, la virgule comprise", () => {
+    assert.deepEqual(normalizeSets([{ w: "72,5", r: "8", rir: "1" }]), [{ w: 72.5, r: 8, rir: 1 }]);
+  });
+
+  test("une série sans répétitions n'a pas eu lieu, même si la charge est là", () => {
+    /* La règle qui porte le sens : une ligne laissée vide sur une séance
+       validée ne compte pas. Un poids réglé sur la barre puis reposé n'est pas
+       une série. */
+    assert.deepEqual(normalizeSets([{ w: "70", r: "", rir: "" }]), []);
+    assert.deepEqual(normalizeSets([{ w: "70", r: "8" }, { w: "70", r: "" }]), [{ w: 70, r: 8, rir: null }]);
+  });
+
+  test("une charge absente reste null, elle ne devient pas zéro", () => {
+    /* C'est setSummary qui décide qu'une charge absente vaut 0 pour ses bornes
+       (display.js) ; le moteur, lui, distingue « pas de charge » de « zéro
+       kilo », qui est une vraie valeur au poids du corps. */
+    assert.deepEqual(normalizeSets([{ r: "12" }]), [{ w: null, r: 12, rir: null }]);
+    assert.deepEqual(normalizeSets([{ w: "0", r: "8" }]), [{ w: 0, r: 8, rir: null }]);
+  });
+
+  test("ce qui n'est pas une liste d'objets ne lève pas, il ne rend rien", () => {
+    /* Les gardes que exercise-history.js portait seul : il lit des journaux que
+       personne n'a validés (#32), et c'est la fonction partagée qui doit les
+       porter, pas une copie mieux informée que les autres. */
+    assert.deepEqual(normalizeSets(undefined), []);
+    assert.deepEqual(normalizeSets(null), []);
+    assert.deepEqual(normalizeSets("8/8/8"), []);
+    assert.deepEqual(normalizeSets([null, "x", 3, [], { w: "70", r: "8" }]), [{ w: 70, r: 8, rir: null }]);
+  });
+});
+
+describe("historyBefore", () => {
+  const st = S(
+    { week: 1, sid: "hautA", vid: "dc", sets: [set("70", "8", "2")] },
+    { week: 2, sid: "hautA", vid: "dc", sets: [set("72,5", "8", "1")] },
+    { week: 3, sid: "hautA", vid: "dc", sets: [set("75", "8", "1")] },
+  );
+
+  test("rend ce qui précède le créneau, jamais le créneau lui-même", () => {
+    const d = dateOf(3, "hautA");
+    const h = historyBefore(prog, st, "dc", d, si("hautA"));
+    assert.deepEqual(h.map((e) => e.sets[0].w), [70, 72.5]);
+  });
+
+  test("le rang de la séance départage deux séances du même jour", () => {
+    /* Depuis #16 un créneau s'identifie par (date, rang), pas par une semaine :
+       une comparaison de dates seule classerait deux séances du même jour au
+       hasard, et `lastEntry` citerait alors une séance que `planned` a ignorée. */
+    const day = dateOf(1, "hautA");
+    const two = {
+      ...st,
+      logs: {
+        a: { id: "a", date: day, slot: prog.SESSIONS[0].id, kind: "normal", done: true, ex: { dc: [set("60", "8", "2")] } },
+        b: { id: "b", date: day, slot: prog.SESSIONS[1].id, kind: "normal", done: true, ex: { dc: [set("65", "8", "2")] } },
+      },
+    };
+    assert.deepEqual(historyBefore(prog, two, "dc", day, 1).map((e) => e.sets[0].w), [60]);
+    assert.deepEqual(historyBefore(prog, two, "dc", day, 2).map((e) => e.sets[0].w), [60, 65]);
+    assert.deepEqual(historyBefore(prog, two, "dc", day, 0).map((e) => e.sets[0].w), []);
+  });
+
+  test("lastEntry en est la dernière entrée, par construction", () => {
+    /* Les deux lectures ne peuvent plus diverger : c'est tout l'objet de
+       l'extraction. */
+    const d = dateOf(3, "hautA");
+    const h = historyBefore(prog, st, "dc", d, si("hautA"));
+    assert.deepEqual(lastEntry(prog, st, "dc", d, si("hautA")), h[h.length - 1]);
+  });
+});
+
+/* ---- #55 : planned() sur un exercice qu'on lui désigne ------------------ */
+
+describe("planned() avec un vid explicite (#55)", () => {
+  /* Deux séances de développé couché barre derrière soi, et rien au développé
+     haltères : c'est la situation d'une machine prise un mardi. */
+  const st = S(
+    { week: 2, sid: "hautA", vid: "dc", sets: [set(80, 8, 1), set(80, 8, 1), set(80, 8, 1)] },
+  );
+  const d = dateOf(3, "hautA");
+
+  test("sans le septième paramètre, rien ne change — c'est ce qui rend #55 bon marché", () => {
+    /* Tout le reste de ce fichier appelle planned() à six paramètres, et aucune
+       de ses valeurs attendues n'a bougé. Ce test dit explicitement ce que les
+       autres supposent : le défaut est l'exercice que le créneau prescrit. */
+    assert.deepEqual(
+      planned(prog, st, "dc", 3, si("hautA"), d),
+      planned(prog, st, "dc", 3, si("hautA"), d, prog.SLOTS.dc.b1),
+    );
+  });
+
+  test("le vid passé décide de l'historique lu, pas le créneau", () => {
+    /* La substitution vue du moteur. Le prescrit a trois séries au haut de
+       fourchette derrière lui, donc il monte d'un incrément ; le remplaçant n'a
+       ni historique ni charge de départ — `startingLoads` ne couvre que les
+       exercices du programme — donc il rend « Paliers ».
+
+       C'est le chemin `!base` qui existait déjà, et c'est le bon comportement :
+       on ne devine pas une charge sur un exercice jamais fait. */
+    const onSlot = planned(prog, st, "dc", 3, si("hautA"), d);
+    const onSub = planned(prog, st, "dc", 3, si("hautA"), d, "dc_db");
+    assert.equal(onSlot.load, 82.5);
+    assert.equal(onSub.load, null);
+    assert.equal(onSub.text, "Paliers");
+  });
+
+  test("le remplaçant lit son propre historique, pas celui du créneau", () => {
+    const both = S(
+      { week: 2, sid: "hautA", vid: "dc", sets: [set(80, 8, 1), set(80, 8, 1), set(80, 8, 1)] },
+      { week: 2, sid: "basA", vid: "dc_db", sets: [set(30, 8, 1), set(30, 8, 1), set(30, 8, 1)] },
+    );
+    const onSub = planned(prog, both, "dc", 3, si("hautA"), d, "dc_db");
+    assert.equal(onSub.load, 30 + prog.V.dc_db.incr);
+    assert.match(onSub.why, /haut de fourchette atteint/);
   });
 });

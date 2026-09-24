@@ -168,6 +168,47 @@ export const EXERCISES = {
   curl_ez: { name: "Curl barre EZ", incr: 2.5, muscles: { biceps: 1.0 }, pattern: "iso_biceps", type: "isolation", equipement: ["barre_ez"], articulations: ["coude", "poignet"], stabilite: 2, niveau_min: 1, cout_systemique: 1, alias: "curl-barre-ez" },
   skull_ez: { name: "Barre au front (barre EZ)", incr: 2.5, muscles: { triceps: 1.0 }, pattern: "iso_triceps", type: "isolation", equipement: ["barre_ez", "banc"], articulations: ["coude"], stabilite: 2, niveau_min: 2, cout_systemique: 1, alias: "barre-au-front-barre-ez" },
   plank_weighted: { name: "Gainage planche lesté", incr: 1.25, unit: "bw", muscles: { abdominaux: 1.0 }, pattern: "abdominaux", type: "isolation", equipement: ["poids_du_corps"], articulations: [], stabilite: 2, niveau_min: 1, cout_systemique: 1, alias: "gainage-planche-leste" },
+
+  // ---- poids du corps (#59) ----------------------------------------
+  // Le registre a été écrit pour une salle (#25), et ça se voyait : avec le
+  // seul matériel du corps, il offrait cinq entrées et huit des onze muscles
+  // n'avaient aucun exercice primaire, tout le bas du corps compris.
+  //
+  // Les répartitions `muscles` ne sont pas réestimées : chaque entrée reprend
+  // celles de son équivalent chargé (squat_bw = squat, lunge_bw = lunge_db,
+  // rdl_uni_bw = rdl_db, pike_pushup = ohp_db, rear_delt_row = facepull), au
+  // motif que c'est le même schéma moteur sous une charge différente. Ce qui
+  // change au poids du corps, c'est `stabilite` (2 partout : ni barre libre
+  // lourde, ni machine) et `cout_systemique`, jamais 3 : rien ici ne charge
+  // la colonne comme un squat barre.
+  //
+  // `barre_traction` vaut ici pour une barre dont la hauteur se règle : les
+  // quatre entrées qui la portent en position basse (row_inv_bar, curl_bw,
+  // rear_delt_row, tri_ext_bw) le supposent — et c'est aussi ce qui les rend
+  // accessibles à un débutant : sous une barre, la difficulté se règle par
+  // l'angle du corps, pas par une charge à soulever, ce qui leur vaut le même
+  // niveau_min 1 que row_inv. Le vocabulaire EQUIPMENT est fermé et aligné
+  // sur le catalogue de génération ; lui ajouter « barre basse » le ferait
+  // diverger pour une nuance de montage.
+  //
+  // Ce que ces entrées ne réparent pas : le deltoïde latéral reste sans
+  // exercice primaire au poids du corps. Il se compte en direct seul (voir
+  // VOLUME), et aucun mouvement sans charge externe ne lui donne 0,5 de part.
+  // C'est une contrainte physique, pas un trou du registre, et le rapport du
+  // générateur le déclare (#59 decisions.md).
+  squat_bw: { name: "Squat au poids du corps", incr: 1.25, unit: "bw", muscles: { quadriceps: 0.6, ischios_fessiers: 0.3, abdominaux: 0.1 }, pattern: "dominante_genou", type: "compose", equipement: ["poids_du_corps"], articulations: ["genou", "hanche"], stabilite: 2, niveau_min: 1, cout_systemique: 1 },
+  split_squat_bw: { name: "Split squat, pied arrière au sol", incr: 1.25, unit: "bw", muscles: { quadriceps: 0.55, ischios_fessiers: 0.4, mollets: 0.05 }, pattern: "dominante_genou", type: "compose", equipement: ["poids_du_corps"], articulations: ["genou", "hanche"], stabilite: 2, niveau_min: 1, cout_systemique: 1 },
+  lunge_bw: { name: "Fentes marchées au poids du corps", incr: 1.25, unit: "bw", muscles: { quadriceps: 0.5, ischios_fessiers: 0.45, mollets: 0.05 }, pattern: "dominante_genou", type: "compose", equipement: ["poids_du_corps"], articulations: ["genou"], stabilite: 2, niveau_min: 1, cout_systemique: 1 },
+  glute_bridge: { name: "Pont fessier au sol, une jambe", incr: 1.25, unit: "bw", muscles: { ischios_fessiers: 1.0 }, pattern: "extension_hanche", type: "isolation", equipement: ["poids_du_corps"], articulations: ["hanche"], stabilite: 2, niveau_min: 1, cout_systemique: 1 },
+  rdl_uni_bw: { name: "Soulevé de terre roumain unilatéral au poids du corps", incr: 1.25, unit: "bw", muscles: { ischios_fessiers: 0.7, dos: 0.3 }, pattern: "charniere_hanche", type: "compose", equipement: ["poids_du_corps"], articulations: ["lombaires", "hanche"], stabilite: 2, niveau_min: 2, cout_systemique: 1 },
+  nordic_curl: { name: "Leg curl nordique", incr: 1.25, unit: "bw", muscles: { ischios_fessiers: 1.0 }, pattern: "iso_ischios", type: "isolation", equipement: ["poids_du_corps"], articulations: ["genou"], stabilite: 2, niveau_min: 3, cout_systemique: 2 },
+  calf_step: { name: "Mollets debout sur une marche", incr: 1.25, unit: "bw", muscles: { mollets: 1.0 }, pattern: "mollets", type: "isolation", equipement: ["poids_du_corps"], articulations: [], stabilite: 2, niveau_min: 1, cout_systemique: 1 },
+  pike_pushup: { name: "Pompes piquées", incr: 1.25, unit: "bw", muscles: { deltoide_ant: 0.55, triceps: 0.25, deltoide_lat: 0.2 }, pattern: "poussee_verticale", type: "compose", equipement: ["poids_du_corps"], articulations: ["epaule", "poignet"], stabilite: 2, niveau_min: 2, cout_systemique: 1 },
+  chinup: { name: "Tractions supination", incr: 2.5, unit: "bw", muscles: { dos: 0.6, biceps: 0.3, deltoide_post: 0.1 }, pattern: "tirage_vertical", type: "compose", equipement: ["barre_traction"], articulations: ["epaule", "coude"], stabilite: 2, niveau_min: 2, cout_systemique: 2 },
+  row_inv_bar: { name: "Rowing inversé sous barre basse", incr: 1.25, unit: "bw", muscles: { dos: 0.65, biceps: 0.2, deltoide_post: 0.15 }, pattern: "tirage_horizontal", type: "compose", equipement: ["barre_traction"], articulations: ["poignet"], stabilite: 2, niveau_min: 1, cout_systemique: 1 },
+  rear_delt_row: { name: "Rowing inversé prise large, coudes hauts", incr: 1.25, unit: "bw", muscles: { deltoide_post: 0.7, dos: 0.3 }, pattern: "iso_deltoide_posterieur", type: "isolation", equipement: ["barre_traction"], articulations: [], stabilite: 2, niveau_min: 1, cout_systemique: 1 },
+  curl_bw: { name: "Curl sous barre basse", incr: 1.25, unit: "bw", muscles: { biceps: 1.0 }, pattern: "iso_biceps", type: "isolation", equipement: ["barre_traction"], articulations: ["coude"], stabilite: 2, niveau_min: 1, cout_systemique: 1 },
+  tri_ext_bw: { name: "Extension triceps sous barre basse", incr: 1.25, unit: "bw", muscles: { triceps: 1.0 }, pattern: "iso_triceps", type: "isolation", equipement: ["barre_traction"], articulations: ["coude", "epaule"], stabilite: 2, niveau_min: 1, cout_systemique: 1 },
 };
 
 export const EXERCISE_IDS = new Set(Object.keys(EXERCISES));

@@ -106,20 +106,42 @@ test("exerciseHistory : une définition sans SESSIONS donne un nom nul, pas un j
 
 /* ---------- Records ---------- */
 
-test("recordsFor : « N reps ou plus », donc décroissant par construction", () => {
+test("recordsFor : « N reps ou plus », donc strictement décroissant (#63)", () => {
   const { mode, rows } = recordsFor(exerciseHistory(journal(), "dc"), "kg");
   assert.equal(mode, "byReps");
+  /* 87,5 tenu sur 4 et sur 5 reps, 85 sur 6, 7 et 8 : deux charges, deux
+     lignes, chacune au meilleur nombre de reps atteint dessus. */
   assert.deepEqual(rows, [
-    { reps: 4, load: 87.5, date: "2026-08-31" },
     { reps: 5, load: 87.5, date: "2026-08-31" },
-    { reps: 6, load: 85, date: "2026-08-24" },
-    { reps: 7, load: 85, date: "2026-08-24" },
     { reps: 8, load: 85, date: "2026-08-24" },
   ]);
 
   for (let i = 1; i < rows.length; i++) {
-    assert.ok(rows[i].load <= rows[i - 1].load, `${rows[i].reps} reps : ${rows[i].load} > ${rows[i - 1].load}`);
+    assert.ok(rows[i].load < rows[i - 1].load, `${rows[i].reps} reps : ${rows[i].load} >= ${rows[i - 1].load}`);
   }
+});
+
+/* Le cas de l'issue, en toutes lettres : la séance qui ajoute une rep à charge
+   égale remplace la ligne au lieu d'en ouvrir une seconde. */
+test("recordsFor : une rep de plus à la même charge ne crée pas une ligne de plus (#63)", () => {
+  const entries = [
+    { date: "2026-09-10", sets: [{ w: 105, r: 7, rir: 1 }] },
+    { date: "2026-09-17", sets: [{ w: 105, r: 8, rir: 1 }] },
+  ];
+  assert.deepEqual(recordsFor(entries, "kg").rows, [{ reps: 8, load: 105, date: "2026-09-17" }]);
+});
+
+/* Une charge plus lourde sur moins de reps garde sa ligne : ce n'est pas un
+   doublon, c'est l'autre bout de la courbe force/endurance. */
+test("recordsFor : deux charges distinctes gardent leurs deux lignes (#63)", () => {
+  const entries = [
+    { date: "2026-09-10", sets: [{ w: 110, r: 5, rir: 1 }] },
+    { date: "2026-09-17", sets: [{ w: 105, r: 8, rir: 1 }] },
+  ];
+  assert.deepEqual(recordsFor(entries, "kg").rows, [
+    { reps: 5, load: 110, date: "2026-09-10" },
+    { reps: 8, load: 105, date: "2026-09-17" },
+  ]);
 });
 
 test("recordsFor : la date retenue est la première fois, pas la dernière", () => {
