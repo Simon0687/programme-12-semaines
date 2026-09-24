@@ -79,9 +79,10 @@ existing journal loads unchanged.
 
 ## Open questions
 
-1. **Which ladder?** The issue says 40 / 55 / 70 / 85 %; the bundled program's
-   own text says 50 % × 8, 70 % × 4, 85 % × 2 (upper) and × 6 / 4 / 2 (lower).
-   Proposal: use the program's 50 / 70 / 85 with reps 8 / 4 / 2, so the line
-   and the text above it never disagree.
-2. **Reps on the line, or loads only?** Proposal: include them (`× 8`), since
-   the text already prescribes them and they differ from the working reps.
+None. Settled by Simon on 2026-09-24, as proposed:
+
+1. **Ladder:** 50 / 70 / 85 %, the bundled program's own percentages, not the
+   40 / 55 / 70 / 85 % of the issue.
+2. **Reps on the line:** yes, × 8 / × 4 / × 2. The bundled "lower" text says
+   × 6 on the first step; the line keeps 8 everywhere rather than parsing the
+   text — a one-rep difference on a 50 % set, noted rather than special-cased.

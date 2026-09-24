@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  setSummary, rowIsDone, completedSets, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, weekdayName, adviceSummary, unitColumns, unitLoadLabel,
+  setSummary, rowIsDone, completedSets, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, weekdayName, adviceSummary, unitColumns, unitLoadLabel, warmupRamp, warmupText, WARMUP_RAMP,
 } from "../src/display.js";
 import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS, PATTERNS } from "../src/registry.js";
 import { fmt } from "../src/progression.js";
@@ -485,4 +485,38 @@ test("completedSets : une ligne trouée au milieu ne bloque pas le compte", () =
      `nextIdx` s'en charge sur la carte ouverte. */
   const rows = [{ w: "80", r: "8" }, { w: "", r: "" }, { w: "80", r: "8" }];
   assert.equal(completedSets(rows, "kg"), 2);
+});
+
+/* ---------- Montée en charge de l'échauffement (#80) ---------- */
+
+test("warmupRamp : 50 / 70 / 85 % arrondis au cran, avec les reps du texte du programme", () => {
+  assert.deepEqual(WARMUP_RAMP.map(([p, r]) => [p, r]), [[0.5, 8], [0.7, 4], [0.85, 2]]);
+  const v = { name: "Développé couché haltères", incr: 2, perHand: true };
+  assert.deepEqual(warmupRamp(v, 24), [{ load: 12, reps: 8 }, { load: 16, reps: 4 }, { load: 20, reps: 2 }]);
+  assert.equal(warmupText(v, 24), "Montée en charge — Développé couché haltères : 12 kg × 8 · 16 kg × 4 · 20 kg × 2 / main");
+});
+
+test("warmupText : la virgule décimale, sans « / main » hors haltères", () => {
+  assert.equal(warmupText({ name: "Hack squat", incr: 2.5 }, 105), "Montée en charge — Hack squat : 52,5 kg × 8 · 72,5 kg × 4 · 90 kg × 2");
+});
+
+test("warmupRamp : pas de charge prévue (calibration) => pas de rampe", () => {
+  const v = { name: "x", incr: 2.5 };
+  for (const load of [null, undefined, 0, -5, NaN]) {
+    assert.deepEqual(warmupRamp(v, load), [], String(load));
+    assert.equal(warmupText(v, load), null);
+  }
+});
+
+test("warmupRamp : poids du corps et unités sans charge => pas de rampe", () => {
+  assert.deepEqual(warmupRamp({ name: "Tractions", unit: "bw", incr: 2.5 }, 10), []);
+  assert.deepEqual(warmupRamp({ name: "Gainage", unit: "time" }, 60), []);
+});
+
+test("warmupRamp : un palier qui retombe sur zéro, le précédent ou la charge de travail est retiré", () => {
+  /* 6 kg au cran de 2 : 3 -> 4, 4,2 -> 4 (doublon), 5,1 -> 6 (= charge de travail). */
+  assert.deepEqual(warmupRamp({ name: "x", incr: 2 }, 6), [{ load: 4, reps: 8 }]);
+  /* 2 kg au cran de 5 : tout retombe sur 0 ou sur la charge. */
+  assert.deepEqual(warmupRamp({ name: "x", incr: 5 }, 2), []);
+  assert.equal(warmupText({ name: "x", incr: 5 }, 2), null);
 });

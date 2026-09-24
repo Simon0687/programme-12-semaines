@@ -89,6 +89,8 @@ git push -u origin feat/12-dynamic-plan
 
 Cloudflare builds the branch and gives you a preview URL for that version, listed next to the build in the dashboard. That's where you test on the phone, under real conditions.
 
+On GitHub, every pull request and every push to `dev`, `staging` or `main` runs the `CI` workflow (`.github/workflows/ci.yml`): `npm ci`, `npm test`, `npm run build`. Its check shows on the PR. Don't merge on red.
+
 ## 6. Merge
 
 Once the preview is validated:
