@@ -6,6 +6,7 @@ import { listBackups, readDroppedBackup, backupPreImportOnce, readPreImportBacku
 import { createStore, loadJournal, saveJournal } from "./storage.js";
 import { saveFile, readFile } from "./file-io.js";
 import { readScreen, writeScreen, resolveScreen } from "./screen-state.js";
+import { readRest, writeRest, acquireWakeLock, releaseWakeLock, makeChime } from "./rest-timer.js";
 import { readLastExport, writeLastExport, toIsoDate, isExportStale, journalHasContent, daysBetween } from "./export-state.js";
 import { unusableProgramIds, validateDefinition } from "./journal-shape.js";
 /* #57 : journal-shape juge la donnée et peut refuser un fichier ; assertions
@@ -58,6 +59,9 @@ const FILE_ENV = typeof window === "undefined" ? {} : { nav: window.navigator, d
    screen-state.js, jamais lu par lui (ARCHITECTURE §2.7). En navigation
    privée, Safari fait lever l'accès lui-même, d'où le try autour. */
 const SCREEN_STORAGE = (() => { try { return typeof window === "undefined" ? null : window.sessionStorage; } catch (e) { return null; } })();
+/* #79 : les deux objets navigateur du repos, injectés comme le reste. */
+const NAV = typeof window === "undefined" ? null : window.navigator;
+const AUDIO_CTOR = typeof window === "undefined" ? null : (window.AudioContext || window.webkitAudioContext || null);
 /* Contexte de migration (#16) : injecté dans migrate()/MIGRATIONS[2],
    jamais construit par schema.js lui-même (cycle d'import, voir schema.js
    MIGRATIONS[2]). Depuis #26, la définition transmise est nommément le
@@ -546,7 +550,17 @@ export default function Programme() {
      Semaine et que nav.sessionId est null. C'est ce qui permet de supprimer
      les gardes qu'imposait l'ancienne sentinelle "cardio". */
   const sessionId = nav.sessionId || prog.SESSIONS[0].id;
-  const [timer, setTimer] = useState(null);
+  /* #79 : relu au montage, pour qu'une vue web récupérée par iOS entre deux
+     séries retrouve son repos là où il en est — ou expiré. */
+  const [timer, setTimer] = useState(() => readRest(SCREEN_STORAGE, Date.now()));
+  const chime = useRef(null);
+  if (!chime.current) chime.current = makeChime(AUDIO_CTOR);
+  /* Le tap qui lance le repos est le seul geste utilisateur de la chaîne :
+     c'est là que Safari autorise le son qui la terminera. */
+  const startRest = (sec, label) => {
+    chime.current.unlock();
+    setTimer({ end: Date.now() + sec * 1000, label });
+  };
   const [, setTick] = useState(0);
   const [toast, setToast] = useState("");
   const [importError, setImportError] = useState("");
@@ -668,14 +682,50 @@ export default function Programme() {
     const i = setInterval(() => setTick((t) => t + 1), 500);
     return () => clearInterval(i);
   }, [timer]);
+  useEffect(() => { writeRest(SCREEN_STORAGE, timer); }, [timer]);
+  /* Un repos relu après rechargement n'a pas eu son tap : iOS a aussi pu
+     suspendre le son en arrière-plan. Tant qu'un repos court, n'importe quel
+     tap sur l'écran le réautorise. Sans aucun tap avant la fin, seule la
+     vibration reste — là où elle existe. */
+  useEffect(() => {
+    if (!timer || typeof document === "undefined") return;
+    const unlock = () => chime.current.unlock();
+    document.addEventListener("pointerdown", unlock);
+    return () => document.removeEventListener("pointerdown", unlock);
+  }, [timer]);
   const remaining = timer ? Math.max(0, Math.ceil((timer.end - Date.now()) / 1000)) : null;
   useEffect(() => {
     if (timer && remaining === 0) {
-      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      /* #79 : vibrate n'existe pas dans Safari iOS — sur iPhone, la fin du
+         repos ne produisait rien. Le son s'ajoute, il ne remplace pas. */
+      if (NAV && NAV.vibrate) NAV.vibrate([200, 100, 200]);
+      chime.current.play();
       const t = setTimeout(() => setTimer(null), 4000);
       return () => clearTimeout(t);
     }
   }, [timer, remaining]);
+
+  /* #79 : l'écran reste allumé tant qu'une séance est ouverte. Le navigateur
+     relâche le verrou dès que la page est masquée ; on le redemande au retour.
+     Non pris en charge ou refusé : rien ne se passe, l'écran s'éteint comme
+     avant. */
+  useEffect(() => {
+    if (screen !== "seance" || !NAV || typeof document === "undefined") return;
+    let lock = null;
+    let alive = true;
+    const take = async () => {
+      const l = await acquireWakeLock(NAV);
+      if (alive) { releaseWakeLock(lock); lock = l; } else releaseWakeLock(l);
+    };
+    const onVisible = () => { if (document.visibilityState === "visible") take(); };
+    take();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", onVisible);
+      releaseWakeLock(lock);
+    };
+  }, [screen]);
 
   const doneMap = useMemo(() => {
     const m = {};
@@ -1388,14 +1438,14 @@ export default function Programme() {
                   <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} policies={policies} state={state}
                     vid={vidFor(prog, log, slotId, week)} substituted={isSubstituted(prog, log, slotId, week)} isTest={log.kind === "test"}
                     open={openSlot === slotId} onToggle={() => toggleEx(slotId)}
-                    rows={(log.ex && log.ex[vidFor(prog, log, slotId, week)]) || []} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
+                    rows={(log.ex && log.ex[vidFor(prog, log, slotId, week)]) || []} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={startRest} />
                 ))}
                 <div className="pt-4 text-sm text-ink-muted">{prog.CORE[session.core].label}</div>
                 {prog.CORE[session.core].ex.map(([slotId, n], i) => (
                   <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} policies={policies} state={state}
                     vid={vidFor(prog, log, slotId, week)} substituted={isSubstituted(prog, log, slotId, week)} isTest={log.kind === "test"}
                     open={openSlot === slotId} onToggle={() => toggleEx(slotId)}
-                    rows={(log.ex && log.ex[vidFor(prog, log, slotId, week)]) || []} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
+                    rows={(log.ex && log.ex[vidFor(prog, log, slotId, week)]) || []} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={startRest} />
                 ))}
                 {session.after && cardio && (
                   <p className="text-sm text-ink-muted mt-3">
