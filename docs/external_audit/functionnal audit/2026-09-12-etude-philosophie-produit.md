@@ -205,6 +205,60 @@ Règle générale :
 
 > Toute valeur de repli dépendant du code courant peut réinterpréter un ancien journal.
 
+### 6.6 Ce que retient un cycle (décidé le 2026-09-24, #74)
+
+Un cycle n'est pas une île. La semaine de calibration est écrite pour
+**valider** des charges connues et ne **découvrir** que celles qu'on n'a pas
+(« Séries à 2–3 RIR pour valider les charges. Exercices sans référence :
+paliers »). L'application reporte donc, à la création d'un cycle, la dernière
+charge de travail observée de chaque exercice, tous cycles confondus.
+
+La répartition des rôles reste celle du §1 :
+
+- **l'application calcule et mémorise** (niveau 1) : la charge reprise est un
+  calcul déterministe sur le journal, pas une interprétation ;
+- **l'utilisateur décide** : la valeur est affichée, datée, modifiable, et
+  vide si on l'efface ;
+- **elle est stockée comme une valeur** dans les charges de départ du nouveau
+  cycle, jamais comme une référence à l'ancien (§6.5).
+
+Le moteur de progression, lui, reste étroit : il ne compare jamais deux
+fourchettes de répétitions. Le report est asymétrique pour cette raison — tel
+quel vers moins de répétitions (l'erreur est du côté léger, et la progression
+la rattrape), converti par le 10RM estimé vers plus de répétitions, sans jamais
+dépasser la charge d'origine (l'estimation ne sert qu'à alléger).
+
+### 6.7 Un cycle long, en chapitres de douze semaines (orientation du 2026-09-24)
+
+Le but n'est pas les douze semaines : c'est d'installer l'athlète dans un
+entraînement long. Changer de programme tous les deux mois est un défaut
+connu, parce qu'on remet à zéro exactement ce qui progressait. Or, à la fin des
+douze semaines, la seule porte que l'application offre aujourd'hui est d'en
+créer un autre (§1 de #77) : c'est elle qui pousse au changement, pas le
+chiffre 12.
+
+Deux formes ont été pesées :
+
+- **un cycle sans fin** — blocs de six semaines (cinq de travail, une de
+  décharge), variantes en alternance, calibration réservée aux exercices
+  nouveaux. Le moteur y est déjà prêt (décharge et rotation sont des règles
+  périodiques, `everyNWeeks: 6`), mais le format ne l'est pas : `weeks: 12`
+  est exigé par le validateur, la semaine bilan est la dernière, l'avis du Plan
+  juge un programme de douze semaines. Surtout, on perd le rendez-vous ;
+- **des chapitres de douze semaines, enchaînés sans rupture** — retenu. Les
+  douze semaines restent un point d'étape (bilan, mesures, re-baseline), et la
+  porte **par défaut** à la fin devient « Continuer ce programme » : même
+  structure, charges reportées (§6.6), départ au lundi suivant, en un geste.
+  Générer ou composer autre chose reste possible, mais devient un choix actif.
+
+Règle qui en découle :
+
+> Continuer est le chemin par défaut ; changer de programme est une décision.
+
+Réversible : le journal est une frise datée, sans rupture entre cycles. Si un
+jour le cycle sans fin s'impose, rien de ce qui aura été enregistré n'empêche
+d'y passer.
+
 ## 7. Fonctionnalités recommandées
 
 ### Priorité 1 - Fiabilité

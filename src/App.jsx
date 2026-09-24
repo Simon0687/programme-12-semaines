@@ -37,7 +37,8 @@ import { programSummaries, removeProgram } from "./program-list.js";
 import { facetsOf } from "./exercise-filter.js";
 import ProgramEditor from "./ProgramEditor.jsx";
 import GenerateProgram from "./GenerateProgram.jsx";
-import { emptyDraft, draftFrom, withNewId, toDefinition, isDirty } from "./program-editor.js";
+import { emptyDraft, draftFrom, nextCycleFrom, withNewId, toDefinition, isDirty, withCarriedLoads } from "./program-editor.js";
+import { carriedLoad } from "./carryover.js";
 import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
 import { useLoadPicker, LoadPickerOverlay, PICKER_FIELD_STYLE } from "./LoadPicker.jsx";
 import { fieldSetup } from "./load-picker.js";
@@ -1201,7 +1202,11 @@ export default function Programme() {
      enregistre toujours un nouveau cycle, si bien que la branche « id déjà
      présent » de loadProgram() n'est jamais atteinte depuis ici. Corriger un
      cycle en place est l'issue suivante (design.md, étape 8). */
-  const openEditor = (draft) => { setEditorError(""); setEditor(draft); setNav({ screen: "editeur", sessionId: null }); };
+  /* #74 : un nouveau cycle part des charges que le journal connaît, tous
+     cycles confondus — pré-remplies, datées, modifiables. L'éditeur ne voit
+     que cette fonction, jamais le journal. */
+  const carry = (vid, range) => carriedLoad(journal, vid, range);
+  const openEditor = (draft) => { setEditorError(""); setEditor(withCarriedLoads(draft, carry)); setNav({ screen: "editeur", sessionId: null }); };
   const closeEditor = (then) => { setEditor(null); setPendingLeave(null); setEditorError(""); then(); };
   /* Un brouillon modifié ne se perd pas sur un tap. Même panneau à deux
      boutons que l'import (#11) plutôt que window.confirm : la question se lit
@@ -1545,7 +1550,7 @@ export default function Programme() {
 
         {screen === "editeur" && editor && (
           <>
-            <ProgramEditor draft={editor} onChange={setEditor} onBack={() => askLeave(goPlan)} onSave={saveDraft} error={editorError} />
+            <ProgramEditor draft={editor} onChange={setEditor} onBack={() => askLeave(goPlan)} onSave={saveDraft} error={editorError} carry={carry} />
             {pendingLeave && (
               <div className="fixed left-0 right-0 bottom-14 z-20 bg-surface border-t border-rule">
                 <div className="max-w-md mx-auto p-3 space-y-2">
@@ -1785,7 +1790,7 @@ export default function Programme() {
                           tant que l'édition en place n'existe pas (étape 8), ce
                           bouton compose un nouveau cycle à partir de celui-ci, et un
                           nouveau cycle repart sur la calibration. */}
-                      <Route icon={<Copy size={18} />} onClick={() => { setNewProgram(false); openEditor(draftFrom(definition)); }}
+                      <Route icon={<Copy size={18} />} onClick={() => { setNewProgram(false); openEditor(nextCycleFrom(definition, today)); }}
                         title="Partir du programme actif"
                         note={`Une copie de ${definition.name} à retoucher. Le cycle en cours n'est pas modifié.`} />
                       <Btn small onClick={() => setNewProgram(false)}>Annuler</Btn>

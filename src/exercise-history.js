@@ -18,12 +18,12 @@
    Fermé par défaut sur le contenu de `ex` (ARCHITECTURE §2.4).
    `isLogRow()` (journal-shape.js) vérifie `date`, `slot`, et que `ex` soit
    un objet — il ne regarde jamais *dedans*. Une ligne où `ex.dc` vaut la
-   chaîne "87,5" passe le filtre et fait lever `history()`
-   (`TypeError: … .map is not a function`, vérifié le 2026-09-14). Le défaut
-   existe déjà sur le programme actif ; lire tous les cycles en élargit la
-   surface, justement aux entrées dont la définition a échoué à la
-   validation. Durcir `isLogRow` changerait le verdict d'une frontière et
-   ferait tomber des lignes au chargement : c'est #38, pas ici.
+   chaîne "87,5" passe donc le filtre ; c'est la lecture qui la neutralise :
+   `normalizeSets()` (#23) en fait un tableau vide, ici comme dans
+   `history()`, et les lecteurs bruts de l'écran de séance passent par
+   `setsOf()` depuis #86. Lire tous les cycles élargit la surface aux entrées
+   dont la définition a échoué à la validation ; c'est pour elles que cette
+   lecture reste prudente.
 
    `done` est le seul filtre d'inclusion, et il suffit à exclure la séance en
    cours : un record annoncé en série 1 qu'une série 3 démentirait ne serait

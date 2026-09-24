@@ -6,7 +6,7 @@ import {
   addSession, removeSession, moveSession, patchSession,
   addRow, removeRow, moveRow, patchRow,
   addWarm, setWarmText, renameWarm, removeWarm, addCore, setCoreLabel, removeCore,
-  referencedExercises, setStartingLoad,
+  referencedExercises, setStartingLoad, targetRange, withCarriedLoads, carryNewlyReferenced, nextCycleFrom,
 } from "../src/program-editor.js";
 import { validateProgram, validateDefinition } from "../src/journal-shape.js";
 import { buildProgram } from "../src/program.js";
@@ -532,5 +532,82 @@ describe("composer un programme, de l'écran vide au cycle exécutable", () => {
     const sid = d.program.SESSIONS[0].id;
     d = patchRow(d, { session: sid }, 0, { rest: "" });
     assert.equal(validateDefinition(toDefinition(withNewId(d, []))).reason, "invalid-program");
+  });
+});
+
+/* ---------- Charges reportées d'un cycle passé (#74) ----------
+   `carry` est un faux : l'éditeur ne connaît que cette fonction, jamais le
+   journal, donc c'est elle qu'on remplace. Il note ce qu'on lui a demandé. */
+describe("charges reportées (#74)", () => {
+  const today = new Date(2026, 8, 16);
+  const fakeCarry = (known) => {
+    const asked = [];
+    const fn = (vid, range) => { asked.push([vid, range]); return known[vid] ? { date: "2026-09-07", fromLoad: known[vid], fromReps: 8, converted: false, load: known[vid] } : null; };
+    fn.asked = asked;
+    return fn;
+  };
+  const withDc = () => addRow(emptyDraft(today), { session: "seance" }, "dc");
+
+  test("targetRange : la fourchette du premier créneau qui porte l'exercice", () => {
+    const d = withDc();
+    const slotId = d.program.SESSIONS[0].ex[0][0];
+    assert.deepEqual(targetRange(d.program, "dc"), d.program.SLOTS[slotId].reps);
+    assert.equal(targetRange(d.program, "absent"), null);
+  });
+
+  test("à l'ouverture : la charge connue est écrite, avec sa provenance, et le brouillon n'est pas sale", () => {
+    const carry = fakeCarry({ dc: 100 });
+    const d = withCarriedLoads(withDc(), carry);
+    assert.equal(d.startingLoads.dc, 100);
+    assert.equal(d.carried.dc.date, "2026-09-07");
+    assert.equal(isDirty(d), false);
+    assert.deepEqual(carry.asked[0][1], targetRange(d.program, "dc"));
+  });
+
+  test("à l'ouverture : l'historique remplace une charge copiée de l'ancien cycle (Q3)", () => {
+    const d = withCarriedLoads(setStartingLoad(withDc(), "dc", 80), fakeCarry({ dc: 100 }));
+    assert.equal(d.startingLoads.dc, 100);
+  });
+
+  test("sans historique, rien n'est écrit ; sans fonction, le brouillon est rendu tel quel", () => {
+    const base = withDc();
+    assert.deepEqual(withCarriedLoads(base, fakeCarry({})).startingLoads, {});
+    assert.equal(withCarriedLoads(base, undefined), base);
+  });
+
+  test("toDefinition n'emporte pas la provenance : seule la valeur est stockée", () => {
+    const def = toDefinition(withNewId(withCarriedLoads(withDc(), fakeCarry({ dc: 100 })), []));
+    assert.equal(def.startingLoads.dc, 100);
+    assert.equal("carried" in def, false);
+    assert.equal(validateDefinition(def), null); // valide : aucun motif de refus
+  });
+
+  test("pendant l'édition : un exercice qui entre est rempli, un champ vidé exprès ne l'est plus", () => {
+    const carry = fakeCarry({ dc: 100, row_cable: 60 });
+    let d = withCarriedLoads(withDc(), carry);
+    d = carryNewlyReferenced(d, setStartingLoad(d, "dc", NaN), carry); // vidé exprès
+    assert.equal("dc" in d.startingLoads, false);
+    const next = addRow(d, { session: "seance" }, "row_cable");
+    d = carryNewlyReferenced(d, next, carry);
+    assert.equal(d.startingLoads.row_cable, 60);
+    assert.equal("dc" in d.startingLoads, false); // toujours vide
+  });
+
+  test("pendant l'édition : une valeur déjà saisie n'est jamais écrasée", () => {
+    const carry = fakeCarry({ row_cable: 60 });
+    const d = setStartingLoad(withDc(), "row_cable", 55);
+    const next = addRow(d, { session: "seance" }, "row_cable");
+    assert.equal(carryNewlyReferenced(d, next, carry).startingLoads.row_cable, 55);
+  });
+});
+
+describe("« Partir du programme actif » ouvre un nouveau cycle (#74)", () => {
+  test("même structure et mêmes charges, mais départ au lundi suivant, pas à la date de l'ancien", () => {
+    const def = { ...LEGACY_DEFINITION, id: "ancien", startDate: "2026-08-03" };
+    const d = nextCycleFrom(def, new Date(2026, 8, 24)); // jeudi 24 sept.
+    assert.equal(d.startDate, "2026-09-28");
+    assert.deepEqual(d.program, draftFrom(def).program);
+    assert.deepEqual(d.startingLoads, draftFrom(def).startingLoads);
+    assert.equal(isDirty(d), false);
   });
 });
