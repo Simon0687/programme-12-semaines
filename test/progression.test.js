@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { buildProgram } from "../src/program.js";
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
-import { planned, history, lastEntry, lastEntryLabel, computeKind, workingSets, loadDrops, normalizeSets, historyBefore } from "../src/progression.js";
+import { planned, history, lastEntry, lastEntryLabel, computeKind, workingSets, loadDrops, normalizeSets, setsOf, historyBefore } from "../src/progression.js";
 import { dateForSlot } from "../src/schema.js";
 
 /* Pins the behaviour of planned() as it shipped in 1.0.0. #3-#6 have long
@@ -746,6 +746,48 @@ describe("normalizeSets", () => {
     assert.deepEqual(normalizeSets(null), []);
     assert.deepEqual(normalizeSets("8/8/8"), []);
     assert.deepEqual(normalizeSets([null, "x", 3, [], { w: "70", r: "8" }]), [{ w: 70, r: 8, rir: null }]);
+  });
+});
+
+/* ---------- setsOf (#86) ----------
+
+   L'accesseur des lignes brutes, pour l'écran de séance. Ce qui compte ici :
+   jamais autre chose qu'un tableau, et l'index d'une ligne ne bouge pas —
+   onSet écrit la série i. */
+describe("setsOf", () => {
+  test("rend les lignes telles que tapées, vides comprises", () => {
+    const log = { ex: { dc: [{ w: "72,5", r: "8" }, { w: "", r: "" }] } };
+    assert.deepEqual(setsOf(log, "dc"), [{ w: "72,5", r: "8" }, { w: "", r: "" }]);
+  });
+
+  test("une chaîne sous ex[vid] ne se découpe pas en caractères", () => {
+    /* Le cas de ARCHITECTURE §2.4 : `[..."87,5"]` rendait quatre lignes, que
+       onSet réécrivait dans le journal ; `"87,5".map` levait à la validation. */
+    assert.deepEqual(setsOf({ ex: { dc: "87,5" } }, "dc"), []);
+  });
+
+  test("log, ex ou exercice absents rendent un tableau vide", () => {
+    assert.deepEqual(setsOf(undefined, "dc"), []);
+    assert.deepEqual(setsOf(null, "dc"), []);
+    assert.deepEqual(setsOf({}, "dc"), []);
+    assert.deepEqual(setsOf({ ex: null }, "dc"), []);
+    assert.deepEqual(setsOf({ ex: "abc" }, "dc"), []);
+    assert.deepEqual(setsOf({ ex: { dc: null } }, "dc"), []);
+    assert.deepEqual(setsOf({ ex: { dc: 3 } }, "dc"), []);
+    assert.deepEqual(setsOf({ ex: {} }, "dc"), []);
+  });
+
+  test("une entrée qui n'est pas une ligne devient une ligne vide, à son index", () => {
+    /* Remplacée et non écartée : écarter décalerait la série 2 en série 1, et
+       onSet écrirait la saisie sur la mauvaise ligne. */
+    const rows = setsOf({ ex: { dc: [null, "x", { w: "70", r: "8" }, []] } }, "dc");
+    assert.deepEqual(rows, [{}, {}, { w: "70", r: "8" }, {}]);
+    assert.equal(rows[2].r, "8");
+  });
+
+  test("normalizeSets lit setsOf comme il lit le journal", () => {
+    const log = { ex: { dc: [null, { w: "70", r: "8" }, { w: "70", r: "" }] } };
+    assert.deepEqual(normalizeSets(setsOf(log, "dc")), normalizeSets(log.ex.dc));
   });
 });
 

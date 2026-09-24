@@ -14,7 +14,7 @@ import { assess, targetsFor } from "./assertions.js";
 import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
 import { isDeloadWeek, withForcedDeloads, evaluateDeload } from "./policies.js";
-import { num, fmt, phaseOf, setsFor, lastEntry, lastEntryLabel, historyBefore, history, planned, computeKind, workingSets, loadDrops, loadText, normalizeSets } from "./progression.js";
+import { num, fmt, phaseOf, setsFor, lastEntry, lastEntryLabel, historyBefore, history, planned, computeKind, workingSets, loadDrops, loadText, normalizeSets, setsOf } from "./progression.js";
 import { setSummary, dayName, weekdayName, adviceSummary, unitColumns, cardioWhen, mobilityDayNames, rowIsDone, completedSets } from "./display.js";
 import { traitsOf } from "./units.js";
 import { EXERCISE_IDS } from "./registry.js";
@@ -745,7 +745,7 @@ export default function Programme() {
       const d = dateOf(session.id);
       const cur = findLog(st.logs, d, session.id) || {};
       const ex = { ...(cur.ex || {}) };
-      const rows = [...(ex[vid] || [])];
+      const rows = [...setsOf(cur, vid)];
       while (rows.length <= i) rows.push({});
       rows[i] = { ...rows[i], [f]: val };
       ex[vid] = rows;
@@ -777,7 +777,7 @@ export default function Programme() {
       const vid = vidFor(prog, log, slotId, week);
       const v = prog.V[vid];
       if (!v) continue;
-      if (completedSets((log.ex && log.ex[vid]) || [], v.unit || "kg") < setsFor(n, week, policies)) return slotId;
+      if (completedSets(setsOf(log, vid), v.unit || "kg") < setsFor(n, week, policies)) return slotId;
     }
     return null;
   }, [sessionSlots, prog, log, week, policies]);
@@ -819,7 +819,7 @@ export default function Programme() {
          dont le moteur lit l'historique. */
       const vid = vidFor(prog, cur, slotId, week);
       const p = planned(prog, st, slotId, week, si, d, vid);
-      const rows = (ex[vid] || []).map((r) => (r.r && !r.w && p.load != null ? { ...r, w: fmt(p.load) } : r));
+      const rows = setsOf(cur, vid).map((r) => (r.r && !r.w && p.load != null ? { ...r, w: fmt(p.load) } : r));
       if (rows.length) ex[vid] = rows;
       plans.push({ slotId, vid, plan: p });
     });
@@ -832,7 +832,7 @@ export default function Programme() {
     const { ex, plans } = sessionSets(st);
     return loadDrops(plans.map(({ slotId, vid, plan }) => {
       const v = prog.V[vid];
-      const sets = (ex[vid] || []).map((r) => ({ w: num(r.w), r: num(r.r), rir: num(r.rir) })).filter((x) => x.r != null);
+      const sets = normalizeSets(ex[vid]);
       if (!sets.length) return null;
       const [mn, mx] = prog.SLOTS[slotId].reps;
       return { vid, name: v.name, v, load: workingSets(sets, mn, mx).load, baseLoad: plan.baseLoad, incr: v.incr };
@@ -998,8 +998,9 @@ export default function Programme() {
         const l = findLog(state.logs, dateOf(s.id), s.id);
         if (!l || !l.done || !l.ex) continue;
         const vid = vidFor(prog, l, slotId, week);
-        if (!l.ex[vid]) continue;
-        byVid.set(vid, [...(byVid.get(vid) || []), ...l.ex[vid]]);
+        const rows = setsOf(l, vid);
+        if (!rows.length) continue;
+        byVid.set(vid, [...(byVid.get(vid) || []), ...rows]);
       }
       const parts = [...byVid.entries()].map(([vid, rows]) => {
         const sets = normalizeSets(rows);
@@ -1388,14 +1389,14 @@ export default function Programme() {
                   <ExerciseCard key={slotId + week} idx={i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} policies={policies} state={state}
                     vid={vidFor(prog, log, slotId, week)} substituted={isSubstituted(prog, log, slotId, week)} isTest={log.kind === "test"}
                     open={openSlot === slotId} onToggle={() => toggleEx(slotId)}
-                    rows={(log.ex && log.ex[vidFor(prog, log, slotId, week)]) || []} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
+                    rows={setsOf(log, vidFor(prog, log, slotId, week))} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 <div className="pt-4 text-sm text-ink-muted">{prog.CORE[session.core].label}</div>
                 {prog.CORE[session.core].ex.map(([slotId, n], i) => (
                   <ExerciseCard key={slotId + week} idx={session.ex.length + i + 1} slotId={slotId} nSets={n} week={week} weeks={definition.weeks} si={si} date={dateOf(session.id)} prog={prog} policies={policies} state={state}
                     vid={vidFor(prog, log, slotId, week)} substituted={isSubstituted(prog, log, slotId, week)} isTest={log.kind === "test"}
                     open={openSlot === slotId} onToggle={() => toggleEx(slotId)}
-                    rows={(log.ex && log.ex[vidFor(prog, log, slotId, week)]) || []} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
+                    rows={setsOf(log, vidFor(prog, log, slotId, week))} onSet={onSet} onOpen={openExercise} onSubstitute={setSubSlot} onTimer={(sec, label) => setTimer({ end: Date.now() + sec * 1000, label })} />
                 ))}
                 {session.after && cardio && (
                   <p className="text-sm text-ink-muted mt-3">
