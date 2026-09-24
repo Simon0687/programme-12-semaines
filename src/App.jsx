@@ -20,6 +20,9 @@ import { EXERCISE_IDS } from "./registry.js";
 /* #55 : la seule réponse à « quel exercice ce créneau porte-t-il ? ». Elle
    était écrite six fois, chacune ne regardant que le programme. */
 import { prescribedVid, vidFor, isSubstituted, withSub, takenVids, slotIdsOf } from "./session-sub.js";
+/* #19 : le premier lancement est un verdict de chargement, pas un état stocké. */
+import { isFirstLaunch, startingNow } from "./onboarding.js";
+import Welcome from "./Welcome.jsx";
 import ExerciseSheet from "./ExerciseSheet.jsx";
 import ExercisePicker from "./ExercisePicker.jsx";
 import ProgramEditor from "./ProgramEditor.jsx";
@@ -339,7 +342,12 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
 
 /* ---------- Application ---------- */
 export default function Programme() {
-  const [journal, setJournal] = useState(emptyJournal(DEFAULT_DEFINITION));
+  /* #19 : le cycle fourni démarre au prochain lundi, pas à la date figée dans
+     le fichier livré. Sans ça, un appareil ouvert trois mois après la
+     publication affiche « Les 12 semaines sont terminées » sur un programme que
+     personne n'a commencé. Calculé une fois, à l'initialisation : l'état ne doit
+     pas se déplacer sous les pieds de l'utilisateur à minuit. */
+  const [journal, setJournal] = useState(() => emptyJournal(startingNow(DEFAULT_DEFINITION, new Date())));
   const active = journal.programs[journal.activeProgramId];
   const definition = active.definition;
   /* #22 : un objet neuf à chaque render défait tout useMemo qui en dépend
@@ -442,6 +450,12 @@ export default function Programme() {
   const [pendingImport, setPendingImport] = useState(null); // fichier lu et validé, pas encore appliqué (#11)
   const [pendingLight, setPendingLight] = useState(null); // exercices descendus sous la référence, question posée (#43)
   const [loadError, setLoadError] = useState("");
+  /* #19 : appareil vierge, aucun journal en stockage. Écran d'accueil tant que
+     rien n'est choisi — et rien n'est écrit tant qu'il est là, ce qui est tout
+     l'objet de la décision Q1 : l'appli ne sait pas supprimer un cycle, donc
+     elle n'en impose pas un. Cet état ne se stocke pas : il naît du verdict de
+     chargement et meurt au premier choix. */
+  const [welcome, setWelcome] = useState(false);
   const [programError, setProgramError] = useState(""); // #6 : rejet d'un fichier de programme
   /* #36 : le brouillon de l'éditeur vit ici et nulle part ailleurs — rien
      n'est écrit tant que « Enregistrer » n'a pas été touché (Q4). "editeur"
@@ -497,7 +511,11 @@ export default function Programme() {
       } else if (res.reason === "no-store") {
         setStorageOk(false);
       }
-      // res.reason === "absent" : rien à faire, l'état initial useState(emptyJournal(DEFAULT_DEFINITION)) tient lieu de journal.
+      /* #19 : « absent » est le seul verdict qui signifie premier lancement, et
+         isFirstLaunch() porte pourquoi les trois autres n'en sont pas. L'état
+         initial tient toujours lieu de journal — l'accueil ne le remplace pas,
+         il empêche seulement qu'on soit posé dedans sans l'avoir voulu. */
+      if (isFirstLaunch(res)) setWelcome(true);
       setBackups(await listBackups(STORE, KEY, SCHEMA_VERSION));
       setDroppedBackup(await readDroppedBackup(STORE, KEY));
       setPreImportBackup(await readPreImportBackup(STORE, KEY));
@@ -876,15 +894,28 @@ export default function Programme() {
      definition rafraîchie) — jamais de journal écrasé par un rechargement. */
   const loadProgram = (definition, toast) => {
     const existing = journal.programs[definition.id];
-    setJournal((j) => ({
-      ...j,
-      activeProgramId: definition.id,
-      programs: {
-        ...j.programs,
-        [definition.id]: existing ? { ...j.programs[definition.id], definition } : { definition, logs: {}, cardio: {}, checkin: {} },
-      },
-    }));
-    showToast(toast || (existing ? "Cycle repris." : "Programme chargé."));
+    /* #19 : au premier lancement, le programme fourni n'est pas un cycle — c'est
+       un état initial que personne n'a choisi, et il n'a jamais touché le
+       stockage. Le premier vrai programme le **remplace** donc au lieu de
+       s'ajouter à côté.
+
+       Sans ça, l'accueil tiendrait sa promesse à l'écran et la trahirait dans la
+       donnée : générer son programme laisserait deux cycles dans le journal,
+       dont un qu'on n'a jamais voulu et que l'appli ne sait pas supprimer —
+       exactement ce que la décision Q1 refuse. */
+    setJournal((j) => {
+      const base = welcome ? {} : j.programs;
+      return {
+        ...j,
+        activeProgramId: definition.id,
+        programs: {
+          ...base,
+          [definition.id]: existing && !welcome ? { ...j.programs[definition.id], definition } : { definition, logs: {}, cardio: {}, checkin: {} },
+        },
+      };
+    });
+    setWelcome(false);
+    showToast(toast || (existing && !welcome ? "Cycle repris." : "Programme chargé."));
   };
 
   /* ---------- Éditeur de programme (#36) ----------
@@ -968,6 +999,32 @@ export default function Programme() {
   const bilanFilled = BILAN_KEYS.filter((k) => (ci[k] || "") !== "").length;
 
   if (!loaded) return <div className="min-h-screen bg-surface text-ink-muted flex items-center justify-center">Chargement du journal…</div>;
+
+  /* #19 : l'accueil passe avant la coquille à onglets, et avant l'en-tête de
+     semaine — « Semaine 1 sur 12 » au-dessus d'un choix pas encore fait dirait
+     exactement ce que cette issue existe pour ne plus dire.
+
+     Le générateur et l'éditeur restent atteignables depuis l'accueil : ce sont
+     les mêmes écrans qu'ailleurs, ouverts par les mêmes fonctions, et leur
+     retour rend la main à l'accueil tant qu'aucun programme n'a été enregistré.
+     `saveDraft` et `loadProgram` lèvent `welcome` eux-mêmes — un programme
+     existe, il n'y a plus rien à accueillir. */
+  if (welcome && screen !== "generateur" && screen !== "editeur") {
+    return (
+      <div className="min-h-screen bg-surface text-ink" style={{ fontVariantNumeric: "tabular-nums" }}>
+        <Welcome
+          onGenerate={() => setNav({ screen: "generateur", sessionId: null })}
+          onCompose={() => openEditor(emptyDraft(today))}
+          onLoadFile={() => fileInputRef.current && fileInputRef.current.click()}
+          /* Retenir le programme fourni est un choix, pas un défaut : c'est le
+             seul geste qui le fait entrer dans le journal, et il est explicite. */
+          onPreview={() => setWelcome(false)}
+          error={programError}
+        />
+        <input ref={fileInputRef} type="file" accept="application/json" onChange={handleProgramFile} className="hidden" />
+      </div>
+    );
+  }
 
 
   /* ---------- L'index de l'onglet Plan (revue Claude Design, 1c) ----------
