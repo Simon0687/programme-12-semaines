@@ -280,8 +280,81 @@ export function validateProgram(program) {
   const badCardio = validateCardio(program.cardio, SESSIONS);
   if (badCardio) return badCardio;
 
+  const badPolicies = validatePolicies(program.policies);
+  if (badPolicies) return badPolicies;
+
   return null;
 }
+
+/* Politiques de cycle (#14). Le champ est **optionnel** : son absence se lit
+   « la forme livrée », pas « aucune politique » — c'est ce qui laisse tous les
+   programmes d'avant #14 continuer de décharger en semaine 7.
+
+   Ce qui est refusé est ce qui rendrait le cycle inexécutable ou
+   silencieusement faux, jamais ce qui est seulement inhabituel : décharger
+   toutes les deux semaines est un choix discutable, pas une incohérence, et
+   ce module ne juge que la forme.
+
+   `deload: null` passe, et c'est une valeur légitime — « ne décharge
+   jamais ». C'est la distinction que `resolvePolicies()` tient aussi. */
+function validatePolicies(policies) {
+  if (policies == null) return null;
+  if (!isObj(policies)) {
+    return { reason: "invalid-program", message: "Champ invalide : program.policies (objet attendu)" };
+  }
+
+  const { deload, rotation, test } = policies;
+
+  if (deload != null) {
+    if (!isObj(deload)) return { reason: "invalid-program", message: "Champ invalide : program.policies.deload (objet ou null attendu)" };
+    /* `null` dit « jamais », un entier dit « toutes les n semaines ». Zéro ou
+       un négatif ne disent rien : `week % (n + 1)` y rendrait une décharge à
+       chaque semaine, ou une division par le mauvais nombre. */
+    if (deload.everyNWeeks != null && !(Number.isInteger(deload.everyNWeeks) && deload.everyNWeeks >= 1)) {
+      return { reason: "invalid-program", message: "Champ invalide : program.policies.deload.everyNWeeks (entier ≥ 1, ou null pour ne jamais décharger)" };
+    }
+    for (const f of ["loadFactor", "volumeFactor"]) {
+      if (deload[f] == null) continue;
+      /* Strictement entre 0 et 1 : à 0 la décharge supprime la séance, au-delà
+         de 1 elle l'alourdit — deux façons de faire l'inverse de ce que le mot
+         annonce, et qui ne se verraient qu'à l'usage. */
+      if (!isNum(deload[f]) || deload[f] <= 0 || deload[f] > 1) {
+        return { reason: "invalid-program", message: `Champ invalide : program.policies.deload.${f} (nombre entre 0 exclu et 1 inclus)` };
+      }
+    }
+    if (deload.signalThreshold != null && !isNum(deload.signalThreshold)) {
+      return { reason: "invalid-program", message: "Champ invalide : program.policies.deload.signalThreshold (nombre attendu)" };
+    }
+  }
+
+  if (rotation != null) {
+    if (!isObj(rotation)) return { reason: "invalid-program", message: "Champ invalide : program.policies.rotation (objet attendu)" };
+    if (rotation.mode != null && !ROTATION_MODES.includes(rotation.mode)) {
+      return { reason: "invalid-program", message: `program.policies.rotation.mode : « ${rotation.mode} » n'est pas un mode connu (attendu : ${ROTATION_MODES.join(", ")}).` };
+    }
+    if (rotation.mode === "everyNWeeks" && !(Number.isInteger(rotation.n) && rotation.n >= 1)) {
+      return { reason: "invalid-program", message: "Champ invalide : program.policies.rotation.n (entier ≥ 1, requis par le mode « everyNWeeks »)" };
+    }
+  }
+
+  if (test != null) {
+    if (!isObj(test)) return { reason: "invalid-program", message: "Champ invalide : program.policies.test (objet attendu)" };
+    if (test.mode != null && !TEST_MODES.includes(test.mode)) {
+      return { reason: "invalid-program", message: `program.policies.test.mode : « ${test.mode} » n'est pas un mode connu (attendu : ${TEST_MODES.join(", ")}).` };
+    }
+  }
+
+  return null;
+}
+
+/* Vocabulaires fermés des politiques. `onPlateau` est accepté par le
+   validateur et traité comme « pas de rotation » par `blockIndex()` : la forme
+   est réservée (#14, Notes), le déclencheur n'est pas construit. Écrire un
+   programme qui la porte ne doit pas être refusé aujourd'hui pour être accepté
+   demain — le fichier serait alors invalide entre deux versions de l'appli,
+   ce qui est exactement le piège de `DEFINITION_FORMAT_VERSION`. */
+const ROTATION_MODES = ["none", "everyNWeeks", "onPlateau"];
+const TEST_MODES = ["manual", "afterNSessions", "afterNDeloads"];
 
 /* ---------- La structure de conditionnement (#34) ----------
 

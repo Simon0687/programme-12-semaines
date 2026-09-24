@@ -37,7 +37,7 @@ const isObj = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
    programme rechargé entre deux visites peut ne plus porter le créneau, et
    un jeté pendant le rendu ne laisse pas un écran en erreur, il démonte
    l'appli entière (même prudence qu'App.jsx sur `s.ex[0]?.[0]`). */
-export const prescribedVid = (prog, slotId, week) => prog?.SLOTS?.[slotId]?.[blockOf(week)];
+export const prescribedVid = (prog, slotId, week) => prog?.SLOTS?.[slotId]?.[blockOf(week, prog?.POLICIES)];
 
 /* La substitution posée sur ce créneau, ou null. Ne juge que la forme. */
 export const subVid = (log, slotId) => {

@@ -502,3 +502,83 @@ describe("le vocabulaire des refus (#38)", () => {
     }
   });
 });
+
+/* ---------- #14 : les politiques de cycle ---------- */
+
+describe("validateProgram : policies (#14)", () => {
+  const withPolicies = (policies) => validateProgram({ ...BASE.program, policies });
+
+  test("absentes : accepté — l'absence se lit « la forme livrée »", () => {
+    assert.equal(validateProgram(BASE.program), null);
+    assert.equal(withPolicies(undefined), null);
+    assert.equal(withPolicies(null), null);
+  });
+
+  test("la forme livrée, écrite explicitement : acceptée", () => {
+    assert.equal(withPolicies({
+      deload: { everyNWeeks: 6, loadFactor: 0.85, volumeFactor: 0.5, signalThreshold: 3 },
+      rotation: { mode: "everyNWeeks", n: 6 },
+      test: { mode: "manual" },
+    }), null);
+  });
+
+  test("deload: null est accepté — c'est « ne décharge jamais »", () => {
+    assert.equal(withPolicies({ deload: null }), null);
+  });
+
+  test("everyNWeeks à 0 ou négatif est refusé, avec sa raison", () => {
+    /* `week % (n + 1)` y rendrait une décharge chaque semaine : une politique
+       qui fait l'inverse de ce qu'elle annonce, et qui ne se verrait qu'à
+       l'usage. */
+    for (const n of [0, -3, 1.5, "6"]) {
+      const bad = withPolicies({ deload: { everyNWeeks: n } });
+      assert.ok(bad, String(n));
+      assert.equal(bad.reason, "invalid-program");
+      assert.match(bad.message, /everyNWeeks/);
+    }
+  });
+
+  test("un facteur hors de ]0, 1] est refusé", () => {
+    /* À 0 la décharge supprime la séance, au-delà de 1 elle l'alourdit. */
+    for (const f of [0, -0.5, 1.2, "0.85"]) {
+      for (const champ of ["loadFactor", "volumeFactor"]) {
+        const bad = withPolicies({ deload: { [champ]: f } });
+        assert.ok(bad, `${champ} = ${f}`);
+        assert.match(bad.message, new RegExp(champ));
+      }
+    }
+    assert.equal(withPolicies({ deload: { loadFactor: 1 } }), null); // la borne haute est incluse
+  });
+
+  test("un mode de rotation inconnu est refusé et nomme les modes connus", () => {
+    const bad = withPolicies({ rotation: { mode: "quand-je-veux" } });
+    assert.equal(bad.reason, "invalid-program");
+    assert.match(bad.message, /everyNWeeks/);
+  });
+
+  test("« everyNWeeks » sans n est refusé", () => {
+    assert.ok(withPolicies({ rotation: { mode: "everyNWeeks" } }));
+    assert.ok(withPolicies({ rotation: { mode: "everyNWeeks", n: 0 } }));
+    assert.equal(withPolicies({ rotation: { mode: "everyNWeeks", n: 4 } }), null);
+  });
+
+  test("« onPlateau » est accepté bien que le déclencheur ne soit pas construit", () => {
+    /* Forme réservée (#14, Notes). La refuser aujourd'hui pour l'accepter
+       demain rendrait un même fichier invalide entre deux versions de
+       l'appli — le piège que DEFINITION_FORMAT_VERSION existe pour éviter. */
+    assert.equal(withPolicies({ rotation: { mode: "onPlateau" } }), null);
+    assert.equal(withPolicies({ test: { mode: "afterNSessions", n: 10 } }), null);
+  });
+
+  test("un mode de test inconnu est refusé", () => {
+    assert.ok(withPolicies({ test: { mode: "tous-les-lundis" } }));
+  });
+
+  test("des politiques non-objet sont refusées, elles ne lèvent pas", () => {
+    for (const p of ["oui", 42, ["deload"]]) {
+      const bad = withPolicies(p);
+      assert.ok(bad, JSON.stringify(p));
+      assert.match(bad.message, /policies/);
+    }
+  });
+});

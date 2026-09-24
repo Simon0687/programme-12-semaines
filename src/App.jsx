@@ -177,7 +177,7 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
 
      Rien de tout cela ne se stocke. Le bouton ne crée pas de ligne : il agrandit
      la grille, et la ligne naît au premier caractère tapé, comme les autres. */
-  const prescribed = setsFor(nSets, week);
+  const prescribed = setsFor(nSets, week, prog.POLICIES);
   const [extra, setExtra] = useState(0);
   const sets = Math.max(prescribed + extra, rows.length);
   /* #55 : `vid` entre dans les dépendances, et c'est tout l'objet du septième
@@ -188,7 +188,7 @@ function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date, prog, state, 
   const plan = useMemo(() => planned(prog, state, slotId, week, si, date, vid), [prog, state, slotId, week, si, date, vid]);
   const last = useMemo(() => lastEntry(prog, state, vid, date, si), [prog, state, vid, date, si]);
   const [open, setOpen] = useState(false);
-  const phase = phaseOf(week);
+  const phase = phaseOf(week, prog.POLICIES, weeks);
   const failOk = slot.fail && week >= 3 && week !== 7;
   const amrap = week === weeks && slot.key;
   /* #23 : trois ternaires indépendants sur la même unité, dont deux
@@ -609,7 +609,7 @@ export default function Programme() {
     [journal, lastExport, todayIso],
   );
 
-  const phase = phaseOf(week);
+  const phase = phaseOf(week, prog.POLICIES, definition.weeks);
   const session = prog.SESSIONS.find((s) => s.id === sessionId);
   const si = prog.SESSIONS.findIndex((s) => s.id === sessionId);
   const log = findLog(state.logs, dateOf(session.id), session.id) || {};
@@ -694,7 +694,7 @@ export default function Programme() {
          doit pas effacer un « allégée » répondu la veille (#43, Q1). La question
          se repose en rouvrant la séance, ce que la ligne « Validée le … ·
          Rouvrir » offre juste au-dessus. */
-      const kind = cur.done ? (cur.kind ?? computeKind(week)) : (allege ? "allege" : computeKind(week));
+      const kind = cur.done ? (cur.kind ?? computeKind(week, prog.POLICIES)) : (allege ? "allege" : computeKind(week, prog.POLICIES));
       return { ...st, logs: writeLog(st.logs, d, session.id, { ex, done: true, kind }) };
     });
     setPendingLight(null);
@@ -706,7 +706,7 @@ export default function Programme() {
      validée, jamais en semaine 1 ni 7 dont le kind pilote déjà le moteur, et
      seulement si un exercice est descendu de plus d'un incrément. */
   const askThenValidate = () => {
-    if (log.done || computeKind(week) !== "normal") return validate(false);
+    if (log.done || computeKind(week, prog.POLICIES) !== "normal") return validate(false);
     const drops = dropsOf(state);
     return drops.length ? setPendingLight(drops) : validate(false);
   };
@@ -1156,7 +1156,7 @@ export default function Programme() {
             <div>
               <div>
                 <div className="pt-3 pb-2">
-                  <div className="text-sm text-ink-muted">{setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week)} séries dures + abdos. {PHASE_NOTES[phase.id]}</div>
+                  <div className="text-sm text-ink-muted">{setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week, prog.POLICIES)} séries dures + abdos. {PHASE_NOTES[phase.id]}</div>
                   {log.done && <div className="mt-2 text-sm text-done inline-flex items-center gap-1"><Check size={15} />Validée le {log.updatedAt && log.updatedAt.slice(0, 10)}. <button onClick={reopen} className="underline text-ink-soft ml-1 focus:outline-none">Rouvrir</button></div>}
                 </div>
                 <Section title="Échauffement">{prog.WARM[session.warm]}</Section>
