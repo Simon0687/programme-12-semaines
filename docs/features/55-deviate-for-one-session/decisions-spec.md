@@ -3,7 +3,7 @@
 Source : [`spec.md`](spec.md)
 Portée : **choix produit uniquement**. Les frontières de modules, la mécanique
 d'écran et la forme des tests appartiennent à `design.md`.
-Statut : **en attente de la réponse de Simon.**
+Statut : **tranché par Simon le 2026-09-24** — voir la décision en fin de document.
 
 Q1 à Q4 sont les questions ouvertes de l'issue, dans son ordre. **Q5 n'y était
 pas** : elle sort de la lecture du rendu, et elle change ce qui se stocke, donc
@@ -165,4 +165,8 @@ définition ni la forme du journal : la série supplémentaire est entièrement 
 le rendu, et `onSet()` sait déjà la stocker. Elle peut partir seule, avant la
 substitution, et elle vaut seule — c'est la moitié du besoin du 2026-09-15.
 
-**Décision de Simon.** _(à remplir)_
+**Décision de Simon.** _2026-09-24_ — **les cinq recommandations sont retenues
+telles quelles** : Q1 = B (`log.sub`, sans migration ni bump), Q2 = A (le bilan
+nomme le remplaçant), Q3 = C (registre libre, facette `pattern` du créneau
+pré-cochée), Q4 et Q5 déjà livrées le 2026-09-17. La suite est dans
+[`design.md`](design.md).
