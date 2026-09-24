@@ -273,10 +273,16 @@ honour-system claim; a prop list makes it checkable.
 
 The corollary is a rule about where code goes: anything that can be decided
 without rendering belongs outside a component. #23 moved the pure display and
-summary logic out (`setSummary()` had already left with #17); what remains
-inside `App.jsx` today is still debt. The next step, two mechanical extractions
-that touch no state (`ExerciseCard`, and the pure Plan components), is tracked
-by #87.
+summary logic out (`setSummary()` had already left with #17), and #87 finished
+the job with two mechanical extractions that touched no state: `ExerciseCard`
+(`ExerciseCard.jsx`) and the four pure Plan components (`PlanViews.jsx`).
+`App.jsx` went from 2 087 lines to 1 683.
+
+Both extractions bought the same thing the sheet bought in #17: a prop list.
+`ExerciseCard` declares twenty props and `PlanViews` imports six symbols in
+all — inside `App.jsx` neither had to declare anything, because the journal was
+in scope. What is left inside `App.jsx` is state and the screens that own it,
+which is what the file is for.
 
 ### 2.7 The store is injected, never reached for
 
