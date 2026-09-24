@@ -296,6 +296,35 @@ const servableBy = (pool) => new Set(MUSCLES.filter(
    Rend `{ assigned, uncovered }` — la liste des muscles de chaque séance, et
    ceux que le format n'a pas pu loger. */
 function planSlots(split, targets, servable) {
+  /* #61 : deux stratégies, et **la seconde ne sert que si la première échoue
+     à couvrir quelqu'un.**
+
+     « Fréquence d'abord » est l'allocation d'origine : chaque muscle prend
+     tous les créneaux qu'il veut avant que le suivant ne soit servi. Elle
+     produit les séances les mieux équilibrées tant qu'il y a de la place pour
+     tout le monde — mesuré : 126 des 180 combinaisons ne changent pas, et
+     forcer « couverture d'abord » partout en dégradait 18, dont plusieurs en
+     faisant annoncer des épaules à une séance qui n'en travaillait plus.
+
+     « Couverture d'abord » ne se déclenche donc que quand la première a
+     réellement laissé un muscle dehors — c'est exactement la question que
+     l'issue pose : « qu'est-ce qui vaut le plus **quand les créneaux
+     manquent** ? ». Quand ils ne manquent pas, il n'y a aucun arbitrage à
+     rendre, et rendre un arbitrage sans conflit est ce qui cassait le reste.
+
+     Le test est exact, pas approché : on ne compare pas une demande totale à
+     une capacité totale (la contrainte est par séance et par `focus`), on
+     regarde ce que l'allocation d'origine a vraiment produit. */
+  const frequencyFirst = allocate(split, targets, servable, false);
+  if (frequencyFirst.uncovered.size === 0) return frequencyFirst;
+  const coverageFirst = allocate(split, targets, servable, true);
+  /* À couverture égale, on garde l'allocation d'origine : « couverture
+     d'abord » n'a alors rien résolu, et elle rebattrait les séances pour
+     rien. */
+  return coverageFirst.uncovered.size < frequencyFirst.uncovered.size ? coverageFirst : frequencyFirst;
+}
+
+function allocate(split, targets, servable, coverageFirst) {
   const assigned = new Map(split.sessions.map((s) => [s.id, []]));
   const uncovered = new Set();
   const rank = new Map(split.sessions.map((s, i) => [s.id, i]));
@@ -305,38 +334,84 @@ function planSlots(split, targets, servable) {
      presses le couvrent, et l'assertion 1 ne signale jamais son excès. */
   const missing = (m) => { if (!VOLUME[m].coveredIndirectly) uncovered.add(m); };
 
+  /* `!includes(m)` : un muscle ne prend jamais deux créneaux dans la même
+     séance. La contrainte était implicite tant qu'un seul appel servait tout
+     un muscle d'un coup ; depuis #61 les créneaux se donnent en deux passes,
+     et sans cette clause la seconde repasserait sur les séances de la
+     première. */
   const give = (m, want) => {
-    const open = split.sessions.filter((s) => s.focus.includes(m) && room(s))
+    const open = split.sessions.filter((s) => s.focus.includes(m) && room(s) && !assigned.get(s.id).includes(m))
       .sort((a, b) => assigned.get(a.id).length - assigned.get(b.id).length || rank.get(a.id) - rank.get(b.id));
     for (const s of open.slice(0, want)) assigned.get(s.id).push(m);
     return Math.min(want, open.length);
   };
 
+  /* Combien de séances ce muscle voudrait, s'il y avait la place. Le plancher
+     de l'assertion 2, muscle par muscle : deux séances pour les huit muscles
+     que la table donne à 2, une seule pour les trois deltoïdes qu'elle donne à
+     1–2 (#60). Davantage si quatre séries par exercice n'y suffisent pas — un
+     dos à 7 ne tient pas dans une séance. */
+  const sessionsFor = (m) => split.sessions.filter((s) => s.focus.includes(m)).length;
+  const want = (m) => Math.min(sessionsFor(m), Math.max(VOLUME[m].freq, Math.ceil(targets.volume[m] / MAX_SETS)));
+  /* L'ordre des deux gardes compte et reproduit celui d'avant #61 : un muscle
+     dont le volume est nul sort en silence, mais un muscle qu'aucun exercice du
+     matériel ne sert entre dans le rapport **même si aucune séance ne le vise**
+     — c'est le cas du deltoïde latéral sans matériel, une contrainte physique
+     que le rapport doit déclarer. Filtrer sur `sessionsFor` avant `servable`
+     l'aurait fait disparaître sans un mot. */
+  const wanted = [];
   for (const m of PRIORITY) {
     if (!(targets.volume[m] > 0)) continue;
     if (!servable.has(m)) { missing(m); continue; }
-    const n = split.sessions.filter((s) => s.focus.includes(m)).length;
-    if (!n) continue;
-    /* Le plancher de l'assertion 2, muscle par muscle : deux séances pour
-       les huit muscles que la table donne à 2, une seule pour les trois
-       deltoïdes qu'elle donne à 1–2 (#60). Demander deux créneaux à un
-       petit deltoïde, c'est en prendre un à quelqu'un qui en a besoin :
-       à deux séances, douze créneaux ne suffisent pas à onze muscles.
-       Davantage si quatre séries par exercice n'y suffisent pas — un dos
-       à 7 ne tient pas dans une séance. */
-    const want = Math.min(n, Math.max(VOLUME[m].freq, Math.ceil(targets.volume[m] / MAX_SETS)));
-    if (!give(m, want)) missing(m);
+    if (sessionsFor(m) > 0) wanted.push(m);
   }
 
-  /* Seconde passe : les créneaux restants vont aux muscles écartés, une
-     séance chacun. Mieux vaut un mollet une fois par semaine que pas du
-     tout, et cette passe ne prend jamais la place de personne. */
-  for (const m of PRIORITY) {
-    if (!uncovered.has(m) || !servable.has(m)) continue;
-    if (give(m, 1)) uncovered.delete(m);
+  /* En pénurie, **une première séance pour tout le monde avant une deuxième
+     pour qui que ce soit.**
+
+     À deux séances de 60 min, douze créneaux sont offerts et huit muscles en
+     demandent quatorze : servis dans l'ordre de PRIORITY, les six premiers
+     prenaient les douze et les deux petits deltoïdes — derniers de la liste —
+     n'avaient rien. Mesuré, pas prédit (#60).
+
+     Un muscle sans exercice est un trou dans la semaine ; un muscle servi une
+     fois au lieu de deux est une fréquence basse. Les six assertions disent les
+     deux, mais la seconde se rattrape la semaine suivante — la première, non.
+
+     Hors pénurie, cette passe n'existe pas : `coverageFirst` est faux et chaque
+     muscle est servi d'un coup, exactement comme avant #61. */
+  if (coverageFirst) {
+    for (const m of wanted) if (!give(m, 1)) missing(m);
+    for (const m of wanted) {
+      if (uncovered.has(m)) continue;
+      const extra = want(m) - 1;
+      if (extra > 0) give(m, extra);
+    }
+  } else {
+    for (const m of wanted) if (!give(m, want(m))) missing(m);
+    /* Seconde passe de l'allocation d'origine : les créneaux restants vont aux
+       muscles écartés, une séance chacun. Mieux vaut un mollet une fois par
+       semaine que pas du tout, et cette passe ne prend jamais la place de
+       personne. */
+    for (const m of PRIORITY) {
+      if (!uncovered.has(m) || !servable.has(m)) continue;
+      if (give(m, 1)) uncovered.delete(m);
+    }
   }
 
-  return { assigned, uncovered };
+  /* #61 : ce qu'on a servi **moins souvent que voulu**. « Couverture d'abord »
+     achète une première séance pour tout le monde en prenant la deuxième de
+     quelqu'un : c'est le bon arbitrage, mais c'est un arbitrage, et le moteur
+     ne doit pas le taire. Le principe de l'en-tête — « ce qui n'a pas eu de
+     créneau est déclaré, pas oublié » — vaut aussi pour ce qui en a eu moins
+     qu'il n'en fallait, sans quoi l'avis de Plan signalerait une fréquence
+     basse que rien n'expliquerait. */
+  const short = new Set(
+    [...wanted].filter((m) => !uncovered.has(m)
+      && split.sessions.filter((s) => assigned.get(s.id).includes(m)).length < want(m)),
+  );
+
+  return { assigned, uncovered, short };
 }
 
 /* Score de candidat du §3 étape 4, sans le terme de préférence (aucun pouce
@@ -590,7 +665,7 @@ export function generate(constraints, today = new Date()) {
   if (!targets.feasible) return { ok: false, reason: "budget", message: targets.message };
 
   const pool = poolFor(preset.gear, level);
-  const { assigned, uncovered } = planSlots(split, targets, servableBy(pool));
+  const { assigned, uncovered, short } = planSlots(split, targets, servableBy(pool));
 
   const ctx = {
     pool,
@@ -617,6 +692,10 @@ export function generate(constraints, today = new Date()) {
     report: {
       cut: MUSCLES.filter((m) => targets.volume[m] === 0).map((m) => MUSCLE_LABELS[m]),
       uncovered: MUSCLES.filter((m) => ctx.uncovered.has(m)).map((m) => MUSCLE_LABELS[m]),
+      /* #61 : servi, mais moins souvent que son plancher de fréquence. C'est le
+         prix de « couverture d'abord », annoncé ici au lieu d'être découvert
+         plus tard dans l'avis de Plan. */
+      underFrequency: MUSCLES.filter((m) => short.has(m)).map((m) => MUSCLE_LABELS[m]),
       cascade: targets.cascade,
       targets,
     },
