@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import { createStore, loadJournal, saveJournal } from "../src/storage.js";
@@ -6,6 +6,15 @@ import { SCHEMA_VERSION, LEGACY_PROGRAM_ID } from "../src/schema.js";
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 import { fakeStore } from "./helpers/fake-store.js";
 import { testCtx } from "./helpers/migration-ctx.js";
+
+/* #38 : le verdict d'un refus, et rien d'autre. Ces assertions figeaient
+   l'objet entier par deepEqual, ce qui sur-spécifiait : ce qu'elles veulent
+   dire est « refusé, pour cette raison, sans lever ». L'ajout de    (#38 Q4) les cassait toutes sans qu'aucun comportement de rejet ne change.
+   Le détail lui-même a ses propres tests, plus bas. */
+const rejected = (res, reason) => {
+  assert.equal(res.ok, false);
+  assert.equal(res.reason, reason);
+};
 
 /* Une définition valide, à l identité près : le cycle actif est jugé comme un
    fichier chargé depuis #32, donc les fixtures partent du vrai programme. */
@@ -17,12 +26,12 @@ test("createStore : sans window ni window.storage, se rabat sur le shim localSto
 });
 
 test("loadJournal : store indisponible -> reason no-store, ne lève pas", async () => {
-  assert.deepEqual(await loadJournal(null, "K"), { ok: false, reason: "no-store" });
+  rejected(await loadJournal(null, "K"), "no-store");
 });
 
 test("loadJournal : clé absente -> reason absent (première utilisation)", async () => {
   const store = fakeStore();
-  assert.deepEqual(await loadJournal(store, "K"), { ok: false, reason: "absent" });
+  rejected(await loadJournal(store, "K"), "absent");
 });
 
 test("loadJournal : journal v1 (plat) migré vers v3, backup écrit, forme migrée renvoyée", async () => {
@@ -70,7 +79,7 @@ test("loadJournal : entrée active sans définition à la version courante -> re
   const unpinned = { schemaVersion: SCHEMA_VERSION, activeProgramId: "p1", programs: { p1: { definition: null, logs: {}, cardio: {}, checkin: {} } } };
   store.data.set("K", JSON.stringify(unpinned));
 
-  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
+  rejected(await loadJournal(store, "K", testCtx()), "invalid");
 });
 
 test("loadJournal : schemaVersion trop récent -> reason too-new, store non modifié", async () => {
@@ -78,7 +87,7 @@ test("loadJournal : schemaVersion trop récent -> reason too-new, store non modi
   store.data.set("K", JSON.stringify({ schemaVersion: 99, activeProgramId: "p1", programs: {} }));
 
   const res = await loadJournal(store, "K", testCtx());
-  assert.deepEqual(res, { ok: false, reason: "too-new" });
+  rejected(res, "too-new");
   assert.equal(store.data.size, 1); // rien d'écrit en plus de la clé d'origine
 });
 
@@ -86,14 +95,14 @@ test("loadJournal : JSON corrompu -> reason corrupt", async () => {
   const store = fakeStore();
   store.data.set("K", "{ceci n'est pas du JSON");
 
-  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "corrupt" });
+  rejected(await loadJournal(store, "K", testCtx()), "corrupt");
 });
 
 test("loadJournal : schemaVersion hors bornes (#10) -> reason invalid", async () => {
   const store = fakeStore();
   store.data.set("K", JSON.stringify({ schemaVersion: 0, activeProgramId: "p1", programs: {} }));
 
-  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
+  rejected(await loadJournal(store, "K", testCtx()), "invalid");
 });
 
 test("loadJournal : activeProgramId sans entrée dans programs -> reason invalid (#21 item 5)", async () => {
@@ -101,7 +110,7 @@ test("loadJournal : activeProgramId sans entrée dans programs -> reason invalid
   const dangling = { schemaVersion: SCHEMA_VERSION, activeProgramId: "ghost", programs: { p1: { definition: null, logs: {}, cardio: {}, checkin: {} } } };
   store.data.set("K", JSON.stringify(dangling));
 
-  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
+  rejected(await loadJournal(store, "K", testCtx()), "invalid");
 });
 
 test("loadJournal : clé de log non reconnue -> reason invalid, rien n'est réécrit (#16)", async () => {
@@ -109,7 +118,7 @@ test("loadJournal : clé de log non reconnue -> reason invalid, rien n'est réé
   const raw = JSON.stringify({ logs: { pas_une_cle_valide: { done: true } }, cardio: {}, checkin: {} });
   store.data.set("K", raw);
 
-  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
+  rejected(await loadJournal(store, "K", testCtx()), "invalid");
   assert.equal(store.data.get("K"), raw); // rien n'est réécrit sur un échec
 });
 
@@ -173,7 +182,7 @@ for (const [label, journal] of malformed) {
     const store = fakeStore();
     store.data.set("K", JSON.stringify(journal));
     const res = await loadJournal(store, "K", testCtx());
-    assert.deepEqual(res, { ok: false, reason: "invalid" });
+    rejected(res, "invalid");
   });
 }
 
@@ -199,14 +208,14 @@ test("loadJournal : une définition active que l'import rejetterait est rejetée
   const store = fakeStore();
   const badDef = { id: "x", weeks: "douze", startDate: "pas-une-date", program: "n_importe_quoi", startingLoads: {} };
   store.data.set("K", JSON.stringify({ schemaVersion: V, activeProgramId: "p1", programs: { p1: entry({ definition: badDef }) } }));
-  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
+  rejected(await loadJournal(store, "K", testCtx()), "invalid");
 });
 
 test("loadJournal : une définition sans startingLoads est rejetée comme à l'import (#32)", async () => {
   const store = fakeStore();
   const { startingLoads, ...noLoads } = realDef("p1");
   store.data.set("K", JSON.stringify({ schemaVersion: V, activeProgramId: "p1", programs: { p1: entry({ definition: noLoads }) } }));
-  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
+  rejected(await loadJournal(store, "K", testCtx()), "invalid");
 });
 
 test("loadJournal : une définition d'un cycle inactif n'est pas jugée (#32)", async () => {
@@ -263,7 +272,7 @@ test("loadJournal : un journal qui porte des programmes sans schemaVersion est r
   const store = fakeStore();
   const raw = JSON.stringify({ activeProgramId: "p1", programs: { p1: entry() }, logs: {} });
   store.data.set("K", raw);
-  assert.deepEqual(await loadJournal(store, "K", testCtx()), { ok: false, reason: "invalid" });
+  rejected(await loadJournal(store, "K", testCtx()), "invalid");
   assert.equal(store.data.get("K"), raw); // surtout : ses cycles ne sont pas écrasés par MIGRATIONS[1]
 });
 
@@ -302,5 +311,53 @@ test("loadJournal : une définition dont session.ex est mal formé rend un verdi
 
   let res;
   await assert.doesNotReject(async () => { res = await loadJournal(store, "K", testCtx()); });
-  assert.deepEqual(res, { ok: false, reason: "invalid" });
+  rejected(res, "invalid");
+});
+
+/* ---------- #38 Q4 : le détail du refus survit jusqu'à l'appelant ----------
+
+   Avant cette passe, les 73 rejets distincts de journal-shape arrivaient dans
+   loadJournal et en repartaient tous en « invalid », message jeté. Le panneau
+   Données ne pouvait dire que « refusé ». Le message existait pourtant déjà, et
+   déjà écrit pour être adressable (#19).
+
+   `reason` ne change pas : c'est ce qui garantit que l'ajout ne peut pas casser
+   les quatre branches d'App.jsx. */
+describe("le détail d'un refus (#38)", () => {
+  test("un journal ambigu avant migration dit ce qui le rend ambigu", async () => {
+    const store = fakeStore();
+    store.data.set("K", JSON.stringify({ programs: { p: {} }, logs: {} }));
+    const res = await loadJournal(store, "K", testCtx());
+    assert.equal(res.ok, false);
+    assert.equal(res.reason, "invalid"); // inchangé : App.jsx branche là-dessus
+    assert.match(res.detail, /version/i);
+  });
+
+  test("une enveloppe mal formée nomme le champ fautif", async () => {
+    const store = fakeStore();
+    store.data.set("K", JSON.stringify({ schemaVersion: SCHEMA_VERSION, activeProgramId: "", programs: {} }));
+    const res = await loadJournal(store, "K", testCtx());
+    assert.equal(res.reason, "invalid");
+    assert.match(res.detail, /activeProgramId/);
+  });
+
+  test("une définition refusée nomme le champ fautif", async () => {
+    const store = fakeStore();
+    const bad = { ...LEGACY_DEFINITION, startDate: "pas-une-date" };
+    store.data.set("K", JSON.stringify({
+      schemaVersion: SCHEMA_VERSION,
+      activeProgramId: bad.id,
+      programs: { [bad.id]: { definition: bad, logs: {}, cardio: {}, checkin: {} } },
+    }));
+    const res = await loadJournal(store, "K", testCtx());
+    assert.equal(res.reason, "invalid");
+    assert.match(res.detail, /startDate/);
+  });
+
+  test("les verdicts qui n'ont pas de détail n'en inventent pas", async () => {
+    /* `absent` et `no-store` ne sont pas des refus de forme : il n'y a rien à
+       expliquer, et une phrase vide serait pire qu'aucune. */
+    assert.equal((await loadJournal(fakeStore(), "K", testCtx())).detail, undefined);
+    assert.equal((await loadJournal(null, "K", testCtx())).detail, undefined);
+  });
 });

@@ -2,9 +2,10 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  isLogRow, sanitizeJournal, unusableProgramIds,
+  REJECTIONS, isLogRow, sanitizeJournal, unusableProgramIds,
   validateDefinition, validateEnvelope, validatePreMigration, validateProgram, validateProgramEntry,
 } from "../src/journal-shape.js";
+import { readFileSync } from "node:fs";
 import { LEGACY_DEFINITION, LEGACY_DEFINITION as BASE } from "../src/legacy-program.js";
 import { DEFAULT_DEFINITION as NEUTRAL } from "../src/default-program.js";
 import { dateForSlot } from "../src/schema.js";
@@ -447,5 +448,57 @@ describe("validateDefinition : cardioBaseline (#34)", () => {
   test("le fichier de Simon, qui en porte un, passe le validateur", () => {
     assert.equal(validateDefinition(BASE), null);
     assert.ok(BASE.cardioBaseline, "haut-bas-5j.json porte ses cibles depuis #34");
+  });
+});
+
+/* ---------- #38 : un vocabulaire, un endroit, et il le reste ----------
+
+   Le test qui donne sa valeur à la passe. `unsupported-field` a survécu à #25
+   parce que la liste qui *déclare* les raisons et le code qui les *émet*
+   vivaient dans deux fichiers sans lien : la raison avait cessé d'être
+   produite, sa ligne est restée, et rien ne pouvait le signaler.
+
+   La bijection se vérifie donc dans les deux sens, sur le source lui-même.
+   Lire le fichier plutôt que d'exercer 73 chemins de rejet est un choix
+   assumé : ce qu'on veut interdire est qu'une ligne existe sans emploi, et
+   c'est une propriété du texte, pas du comportement. Les 73 comportements
+   sont couverts ailleurs, par les tests qui les provoquent. */
+describe("le vocabulaire des refus (#38)", () => {
+  const sources = ["../src/journal-shape.js", "../src/import.js", "../src/storage.js"]
+    .map((rel) => readFileSync(new URL(rel, import.meta.url), "utf8"));
+  /* La déclaration elle-même est retirée de journal-shape avant la recherche :
+     sinon chaque raison se trouverait elle-même et le test ne dirait rien. */
+  const body = [
+    sources[0].slice(sources[0].indexOf("const isSlotRef")),
+    ...sources.slice(1),
+  ].join("\n");
+
+  const emitted = new Set(
+    [...body.matchAll(/reason: "([a-z-]+)"/g)].map((m) => m[1])
+      .concat([...body.matchAll(/reject\("([a-z-]+)"/g)].map((m) => m[1])),
+  );
+
+  test("aucune raison déclarée n'est inémettable", () => {
+    /* Le sens qui aurait attrapé `unsupported-field` le jour où #25 a cessé
+       de l'émettre, au lieu de deux issues plus tard. */
+    const mortes = Object.keys(REJECTIONS).filter((r) => !emitted.has(r));
+    assert.deepEqual(mortes, [], `raisons déclarées que rien n'émet : ${mortes.join(", ")}`);
+  });
+
+  test("aucune raison émise n'est indéclarée", () => {
+    /* L'autre sens : une raison produite sans phrase de repli s'afficherait
+       comme `undefined` dans le panneau, ou ferait tomber l'appelant sur son
+       message générique sans qu'on sache pourquoi. */
+    const verdictsDeStorage = new Set(["absent", "no-store", "corrupt", "unreadable", "cancelled"]);
+    const orphelines = [...emitted].filter((r) => !(r in REJECTIONS) && !verdictsDeStorage.has(r));
+    assert.deepEqual(orphelines, [], `raisons émises que rien ne déclare : ${orphelines.join(", ")}`);
+  });
+
+  test("chaque phrase est une phrase, pas un identifiant", () => {
+    for (const [reason, phrase] of Object.entries(REJECTIONS)) {
+      assert.equal(typeof phrase, "string", reason);
+      assert.ok(phrase.length > 20, `${reason} : « ${phrase} » est trop court pour dire quoi faire`);
+      assert.ok(/[.!]$/.test(phrase), `${reason} : une phrase se termine`);
+    }
   });
 });

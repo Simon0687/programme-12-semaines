@@ -507,7 +507,11 @@ export default function Programme() {
         // schemaVersion hors bornes ou JSON corrompu (#10) — même garde-fou,
         // message persistant plutôt qu'un toast qui disparaît.
         setStorageOk(false);
-        setLoadError(LOAD_ERROR_MESSAGE);
+        /* #38 Q4 : la phrase du refus, quand le validateur en a une. Elle porte
+           le chemin JSON et la règle enfreinte, donc elle dit *quoi* réparer et
+           pas seulement qu'il y a quelque chose à réparer. Sans elle, les 73
+           rejets distincts de journal-shape arrivaient ici tous identiques. */
+        setLoadError(res.detail ? `${LOAD_ERROR_MESSAGE} ${res.detail}` : LOAD_ERROR_MESSAGE);
       } else if (res.reason === "no-store") {
         setStorageOk(false);
       }
