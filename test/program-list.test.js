@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { programSummaries, removeProgram } from "../src/program-list.js";
+import { programSummaries, removeProgram, journalSessionCount } from "../src/program-list.js";
 
 /* Trois cycles comme un journal réel en porte après quelques mois : l'actif en
    cours, un ancien terminé, et un essai que personne n'a jamais commencé. */
@@ -106,6 +106,25 @@ describe("removable : ce qui peut disparaître sans rien emporter", () => {
     const j2 = journal();
     j2.programs.essai.cardio = { "2026-09-21": { z2: { min: 30 } } };
     assert.equal(byId(programSummaries(j2), "essai").removable, false);
+  });
+});
+
+describe("journalSessionCount : le compte que #117 met en regard", () => {
+  test("additionne les séances validées de tous les programmes", () => {
+    /* cur : 2 validées (voir plus haut), old : 1, essai : 0 -> 3. */
+    assert.equal(journalSessionCount(journal()), 3);
+  });
+
+  test("une séance supprimée ne compte pour rien, ici non plus", () => {
+    const j = journal();
+    j.programs.old.logs.d.deletedAt = "2026-09-01T10:00:00.000Z";
+    assert.equal(journalSessionCount(j), 2);
+  });
+
+  test("un journal vide ou mal formé rend 0, jamais une exception", () => {
+    assert.equal(journalSessionCount({ programs: {} }), 0);
+    assert.equal(journalSessionCount({}), 0);
+    assert.equal(journalSessionCount(null), 0);
   });
 });
 
