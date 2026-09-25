@@ -119,7 +119,65 @@ export function Block({ block }) {
         </tbody>
       </table>
     );
+  /* #109 : Si/Alors — un en-tête fixe, deux colonnes. Distincte de "compare"
+     (#114) : pas de colonne de libellé à gauche, chaque ligne est la paire
+     complète. */
+  if (block.t === "table" && block.variant === "ifthen")
+    return (
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-rule">
+            <th className="py-1.5 pr-3 text-left text-ink font-medium w-1/2">Si</th>
+            <th className="py-1.5 text-left text-ink font-medium">Alors</th>
+          </tr>
+        </thead>
+        <tbody>
+          {block.rows.map(([si, alors]) => (
+            <tr key={si} className="border-t border-rule align-top">
+              <td className="py-1.5 pr-3">{si}</td>
+              <td className="py-1.5 text-accent">{alors}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  /* #109 : le chiffre qui compte, avant tout le reste — plus grand que le
+     texte courant, mais sans rejouer l'échelle de la fiche exercice (#49) :
+     ici, c'est une ligne de section, pas l'unique raison d'être de l'écran. */
+  if (block.t === "headline") return <p className="text-lg font-semibold text-ink pt-1">{block.text}</p>;
+  /* #109 : les trois macros, côte à côte plutôt qu'en ligne de texte —
+     comparer 180/90/350 demandait de les repérer dans une phrase. */
+  if (block.t === "tiles")
+    return (
+      <div className="grid grid-cols-3 gap-2">
+        {block.items.map((it) => (
+          <div key={it.label} className="rounded-md border border-rule bg-surface-raised px-3 py-2.5 text-center">
+            <div className="text-xs text-ink-muted">{it.label}</div>
+            <div className="text-ink font-medium mt-0.5">{it.value}</div>
+          </div>
+        ))}
+      </div>
+    );
+  /* #109 : une sous-section repliée, comptée dans son propre intertitre —
+     "Journée type (5)". Récursif : ses blocs sont rendus par ce même Block,
+     donc une consigne pliée peut porter n'importe laquelle des formes
+     ci-dessus sans que ce composant ait à le savoir d'avance. */
+  if (block.t === "fold") return <Fold title={block.title} count={block.count}>{block.blocks.map((b, i) => <Block key={i} block={b} />)}</Fold>;
   return null;
+}
+
+function Fold({ title, count, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open}
+        className="w-full flex items-center justify-between gap-2 py-1.5 text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
+        <span className="text-ink font-medium">{title} <span className="text-ink-muted font-normal">({count})</span></span>
+        <ChevronDown size={16} className={`text-ink-muted shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && <div className="pl-0.5 space-y-2">{children}</div>}
+    </div>
+  );
 }
 
 /* ---------- Le volume par groupe, en barres (#108) ----------
