@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, Upload, Zap, X, Plus, Trash2, Copy, Sparkles, PenLine, Settings, AlertTriangle, Lock } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, Upload, Zap, X, Plus, Trash2, Copy, Sparkles, PenLine, Settings, AlertTriangle, Lock, BarChart3, HeartPulse, Utensils, Dumbbell, CornerUpLeft, List, CheckCircle2, History } from "lucide-react";
 import { SCHEMA_VERSION, emptyJournal, weekStartKey, dateForSlot, slotForDate, findLog, writeLog, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport, IMPORT_MESSAGES } from "./import.js";
 import { listBackups, readDroppedBackup, backupPreImportOnce, readPreImportBackup } from "./backup.js";
@@ -96,6 +96,11 @@ const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "aoû
    "reference" || screen === "mesProgrammes" || …) : la barre du bas n'a
    qu'à savoir si l'écran courant en fait partie. */
 const PROGRAMME_SCREENS = new Set(["plan", "editeur", "reference", "mesProgrammes"]);
+/* Retour de test sur #107 : la maquette donne un pictogramme à chaque ligne
+   de « Ce programme » — plan.js ne connaît que des id abstraits (§2.6), la
+   correspondance vers une icône vit ici, comme TRIGGER_ICONS dans
+   PlanViews.jsx. */
+const PROGRAM_SECTION_ICONS = { volume: BarChart3, cardio: HeartPulse, nutrition: Utensils, startloads: Dumbbell, fallback: CornerUpLeft };
 const addDays = (d, n) =>{ const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const dateLabel = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
@@ -1566,13 +1571,13 @@ export default function Programme() {
             <div className="text-xl font-semibold leading-tight pt-1">Réglages</div>
 
             <div className="grid grid-cols-2 gap-3 mt-4">
-              <div className="rounded-md border border-rule bg-surface-raised p-3">
-                <div className="text-xs text-ink-muted">Stockage persistant</div>
-                <div className="text-sm text-ink mt-0.5">{persisted === true ? "Oui" : persisted === false ? "Non" : "Inconnu"}</div>
+              <div className="rounded-md bg-surface-raised p-3">
+                <CheckCircle2 size={20} className="text-accent" />
+                <div className="text-sm text-ink mt-1.5">{persisted === true ? "Stockage persistant" : persisted === false ? "Stockage non garanti" : "Stockage inconnu"}</div>
               </div>
-              <div className="rounded-md border border-rule bg-surface-raised p-3">
-                <div className="text-xs text-ink-muted">Export</div>
-                <div className="text-sm text-ink mt-0.5">{lastExport ? (daysBetween(lastExport, todayIso) === 0 ? "Aujourd'hui" : `Il y a ${daysBetween(lastExport, todayIso)} j`) : "Jamais"}</div>
+              <div className="rounded-md bg-surface-raised p-3">
+                <History size={20} className="text-ink-soft" />
+                <div className="text-sm text-ink mt-1.5">{lastExport ? (daysBetween(lastExport, todayIso) === 0 ? "Export aujourd'hui" : `Export il y a ${daysBetween(lastExport, todayIso)} j`) : "Jamais exporté"}</div>
               </div>
             </div>
             {persisted === false && (
@@ -1869,14 +1874,16 @@ export default function Programme() {
                   <span className="shrink-0 text-xs text-ink-muted border border-rule rounded-full px-2 py-0.5">actif</span>
                 </div>
                 <WeekTimeline phases={weekPhases} current={curWeek} />
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-xs text-ink-muted">Séances faites</div>
-                    <div className="text-sm text-ink mt-0.5">{cycleProgress.done} sur {cycleProgress.planned}</div>
+                {/* Retour de test sur #107 : la maquette encadre ces deux
+                    chiffres au lieu de les laisser nus sous la frise. */}
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-md bg-surface px-2.5 py-2.5">
+                    <div className="text-xl font-medium text-ink">{cycleProgress.done} / {cycleProgress.planned}</div>
+                    <div className="text-xs text-ink-muted mt-0.5">séances faites</div>
                   </div>
-                  <div>
-                    <div className="text-xs text-ink-muted">Départ</div>
-                    <div className="text-sm text-ink mt-0.5">{dateLabel(START)}</div>
+                  <div className="rounded-md bg-surface px-2.5 py-2.5">
+                    <div className="text-xl font-medium text-ink">{dateLabel(START)}</div>
+                    <div className="text-xs text-ink-muted mt-0.5">départ</div>
                   </div>
                 </div>
               </div>
@@ -1891,16 +1898,24 @@ export default function Programme() {
                 <div className="mt-5">
                   <div className="text-xs uppercase tracking-wider text-ink-muted">Ce programme</div>
                   <div className="mt-1">
-                    {plan.filter((s) => s.group === "programme").map((s) => (
-                      <button key={s.id} onClick={() => setPlanTopic(s.id)}
-                        className="w-full flex items-center gap-3 py-3.5 text-left border-b border-rule focus:outline-none focus:ring-2 focus:ring-focus rounded">
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-ink">{s.title}</span>
-                          {s.meta && <span className="block text-sm text-ink-muted mt-0.5">{s.meta}</span>}
-                        </span>
-                        <ChevronRight size={16} className="text-ink-faint shrink-0" />
-                      </button>
-                    ))}
+                    {plan.filter((s) => s.group === "programme").map((s) => {
+                      const Icon = PROGRAM_SECTION_ICONS[s.id];
+                      return (
+                        <button key={s.id} onClick={() => setPlanTopic(s.id)}
+                          className="w-full flex items-center gap-3 py-3 text-left border-b border-rule focus:outline-none focus:ring-2 focus:ring-focus rounded">
+                          {Icon && (
+                            <span className="shrink-0 w-8 h-8 rounded-md bg-surface-raised text-ink-soft flex items-center justify-center">
+                              <Icon size={16} />
+                            </span>
+                          )}
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-ink">{s.title}</span>
+                            {s.meta && <span className="block text-sm text-ink-muted mt-0.5">{s.meta}</span>}
+                          </span>
+                          <ChevronRight size={16} className="text-ink-faint shrink-0" />
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1914,9 +1929,14 @@ export default function Programme() {
                 <Btn onClick={() => openNewProgram({ screen: "plan", sessionId: null })}><Plus size={16} />Nouveau</Btn>
               </div>
 
-              <div className="mt-5">
+              {/* Retour de test sur #107 : à plat parmi les lignes de "Ce
+                  programme", la Référence ne se distinguait pas comme dans
+                  la maquette — elle redevient une porte à part, sur sa
+                  propre surface, icône teintée d'accent. */}
+              <div className="mt-5 mb-4">
                 <button onClick={() => openReference(null)}
-                  className="w-full flex items-center gap-3 py-3.5 text-left border-y border-rule focus:outline-none focus:ring-2 focus:ring-focus rounded">
+                  className="w-full flex items-center gap-3 p-3 text-left bg-surface-raised rounded-md focus:outline-none focus:ring-2 focus:ring-focus">
+                  <List size={20} className="text-accent shrink-0" />
                   <span className="flex-1 min-w-0">
                     <span className="block text-ink">Référence de la méthode</span>
                     <span className="block text-sm text-ink-muted mt-0.5">Structure · Progression · Décharge · {EXERCISE_IDS.size} exercices</span>

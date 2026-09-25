@@ -26,6 +26,21 @@
    Les valeurs sont lues dans la palette Tailwind plutôt que recopiées en
    hexadécimal : un token doit être identique au littéral, pas
    approximativement identique.
+
+   ---------------------------------------------------------------------
+
+   2026-09-26 : bascule vers la palette de « Programme — écrans.dc.html »,
+   la maquette Claude Design validée telle quelle le 2026-09-25 (épic #119).
+   Elle est dessinée sur le design-system Nocturne (projet Claude Design
+   31046579) : fond bleu-nuit #161826, accent lavande #9184d9, une seule
+   famille neutre + accent plutôt que la palette Tailwind générique.
+
+   Les noms de tokens ne changent pas — c'est ce que #51 rend bon marché :
+   seules les valeurs bougent, ici en hexadécimal plutôt qu'en palette
+   Tailwind puisque la source est la feuille de style de la maquette, pas
+   `tailwindcss/colors`. `phase-*` reprend telle quelle l'échelle du script
+   de la maquette (neutre → accent, jamais une teinte par phase) : c'est la
+   réponse directe au retour « couleurs flashy et non coordonnées ».
    ========================================================= */
 
 const colors = require("tailwindcss/colors");
@@ -36,9 +51,9 @@ module.exports = {
     extend: {
       colors: {
         /* ---- Accent : ce qui est vivant ---- */
-        accent: colors.amber[400],            // charge prévue, série en cours, onglet actif, bouton primaire, toast
-        focus: colors.amber[400],             // anneau de focus — séparé pour qu'il puisse garder son contraste si l'accent change
-        badge: colors.amber[400],             // mentions de la prescription : échec OK, AMRAP
+        accent: "#9184d9",                    // charge prévue, série en cours, onglet actif, bouton primaire, toast
+        focus: "#d2cefd",                     // anneau de focus — séparé pour qu'il puisse garder son contraste si l'accent change
+        badge: "#b5abfc",                     // mentions de la prescription : échec OK, AMRAP
         done: colors.emerald[400],            // validé : série, séance, semaine. Jamais un succès générique.
 
         /* ---- Ce qui interpelle ---- */
@@ -57,25 +72,25 @@ module.exports = {
         notice: colors.amber[400],            // stockage indisponible, note de cycle, « à remplir »
 
         /* ---- Surfaces et traits ---- */
-        surface: colors.slate[900],           // fond de page, en-têtes collants, barre d'onglets
-        "surface-raised": colors.slate[800],  // champs, cartes, pastilles
-        rule: colors.slate[700],              // bordures, séparateurs, filets d'un pixel
-        "rule-strong": colors.slate[600],     // pastille de séance non validée
-        "rule-faint": colors.slate[800],      // bordure d'un champ déjà validé, sur `surface`
+        surface: "#161826",                   // fond de page, en-têtes collants, barre d'onglets
+        "surface-raised": "#232532",          // champs, cartes, pastilles
+        rule: "rgba(233, 233, 237, 0.16)",    // bordures, séparateurs, filets d'un pixel — le filet qui s'estompe de la maquette
+        "rule-strong": "#75798c",             // pastille de séance non validée
+        "rule-faint": "#3f424d",              // bordure d'un champ déjà validé, sur `surface`
 
         /* ---- Texte ---- */
-        ink: colors.slate[100],               // texte courant
-        "ink-soft": colors.slate[300],
-        "ink-muted": colors.slate[400],       // libellés, unités, dates
-        "ink-faint": colors.slate[500],       // notes de bas de bloc, légendes
-        "ink-dim": colors.slate[600],         // série à venir : présente, en retrait
-        "ink-inverse": colors.slate[900],     // sur `accent` et `done`
+        ink: "#e9e9ed",                       // texte courant
+        "ink-soft": "#cfd3e5",
+        "ink-muted": "#b2b6ca",               // libellés, unités, dates
+        "ink-faint": "#9397ab",               // notes de bas de bloc, légendes
+        "ink-dim": "#75798c",                 // série à venir : présente, en retrait
+        "ink-inverse": "#161826",             // sur `accent` et `done`
 
         /* ---- Marques de données (courbe, barres, parts) ---- */
-        "data-mark": colors.amber[400],       // courbe, points, et l'aplat qui la prolonge
-        "data-bar": colors.slate[700],        // barres de charge sous la courbe
-        "data-dim": colors.slate[500],        // estimation hors fenêtre de crédibilité
-        "data-grid": colors.slate[800],       // lignes de grille
+        "data-mark": "#9184d9",               // courbe, points, et l'aplat qui la prolonge — aligné sur `accent`
+        "data-bar": "#595d6c",                // barres de charge sous la courbe
+        "data-dim": "#9397ab",                // estimation hors fenêtre de crédibilité
+        "data-grid": "#3f424d",               // lignes de grille
 
         /* ---- Parts de muscle : une échelle, pas quatre couleurs ----
            Les segments de la barre empilée, du dominant au plus discret (#49).
@@ -83,21 +98,23 @@ module.exports = {
            comme un rang. Volontairement hors de l'accent — une part de muscle
            est une donnée de référence, pas quelque chose de vivant. Le
            dominant se repère à sa largeur et à sa clarté, sans légende. */
-        "share-1": colors.slate[300],
-        "share-2": colors.slate[500],
-        "share-3": colors.slate[600],
-        "share-4": colors.slate[700],         // et tous les suivants
+        "share-1": "#cfd3e5",
+        "share-2": "#9397ab",
+        "share-3": "#75798c",
+        "share-4": "#595d6c",                 // et tous les suivants
 
         /* ---- Phases du cycle (#107, #114) ----
            Un repère de lecture sur douze semaines, pas un accent ni un
-           statut : cinq couleurs distinctes, définies une fois et reprises
-           telles quelles par la timeline de l'index Programme et par la
-           frise de Référence. */
-        "phase-calib": colors.slate[400],
-        "phase-b1": colors.sky[400],
-        "phase-deload": colors.amber[400],
-        "phase-b2": colors.indigo[400],
-        "phase-bilan": colors.emerald[400],
+           statut : cinq tons distincts, définis une fois et repris tels
+           quels par la timeline de l'index Programme et par la frise de
+           Référence. Repris de la maquette : neutre → accent, jamais une
+           teinte par phase — c'est ce qui les rend coordonnés plutôt que
+           « jaune bleu violet vert ». */
+        "phase-calib": "#9397ab",
+        "phase-b1": "#796cbf",
+        "phase-deload": "#595d6c",
+        "phase-b2": "#b5abfc",
+        "phase-bilan": "#e7e5fe",
       },
     },
   },

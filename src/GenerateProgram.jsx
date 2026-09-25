@@ -8,11 +8,17 @@
    questions change, d'une pile toujours ouverte à une question à la fois.
 
    Ce qu'il possède, et qui n'est pas de la donnée : les cinq réponses en
-   cours, laquelle est ouverte, et la proposition affichée. Rien n'est
-   stocké — la proposition part dans l'éditeur, et c'est l'éditeur qui
-   décide d'enregistrer (#36 Q4). Un rechargement en pleine collecte retombe
-   sur Semaine, comme en pleine édition : `editeur` et `generateur` sont
-   volontairement absents de SCREENS (src/screen-state.js).
+   cours et la proposition affichée. Rien n'est stocké — la proposition part
+   dans l'éditeur, et c'est l'éditeur qui décide d'enregistrer (#36 Q4). Un
+   rechargement en pleine collecte retombe sur Semaine, comme en pleine
+   édition : `editeur` et `generateur` sont volontairement absents de
+   SCREENS (src/screen-state.js).
+
+   Retour de test sur #112 : la maquette montre les cinq questions à la
+   suite, chacune avec son picto et son contrôle toujours visibles — pas une
+   pile qui se replie en ligne de texte une fois répondue. Il n'y a donc plus
+   de question « ouverte » : chaque question rend son contrôle en permanence,
+   et la barre de progression en tête dit où on en est.
 
    Deux écrans en un, et c'est voulu : la proposition ne saute pas
    directement dans l'éditeur quand le moteur a quelque chose à dire. Un
@@ -22,7 +28,7 @@
    ========================================================= */
 
 import { useState } from "react";
-import { ChevronLeft, ChevronDown, Check, Building2, Home, PersonStanding } from "lucide-react";
+import { ChevronLeft, Check, Building2, Home, PersonStanding } from "lucide-react";
 import {
   FREQUENCIES, DURATIONS, PRESETS, LEVELS, OBJECTIVES,
   LEVEL_LABELS, OBJECTIVE_LABELS, generate,
@@ -125,18 +131,6 @@ function OpenQuestion({ q, value, onPick }) {
   );
 }
 
-/* Une question déjà répondue, repliée au-dessus de celle qui est ouverte —
-   toujours visible, toujours modifiable d'un tap (#112). */
-function AnsweredQuestion({ label, value, onOpen }) {
-  return (
-    <button type="button" onClick={onOpen} aria-expanded={false}
-      className="w-full flex items-center justify-between gap-2 py-3 border-b border-rule text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
-      <span className="text-sm text-ink-muted">{label}</span>
-      <span className="text-sm text-ink font-medium inline-flex items-center gap-1">{value}<ChevronDown size={14} className="text-ink-faint" /></span>
-    </button>
-  );
-}
-
 /* Ce que le rapport dit, en français et sans jargon de cascade. Les trois
    listes ne disent pas la même chose et ne se fusionnent donc pas : la
    première est une décision du budget, la deuxième une limite du matériel ou
@@ -173,29 +167,18 @@ function Report({ report }) {
 
 export default function GenerateProgram({ today, onBack, onAccept }) {
   const [answers, setAnswers] = useState({ frequency: null, duration: null, equipment: null, level: null, objective: null });
-  /* La question ouverte, ou null quand les cinq sont répondues et que rien
-     n'est en cours de modification. Distincte des réponses elles-mêmes :
-     rouvrir une question déjà répondue ne doit pas en oublier une autre. */
-  const [openIndex, setOpenIndex] = useState(0);
   const [result, setResult] = useState(null);
 
   const answeredCount = QUESTIONS.filter((q) => answers[q.key] !== null).length;
   const complete = answeredCount === QUESTIONS.length;
 
-  /* Répondre avance à la première question qui ne l'est pas encore, jamais
-     à la suivante dans l'absolu : rouvrir la question 2 pendant que 3, 4 et
-     5 sont déjà répondues doit la refermer sans rien rouvrir d'autre.
-     Changer une réponse jette la proposition, comme avant #112 : la garder
-     à l'écran sous des contraintes qui ne sont plus celles qui l'ont
-     produite serait le seul endroit de l'appli où ce qui est affiché ne
-     décrit pas l'état. */
+  /* Changer une réponse jette la proposition, comme avant #112 : la garder à
+     l'écran sous des contraintes qui ne sont plus celles qui l'ont produite
+     serait le seul endroit de l'appli où ce qui est affiché ne décrit pas
+     l'état. */
   const answer = (key, value) => {
-    const next = { ...answers, [key]: value };
-    setAnswers(next);
+    setAnswers({ ...answers, [key]: value });
     setResult(null);
-    const from = QUESTIONS.findIndex((q) => q.key === key);
-    const nextOpen = QUESTIONS.findIndex((q, i) => i > from && next[q.key] === null);
-    setOpenIndex(nextOpen === -1 ? null : nextOpen);
   };
 
   /* Rien à signaler : la proposition part directement dans l'éditeur, sans
@@ -224,6 +207,13 @@ export default function GenerateProgram({ today, onBack, onAccept }) {
           <div className="flex-1 text-lg font-semibold truncate">Nouveau</div>
           <div className="text-sm text-ink-muted shrink-0">{answeredCount} / {QUESTIONS.length}</div>
         </div>
+        {/* Retour de test sur #112 : la barre de progression de la maquette,
+            un segment par question. */}
+        <div className="flex gap-1 mt-2.5">
+          {QUESTIONS.map((q) => (
+            <span key={q.key} className={`flex-1 h-[3px] rounded-full ${answers[q.key] !== null ? "bg-accent" : "bg-rule-strong"}`} />
+          ))}
+        </div>
       </div>
 
       <p className="text-sm text-ink-soft mt-3">
@@ -232,11 +222,7 @@ export default function GenerateProgram({ today, onBack, onAccept }) {
         tant que tu ne l'as pas validée.
       </p>
 
-      {QUESTIONS.map((q, i) => {
-        if (i === openIndex) return <OpenQuestion key={q.key} q={q} value={answers[q.key]} onPick={(v) => answer(q.key, v)} />;
-        if (answers[q.key] !== null) return <AnsweredQuestion key={q.key} label={q.label} value={q.format(answers[q.key])} onOpen={() => setOpenIndex(i)} />;
-        return null;
-      })}
+      {QUESTIONS.map((q) => <OpenQuestion key={q.key} q={q} value={answers[q.key]} onPick={(v) => answer(q.key, v)} />)}
 
       <div className="mt-6">
         <button type="button" onClick={run} disabled={!complete}

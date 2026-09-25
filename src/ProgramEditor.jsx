@@ -24,8 +24,8 @@
    « bloc 2 » veulent dire (suivi).
    ========================================================= */
 
-import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronUp, ChevronDown, Plus, X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronUp, ChevronDown, GripVertical, Plus, X } from "lucide-react";
 import { EXERCISES } from "./registry.js";
 import { DAY_NAMES, unitLoadLabel, carryNote, dateShort, weekdayName } from "./display.js";
 import ExercisePicker from "./ExercisePicker.jsx";
@@ -164,11 +164,42 @@ function Rows({ program, owner, rows, apply, onPick }) {
    Un exercice à la fois : chaque ligne se replie sur son nom et un jeton
    "séries × reps", le détail s'ouvrant au tap — la même idée qu'un cran plus
    haut (une séance à la fois dans l'onglet Séances), appliquée à ses
-   exercices. `useState` local plutôt que porté par le parent : ce composant
-   est remonté à chaque changement de séance ouverte (`key={session.id}` à
-   l'appel), ce qui remet l'exercice ouvert à zéro sans code de plus. */
+   exercices. Repliées par défaut (retour de test) : rien ne s'ouvre tout
+   seul, `useState` local plutôt que porté par le parent parce que ce
+   composant est remonté à chaque changement de séance ouverte (`key={session.id}`
+   à l'appel), ce qui remet l'exercice ouvert à zéro sans code de plus.
+
+   Réordonner se fait à la poignée (retour de test sur #113 : le mécanisme
+   standard, pas des flèches) — `moved()` (program-editor.js) n'échange que
+   deux voisins, donc glisser au-delà d'une ligne rejoue cet échange à chaque
+   ligne franchie plutôt que de sauter directement à l'index visé. */
 function SessionRows({ program, owner, rows, apply, onPick }) {
-  const [openIndex, setOpenIndex] = useState(rows.length ? 0 : null);
+  const [openIndex, setOpenIndex] = useState(null);
+  const [dragIndex, setDragIndex] = useState(null);
+  const rowHeight = useRef(0);
+  const drag = useRef(null);
+
+  const startDrag = (i, e) => {
+    e.preventDefault();
+    setOpenIndex(null);
+    rowHeight.current = e.currentTarget.closest("[data-row]")?.getBoundingClientRect().height || 44;
+    drag.current = { startY: e.clientY, from: i, at: i };
+    setDragIndex(i);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const dragMove = (e) => {
+    if (!drag.current) return;
+    const steps = Math.round((e.clientY - drag.current.startY) / rowHeight.current);
+    const target = Math.min(rows.length - 1, Math.max(0, drag.current.from + steps));
+    while (drag.current.at !== target) {
+      const dir = target > drag.current.at ? 1 : -1;
+      apply(moveRow, owner, drag.current.at, dir);
+      drag.current.at += dir;
+    }
+    setDragIndex(drag.current.at);
+  };
+  const endDrag = () => { drag.current = null; setDragIndex(null); };
+
   if (!rows.length) return <p className="text-sm text-ink-faint py-3">Aucun exercice.</p>;
   return (
     <div className="divide-y divide-rule">
@@ -177,23 +208,32 @@ function SessionRows({ program, owner, rows, apply, onPick }) {
         if (!slot) return null;
         const patch = (p) => apply(patchRow, owner, i, p);
         const open = openIndex === i;
+        /* Clé = l'adresse du slot, pas l'index : glisser au-delà d'une ligne
+           échange des index à chaque pas (moved(), ci-dessus), et une clé
+           indexée aurait démonté puis remonté le nœud tenu par le doigt à
+           chaque échange, coupant la capture du pointeur en plein geste. */
         return (
-          <div key={`${slotId}-${i}`} className="py-2.5">
-            <button type="button" onClick={() => setOpenIndex(open ? null : i)} aria-expanded={open}
-              className="w-full flex items-center gap-2 text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
-              <span className="flex-1 min-w-0 truncate text-ink">{EXERCISES[slot.b1]?.name || slot.b1}</span>
-              <span className="shrink-0 text-xs text-ink-muted bg-surface-raised border border-rule rounded-full px-2 py-0.5">{sets} × {slot.reps[0]}–{slot.reps[1]}</span>
-              <ChevronDown size={16} className={`shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`} />
-            </button>
+          <div key={slotId} data-row className={`py-2.5 ${dragIndex === i ? "bg-surface-raised rounded-md" : ""}`}>
+            <div className="flex items-center gap-2">
+              <span onPointerDown={(e) => startDrag(i, e)} onPointerMove={dragMove} onPointerUp={endDrag} onPointerCancel={endDrag}
+                aria-label={`Déplacer ${EXERCISES[slot.b1]?.name || slot.b1}`} role="button"
+                className="shrink-0 -ml-1.5 p-1.5 text-ink-faint touch-none cursor-grab active:cursor-grabbing">
+                <GripVertical size={16} />
+              </span>
+              <button type="button" onClick={() => setOpenIndex(open ? null : i)} aria-expanded={open}
+                className="flex-1 min-w-0 flex items-center gap-2 text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
+                <span className="flex-1 min-w-0 truncate text-ink">{EXERCISES[slot.b1]?.name || slot.b1}</span>
+                <span className="shrink-0 text-xs text-ink-muted bg-surface-raised border border-rule rounded-full px-2 py-0.5">{sets} × {slot.reps[0]}–{slot.reps[1]}</span>
+                <ChevronDown size={16} className={`shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`} />
+              </button>
+            </div>
             {open && (
-              <div className="pt-2">
+              <div className="pt-2 pl-6">
                 <div className="flex items-start gap-1">
                   <button type="button" onClick={() => onPick(owner, i, slot.b1 === slot.b2 ? null : "b1")}
                     className="flex-1 text-left text-sm text-ink-muted py-1.5 rounded focus:outline-none focus:ring-2 focus:ring-focus">
                     Changer l'exercice
                   </button>
-                  <IconBtn label="Monter cet exercice" onClick={() => apply(moveRow, owner, i, -1)} disabled={i === 0}><ChevronUp size={18} /></IconBtn>
-                  <IconBtn label="Descendre cet exercice" onClick={() => apply(moveRow, owner, i, 1)} disabled={i === rows.length - 1}><ChevronDown size={18} /></IconBtn>
                   <IconBtn label="Retirer cet exercice" onClick={() => apply(removeRow, owner, i)}><X size={18} /></IconBtn>
                 </div>
                 {slot.b1 !== slot.b2 && (
