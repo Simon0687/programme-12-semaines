@@ -82,6 +82,22 @@
            rows: [[libellé, valeurA, valeurB], …] }
                                              comparaison à deux colonnes (#114
                                              — les deux recettes de décharge).
+         { t: "table", variant: "ifthen", rows: [[si, alors], …] }
+                                             table à deux colonnes, un en-tête
+                                             fixe "Si"/"Alors" (#109 —
+                                             ajustements nutrition).
+         { t: "headline", text }             le chiffre qui compte, en tête de
+                                             section (#109 — kcal/jour).
+         { t: "tiles", items: [{ label, value }, …] }
+                                             valeurs côte à côte, en tuiles
+                                             (#109 — les trois macros).
+         { t: "fold", title, count, blocks: [bloc, …] }
+                                             sous-section repliée, comptée dans
+                                             son propre intertitre (#109) —
+                                             `count` est dérivé du contenu
+                                             (jamais recopié à la main), et le
+                                             rendu de `blocks` récursif : les
+                                             mêmes formes que ci-dessus.
 
    PHASE_NOTES[id]  note éditoriale par phase, sortie de phaseOf()
                     (progression.js). Clés = les id renvoyés par phaseOf() :
@@ -218,6 +234,72 @@ function cardioSection(spec, baseline) {
   const meta = `${c.sessions.length} séance${c.sessions.length > 1 ? "s" : ""} · ${days.map(dayName).join(", ")}`;
   return { id: "cardio", title: "Cardio et mobilité", group: "programme", meta, blocks };
 }
+
+/* ---------- La section nutrition, reprise en tuiles (#109) ----------
+
+   #104 avait déjà rangé cette page — la plus lourde du Plan, 1 658
+   caractères — en intertitres et listes. #109 continue le même geste : le
+   chiffre qui compte en tête (headline), les trois macros en tuiles plutôt
+   qu'une ligne de texte, les ajustements en table Si/Alors, et les trois
+   sujets secondaires (journée type, version minimale, optionnel) repliés,
+   leur compte dérivé du tableau qu'ils replient — jamais recopié à la main,
+   qui aurait pu diverger du contenu le jour où une ligne s'ajoute. Aucun
+   chiffre n'a bougé. */
+function nutritionBlocks(profile) {
+  const meals = [
+    "Matin : 100 g de flocons d'avoine, 300 ml de lait, une banane, 30 g de whey, 20 g d'amandes",
+    "Midi : 150 g de poulet, 120 g de riz basmati (cru), légumes, une cuillère d'huile d'olive, un yaourt grec",
+    "60–90 min avant la séance : 200 g de fromage blanc, 2 tranches de pain complet et de la confiture",
+    "Soir : 150 g de saumon ou de bœuf 5 %, 300 g de pommes de terre, légumes, une cuillère d'huile",
+    "Collation : 250 g de fromage blanc, 30 g de miel, 30 g de noix",
+  ];
+  const minimalRules = [
+    "Quatre repas avec 40 g de protéines",
+    "Pesée chaque matin",
+    "Mètre ruban et bilan copié-collé le dimanche",
+    "Le plancher alimentaire ne dépend pas de la séance : séance ratée = on mange pareil",
+  ];
+  const optional = [
+    "Créatine 3–5 g/j",
+    `Whey pour atteindre ${profile.macros.p} g de protéines`,
+    "Vitamine D 1 000–2 000 UI/j d'octobre à mars",
+    "Caféine 100–200 mg avant séance",
+  ];
+  return [
+    { t: "headline", text: `${sp(profile.startKcal)} kcal / jour · maintenance ≈ ${sp(profile.maintenanceKcal)}` },
+    { t: "tiles", items: [
+      { label: "Protéines", value: `${profile.macros.p} g` },
+      { label: "Lipides", value: `${profile.macros.f} g` },
+      { label: "Glucides", value: `${profile.macros.c} g` },
+    ] },
+    { t: "ul", items: [
+      "7 jours sur 7, week-end compris",
+      "Quatre repas à 40–50 g de protéines, glucides concentrés autour des séances",
+    ] },
+    { t: "h", text: "Lecture des deux premières semaines" },
+    { t: "p", text: "+0,5 à 1 kg d'eau et de glycogène en S1, on juge la pente entre la moyenne de S2 et celle de S4. Pente +0,2–0,3 kg/sem → maintenance confirmée." },
+    { t: "h", text: "Ajuster toutes les 2 semaines" },
+    { t: "table", variant: "ifthen", rows: [
+      ["Gain > 0,4 kg/sem sur 2 semaines, ou taille +1 cm sur 2 semaines", "−150 à −200 kcal"],
+      ["Gain < 0,1 kg/sem sur 2 semaines", "+100 à +150 kcal"],
+      ["Taille +3 cm cumulés, ou masse grasse estimée ≥ 15–16 %", "retour à maintenance et réévaluation"],
+    ] },
+    { t: "p", text: `Cible : ${kg(profile.targetWeightKg[0])}–${kg(profile.targetWeightKg[1])} kg fin S12.` },
+    { t: "fold", title: "Journée type", count: meals.length, blocks: [
+      { t: "p", text: `Jour d'entraînement, ~${sp(profile.startKcal)} kcal.` },
+      { t: "ul", items: meals },
+      { t: "p", text: "Jour de repos : mêmes totaux, la collation pré-séance devient un goûter." },
+    ] },
+    { t: "fold", title: "Version minimale", count: minimalRules.length, blocks: [
+      { t: "p", text: "Ce qui tient quand la semaine part en vrille." },
+      { t: "ul", items: minimalRules },
+    ] },
+    { t: "fold", title: "Optionnel", count: optional.length, blocks: [
+      { t: "ul", items: optional },
+    ] },
+  ];
+}
+
 export function buildPlan(definition) {
   const program = definition.program || {};
   const SLOTS = program.SLOTS || {};
@@ -397,53 +479,7 @@ export function buildPlan(definition) {
       title: "Nutrition",
       group: "programme",
       meta: `${sp(profile.startKcal)} kcal · ${profile.macros.p}/${profile.macros.f}/${profile.macros.c} g`,
-      blocks: [
-        /* #104 : la page la plus lourde du Plan — 1 658 caractères, dont une
-           journée type de 576 en un seul paragraphe. Elle est faite de cinq
-           sujets que rien ne séparait, et de trois énumérations (les repas,
-           les ajustements, les quatre règles) qui n'avaient que le
-           point-virgule pour respirer. Aucun chiffre n'a bougé. */
-        { t: "h", text: "Cibles" },
-        { t: "ul", items: [
-          `Maintenance estimée ≈ ${sp(profile.maintenanceKcal)} kcal`,
-          `Départ : ${sp(profile.startKcal)} kcal par jour, 7 jours sur 7`,
-          `Protéines ${profile.macros.p} g, lipides ${profile.macros.f} g, glucides ${profile.macros.c} g`,
-          "Quatre repas à 40–50 g de protéines, glucides concentrés autour des séances",
-        ] },
-        { t: "h", text: "Lecture des deux premières semaines" },
-        { t: "p", text: "+0,5 à 1 kg d'eau et de glycogène en S1, on juge la pente entre la moyenne de S2 et celle de S4. Pente +0,2–0,3 kg/sem → maintenance confirmée." },
-        { t: "h", text: "Ajustements, toutes les 2 semaines" },
-        { t: "ul", items: [
-          "Gain > 0,4 kg/sem sur 2 semaines, ou taille +1 cm sur 2 semaines → −150 à −200 kcal",
-          "Gain < 0,1 kg/sem sur 2 semaines → +100 à +150 kcal",
-          "Taille +3 cm cumulés, ou masse grasse estimée ≥ 15–16 % → retour à maintenance et réévaluation",
-        ] },
-        { t: "p", text: `Cible : ${kg(profile.targetWeightKg[0])}–${kg(profile.targetWeightKg[1])} kg fin S12.` },
-        { t: "h", text: `Journée type, jour d'entraînement (~${sp(profile.startKcal)} kcal)` },
-        { t: "ul", items: [
-          "Matin : 100 g de flocons d'avoine, 300 ml de lait, une banane, 30 g de whey, 20 g d'amandes",
-          "Midi : 150 g de poulet, 120 g de riz basmati (cru), légumes, une cuillère d'huile d'olive, un yaourt grec",
-          "60–90 min avant la séance : 200 g de fromage blanc, 2 tranches de pain complet et de la confiture",
-          "Soir : 150 g de saumon ou de bœuf 5 %, 300 g de pommes de terre, légumes, une cuillère d'huile",
-          "Collation : 250 g de fromage blanc, 30 g de miel, 30 g de noix",
-        ] },
-        { t: "p", text: "Jour de repos : mêmes totaux, la collation pré-séance devient un goûter." },
-        { t: "h", text: "Version minimale" },
-        { t: "p", text: "Les 4 règles qui tiennent quand la semaine part en vrille." },
-        { t: "ul", items: [
-          "Quatre repas avec 40 g de protéines",
-          "Pesée chaque matin",
-          "Mètre ruban et bilan copié-collé le dimanche",
-          "Le plancher alimentaire ne dépend pas de la séance : séance ratée = on mange pareil",
-        ] },
-        { t: "h", text: "Optionnel" },
-        { t: "ul", items: [
-          "Créatine 3–5 g/j",
-          `Whey pour atteindre ${profile.macros.p} g de protéines`,
-          "Vitamine D 1 000–2 000 UI/j d'octobre à mars",
-          "Caféine 100–200 mg avant séance",
-        ] },
-      ],
+      blocks: nutritionBlocks(profile),
     } : null,
 
     Object.keys(startingLoads).length ? {

@@ -17,17 +17,22 @@ const withDef = (over) => ({ ...LEGACY_DEFINITION, ...over });
 
 const PLAN = buildPlan(LEGACY_DEFINITION);
 
-/* #104, #114 : tout le texte lisible d'une section, quelle que soit la forme
-   du bloc qui le porte. */
-const textsOf = (s) => s.blocks.flatMap((b) => {
-  if (b.t === "p" || b.t === "h" || b.t === "callout") return [b.text];
+/* #104, #109, #114 : tout le texte lisible d'une section, quelle que soit la
+   forme du bloc qui le porte — récursif pour "fold" (#109), dont les blocs
+   repliés portent n'importe laquelle des formes ci-dessus. */
+const blockTexts = (blocks) => blocks.flatMap((b) => {
+  if (b.t === "p" || b.t === "h" || b.t === "callout" || b.t === "headline") return [b.text];
   if (b.t === "ul" || b.t === "chips") return b.items;
   if (b.t === "iconlist") return b.items.map((it) => it.text);
   if (b.t === "phaseline") return b.steps.map((s2) => s2.text);
   if (b.t === "bars") return b.rows.flatMap((r) => [r.label, ...r.sessions.map((s2) => s2.label)]);
+  if (b.t === "tiles") return b.items.flatMap((it) => [it.label, it.value]);
   if (b.t === "table" && b.variant === "compare") return b.rows.flatMap(([, a, c]) => [a, c]);
+  if (b.t === "table" && b.variant === "ifthen") return b.rows.flatMap(([si, alors]) => [si, alors]);
+  if (b.t === "fold") return blockTexts(b.blocks);
   return [];
 });
+const textsOf = (s) => blockTexts(s.blocks);
 
 describe("PHASE_NOTES", () => {
   test("couvre exactement les id de phase renvoyés par phaseOf()", () => {
@@ -55,61 +60,87 @@ describe("PLAN", () => {
     }
   });
 
-  test("chaque bloc est un type connu et bien formé", () => {
-    for (const s of PLAN) {
-      for (const b of s.blocks) {
-        if (b.t === "p" || b.t === "h" || b.t === "callout") {
-          assert.equal(typeof b.text, "string", s.id);
-          assert.ok(b.text.trim().length > 0, s.id);
-        } else if (b.t === "ul" || b.t === "chips") {
-          assert.ok(Array.isArray(b.items) && b.items.length > 0, `${s.id}: items`);
-          /* Les items servent de clé React dans <Block> : deux items égaux
-             dans une même liste seraient un doublon de clé. */
-          assert.equal(new Set(b.items).size, b.items.length, `${s.id}: items distincts`);
-          for (const it of b.items) {
-            assert.equal(typeof it, "string", s.id);
-            assert.ok(it.trim().length > 0, s.id);
-          }
-        } else if (b.t === "iconlist") {
-          assert.ok(Array.isArray(b.items) && b.items.length > 0, `${s.id}: items`);
-          for (const it of b.items) {
-            assert.equal(typeof it.icon, "string", s.id);
-            assert.equal(typeof it.text, "string", s.id);
-            assert.ok(it.text.trim().length > 0, s.id);
-          }
-        } else if (b.t === "phaseline") {
-          assert.ok(Array.isArray(b.steps) && b.steps.length > 0, `${s.id}: steps`);
-          for (const step of b.steps) {
-            assert.equal(typeof step.phase, "string", s.id);
-            assert.equal(typeof step.label, "string", s.id);
-            assert.equal(typeof step.text, "string", s.id);
-            assert.ok(step.text.trim().length > 0, s.id);
-          }
-        } else if (b.t === "bars") {
-          assert.ok(Array.isArray(b.rows) && b.rows.length > 0, `${s.id}: rows`);
-          /* Trié décroissant, la plus grande valeur donnant l'échelle (#108). */
-          for (let i = 1; i < b.rows.length; i++) {
-            assert.ok(b.rows[i - 1].value >= b.rows[i].value, `${s.id}: pas trié décroissant`);
-          }
-          for (const row of b.rows) {
-            assert.equal(typeof row.label, "string", s.id);
-            assert.equal(typeof row.value, "number", s.id);
-            assert.ok(Array.isArray(row.sessions) && row.sessions.length > 0, `${s.id}: sessions`);
-            for (const sess of row.sessions) {
-              assert.equal(typeof sess.label, "string", s.id);
-              assert.ok(sess.sets === null || typeof sess.sets === "number", s.id);
-            }
-          }
-        } else if (b.t === "table") {
-          assert.ok(["compare"].includes(b.variant), `${s.id}: variant`);
-          assert.ok(Array.isArray(b.rows) && b.rows.length > 0, `${s.id}: rows`);
-          assert.ok(Array.isArray(b.head) && b.head.length === 2, `${s.id}: head`);
-          for (const row of b.rows) {
-            assert.ok(Array.isArray(row) && row.length === 3, `${s.id}: largeur de ligne`);
-          }
-        } else {
-          assert.fail(`${s.id}: type de bloc inconnu ${JSON.stringify(b.t)}`);
+  /* Récursive à cause de "fold" (#109) : ses blocs repliés portent
+     n'importe laquelle des formes ci-dessous, jamais un second "fold" dans
+     ce contenu-ci mais rien ne l'interdirait au vocabulaire. */
+  const checkBlock = (b, sid) => {
+    if (b.t === "p" || b.t === "h" || b.t === "callout" || b.t === "headline") {
+      assert.equal(typeof b.text, "string", sid);
+      assert.ok(b.text.trim().length > 0, sid);
+    } else if (b.t === "ul" || b.t === "chips") {
+      assert.ok(Array.isArray(b.items) && b.items.length > 0, `${sid}: items`);
+      /* Les items servent de clé React dans <Block> : deux items égaux
+         dans une même liste seraient un doublon de clé. */
+      assert.equal(new Set(b.items).size, b.items.length, `${sid}: items distincts`);
+      for (const it of b.items) {
+        assert.equal(typeof it, "string", sid);
+        assert.ok(it.trim().length > 0, sid);
+      }
+    } else if (b.t === "iconlist") {
+      assert.ok(Array.isArray(b.items) && b.items.length > 0, `${sid}: items`);
+      for (const it of b.items) {
+        assert.equal(typeof it.icon, "string", sid);
+        assert.equal(typeof it.text, "string", sid);
+        assert.ok(it.text.trim().length > 0, sid);
+      }
+    } else if (b.t === "tiles") {
+      assert.ok(Array.isArray(b.items) && b.items.length > 0, `${sid}: items`);
+      for (const it of b.items) {
+        assert.equal(typeof it.label, "string", sid);
+        assert.equal(typeof it.value, "string", sid);
+      }
+    } else if (b.t === "phaseline") {
+      assert.ok(Array.isArray(b.steps) && b.steps.length > 0, `${sid}: steps`);
+      for (const step of b.steps) {
+        assert.equal(typeof step.phase, "string", sid);
+        assert.equal(typeof step.label, "string", sid);
+        assert.equal(typeof step.text, "string", sid);
+        assert.ok(step.text.trim().length > 0, sid);
+      }
+    } else if (b.t === "bars") {
+      assert.ok(Array.isArray(b.rows) && b.rows.length > 0, `${sid}: rows`);
+      /* Trié décroissant, la plus grande valeur donnant l'échelle (#108). */
+      for (let i = 1; i < b.rows.length; i++) {
+        assert.ok(b.rows[i - 1].value >= b.rows[i].value, `${sid}: pas trié décroissant`);
+      }
+      for (const row of b.rows) {
+        assert.equal(typeof row.label, "string", sid);
+        assert.equal(typeof row.value, "number", sid);
+        assert.ok(Array.isArray(row.sessions) && row.sessions.length > 0, `${sid}: sessions`);
+        for (const sess of row.sessions) {
+          assert.equal(typeof sess.label, "string", sid);
+          assert.ok(sess.sets === null || typeof sess.sets === "number", sid);
         }
+      }
+    } else if (b.t === "fold") {
+      assert.ok(b.title && b.title.trim().length > 0, `${sid}: title`);
+      assert.ok(Array.isArray(b.blocks) && b.blocks.length > 0, `${sid}: blocks`);
+      for (const nested of b.blocks) checkBlock(nested, sid);
+    } else if (b.t === "table") {
+      assert.ok(["compare", "ifthen"].includes(b.variant), `${sid}: variant`);
+      assert.ok(Array.isArray(b.rows) && b.rows.length > 0, `${sid}: rows`);
+      const width = b.variant === "compare" ? 3 : 2;
+      if (b.variant === "compare") assert.ok(Array.isArray(b.head) && b.head.length === 2, `${sid}: head`);
+      for (const row of b.rows) {
+        assert.ok(Array.isArray(row) && row.length === width, `${sid}: largeur de ligne`);
+      }
+    } else {
+      assert.fail(`${sid}: type de bloc inconnu ${JSON.stringify(b.t)}`);
+    }
+  };
+
+  test("chaque bloc est un type connu et bien formé", () => {
+    for (const s of PLAN) for (const b of s.blocks) checkBlock(b, s.id);
+  });
+
+  /* #109 : le compte d'un "fold" ne peut pas diverger de son contenu — c'est
+     tout l'argument de la dérivation ("jamais recopié à la main"). */
+  test("le compte d'un fold est celui de son bloc à puces", () => {
+    const folds = (blocks) => blocks.flatMap((b) => (b.t === "fold" ? [b, ...folds(b.blocks)] : []));
+    for (const s of PLAN) {
+      for (const f of folds(s.blocks)) {
+        const list = f.blocks.find((b) => b.t === "ul");
+        if (list) assert.equal(f.count, list.items.length, `${s.id} › ${f.title}`);
       }
     }
   });
