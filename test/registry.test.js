@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { EXERCISES, EXERCISE_IDS, UNSELECTABLE_IDS, REGISTRY_VERSION, MUSCLE_GROUPS, PATTERNS, EQUIPMENT } from "../src/registry.js";
+import { EXERCISES, EXERCISE_IDS, UNSELECTABLE_IDS, REGISTRY_VERSION, MUSCLE_GROUPS, PATTERNS, EQUIPMENT, CUE_KINDS } from "../src/registry.js";
 import { DEFAULT_DEFINITION } from "../src/default-program.js";
 import { LEGACY_DEFINITION } from "../src/legacy-program.js";
 
@@ -94,4 +94,50 @@ describe("cohérence avec les programmes livrés", () => {
       for (const vid of Object.keys(def.startingLoads || {})) assert.ok(EXERCISE_IDS.has(vid), vid);
     });
   }
+});
+
+/* #119 : la consigne se lit en points à picto (fiche exercice, carte de
+   Séance), et le registre la porte déjà découpée. Ces gardes tiennent la
+   donnée à la forme que l'écran suppose, pour que la prochaine entrée
+   ajoutée ne revienne ni en paragraphe ni sans consigne. */
+describe("consignes en points (#119)", () => {
+  test("toutes les entrées ont une consigne, les quatre exceptions comprises", () => {
+    for (const [id, v] of Object.entries(EXERCISES)) assert.ok(Array.isArray(v.cue), `${id} : cue absente ou en paragraphe`);
+  });
+
+  test("deux à cinq points par consigne", () => {
+    for (const [id, v] of Object.entries(EXERCISES)) {
+      assert.ok(v.cue.length >= 2 && v.cue.length <= 5, `${id} : ${v.cue.length} points`);
+    }
+  });
+
+  test("chaque point est une paire [famille connue, texte]", () => {
+    for (const [id, v] of Object.entries(EXERCISES)) {
+      for (const p of v.cue) {
+        assert.ok(Array.isArray(p) && p.length === 2, `${id} : point mal formé`);
+        assert.ok(CUE_KINDS.includes(p[0]), `${id} : famille inconnue « ${p[0]} »`);
+        assert.equal(typeof p[1], "string", id);
+      }
+    }
+  });
+
+  /* Une idée par point : la longueur est le signe le plus sûr qu'un point
+     est redevenu un paragraphe. Le plus long des 277 fait 65 caractères. */
+  test("un point est court, commence par une capitale et ne finit pas par un point", () => {
+    for (const [id, v] of Object.entries(EXERCISES)) {
+      for (const [, text] of v.cue) {
+        assert.ok(text.length >= 3 && text.length <= 70, `${id} : « ${text} » (${text.length} car.)`);
+        assert.equal(text, text.trim(), id);
+        assert.ok(!text.endsWith("."), `${id} : point final dans « ${text} »`);
+        assert.equal(text[0], text[0].toLocaleUpperCase("fr"), `${id} : « ${text} »`);
+      }
+    }
+  });
+
+  test("aucun point répété dans une même consigne", () => {
+    for (const [id, v] of Object.entries(EXERCISES)) {
+      const texts = v.cue.map(([, t]) => t);
+      assert.equal(new Set(texts).size, texts.length, id);
+    }
+  });
 });

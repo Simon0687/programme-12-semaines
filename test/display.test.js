@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   setSummary, rowIsDone, completedSets, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, weekdayName, adviceSummary, unitColumns, unitLoadLabel, warmupRamp, warmupText, WARMUP_RAMP, carryNote,
-  setCondensed, setLine, sheetFacts, signed, headlineTiles, cueKind, cuePoints,
+  setCondensed, setLine, sheetFacts, signed, headlineTiles, cuePoints, CUE_KIND_LABELS,
 } from "../src/display.js";
-import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS, PATTERNS } from "../src/registry.js";
+import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS, PATTERNS, CUE_KINDS } from "../src/registry.js";
 import { fmt } from "../src/progression.js";
 
 /* ---------- setSummary ----------
@@ -622,30 +622,23 @@ test("headlineTiles : mesure brute sans charge", () => {
   ]);
 });
 
-test("cuePoints : la consigne du développé couché, une phrase par point", () => {
-  assert.deepEqual(cuePoints(EXERCISES.dc.cue), [
-    { text: "Omoplates serrées et abaissées, pieds ancrés, cambrure naturelle", kind: "posture" },
-    { text: "Barre sur le bas des pecs, descente 2–3 s, poussée explosive, pas de rebond", kind: "grip" },
+test("cuePoints : la consigne telle que le registre la découpe, chaque point nommé", () => {
+  assert.deepEqual(cuePoints(EXERCISES.dc), [
+    { kind: "posture", text: "Omoplates serrées et abaissées", label: "Posture" },
+    { kind: "appuis", text: "Pieds ancrés, cambrure naturelle", label: "Appuis" },
+    { kind: "tempo", text: "Descente 2–3 s jusqu'au bas des pecs", label: "Tempo" },
+    { kind: "intention", text: "Poussée explosive, pas de rebond", label: "Intention" },
   ]);
   assert.deepEqual(cuePoints(undefined), []);
+  assert.deepEqual(cuePoints({ name: "x" }), [], "sans consigne, aucun point");
 });
 
-test("cueKind : le premier mot-clé rencontré décide, un inconnu reste neutre", () => {
-  assert.equal(cueKind("Descente 2–3 s"), "tempo");
-  assert.equal(cueKind("Pousser fort, freiner 2–3 s"), "power");
-  assert.equal(cueKind("Montée forte, descente contrôlée"), "power");
-  assert.equal(cueKind("Pieds à mi-hauteur, largeur épaules"), "stance");
-  assert.equal(cueKind("Dossier à 60–70°, haltères poussés ensemble"), "stance", "« dossier » n'est pas « dos »");
-  assert.equal(cueKind("Au moindre signal lombaire : hack squat ou presse"), "caution");
-  assert.equal(cueKind("Lest dès 3 × 8 à ≤ 1 RIR"), "progress");
-  assert.equal(cueKind("Cible le soléaire"), "point");
+test("CUE_KIND_LABELS : un nom pour chaque famille du registre, et aucune autre", () => {
+  assert.deepEqual(Object.keys(CUE_KIND_LABELS).sort(), [...CUE_KINDS].sort());
 });
 
-test("cuePoints : toutes les consignes du registre se découpent sans point vide", () => {
-  for (const [id, v] of Object.entries(EXERCISES)) {
-    if (!v.cue) continue;
-    const pts = cuePoints(v.cue);
-    assert.ok(pts.length >= 1, id);
-    for (const p of pts) assert.ok(p.text.length > 2 && !p.text.endsWith("."), `${id} : « ${p.text} »`);
-  }
+test("sheetFacts : le picto suit l'unité avant le matériel — un rowing inversé tire le corps", () => {
+  assert.equal(sheetFacts(EXERCISES.row_inv).gear, "body", "sous la barre d'un rack, mais au poids du corps");
+  assert.equal(sheetFacts(EXERCISES.dips).gear, "body");
+  assert.equal(sheetFacts(EXERCISES.pushdown).gear, "machine", "une poulie compte avec les machines");
 });
