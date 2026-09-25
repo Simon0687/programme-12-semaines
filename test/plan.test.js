@@ -17,6 +17,10 @@ const withDef = (over) => ({ ...LEGACY_DEFINITION, ...over });
 
 const PLAN = buildPlan(LEGACY_DEFINITION);
 
+/* #104 : tout le texte lisible d'une section, quelle que soit la forme du
+   bloc qui le porte. */
+const textsOf = (s) => s.blocks.flatMap((b) => (b.t === "p" || b.t === "h" ? [b.text] : b.t === "ul" ? b.items : []));
+
 describe("PHASE_NOTES", () => {
   test("couvre exactement les id de phase renvoyés par phaseOf()", () => {
     const ids = new Set();
@@ -51,9 +55,18 @@ describe("PLAN", () => {
   test("chaque bloc est un type connu et bien formé", () => {
     for (const s of PLAN) {
       for (const b of s.blocks) {
-        if (b.t === "p") {
+        if (b.t === "p" || b.t === "h") {
           assert.equal(typeof b.text, "string", s.id);
           assert.ok(b.text.trim().length > 0, s.id);
+        } else if (b.t === "ul") {
+          assert.ok(Array.isArray(b.items) && b.items.length > 0, `${s.id}: items`);
+          /* Les items servent de clé React dans <Block> : deux items égaux
+             dans une même liste seraient un doublon de clé. */
+          assert.equal(new Set(b.items).size, b.items.length, `${s.id}: items distincts`);
+          for (const it of b.items) {
+            assert.equal(typeof it, "string", s.id);
+            assert.ok(it.trim().length > 0, s.id);
+          }
         } else if (b.t === "table") {
           assert.ok(["weeks", "volume"].includes(b.variant), `${s.id}: variant`);
           assert.ok(Array.isArray(b.rows) && b.rows.length > 0, `${s.id}: rows`);
@@ -68,6 +81,27 @@ describe("PLAN", () => {
     }
   });
 
+  /* #104 : la mesure du reproche « beaucoup de texte ». 300 caractères, c'est
+     environ huit lignes sur un téléphone — au-delà, le paragraphe n'a plus de
+     point d'atterrissage. Les sections listées ici n'ont pas encore été
+     reprises ; **cette liste doit finir vide**, et c'est le seul état où #104
+     est terminée. Retirer un id sans l'avoir repris fait échouer le test. */
+  const PENDING_104 = [];
+
+  test("aucun texte de section ne dépasse 300 caractères", () => {
+    for (const s of PLAN) {
+      if (PENDING_104.includes(s.id)) continue;
+      for (const text of textsOf(s)) {
+        assert.ok(text.length <= 300, `${s.id}: ${text.length} caractères — « ${text.slice(0, 60)}… »`);
+      }
+    }
+  });
+
+  test("la liste d'attente de #104 ne cite que des sections qui existent", () => {
+    const ids = new Set(PLAN.map((s) => s.id));
+    for (const id of PENDING_104) assert.ok(ids.has(id), `${id} n'est plus une section : retire-la de PENDING_104`);
+  });
+
   test("exactement une section est dépliée au montage", () => {
     assert.equal(PLAN.filter((s) => s.open).length, 1);
   });
@@ -80,11 +114,15 @@ describe("buildPlan : reflète le profil reçu (#6)", () => {
       startingLoads: { ...STARTING_LOADS, dc: 40, squat: 60 },
     }));
 
-    const nutritionText = other.find((s) => s.id === "nutrition").blocks[0].text;
+    /* #104 : la section entière, et plus son premier bloc. Ces deux pages sont
+       maintenant faites d'intertitres et de listes — lire `blocks[0].text`
+       n'interrogeait plus que le titre « Cibles », qui ne porte aucun chiffre
+       et aurait laissé passer un profil ignoré. */
+    const nutritionText = textsOf(other.find((s) => s.id === "nutrition")).join(" ");
     assert.match(nutritionText, /2 200 kcal/);
     assert.doesNotMatch(nutritionText, new RegExp(String(PROFILE.startKcal)));
 
-    const loadsText = other.find((s) => s.id === "startloads").blocks[0].text;
+    const loadsText = textsOf(other.find((s) => s.id === "startloads")).join(" ");
     assert.match(loadsText, /40 kg/);
     assert.match(loadsText, /60 kg/);
   });
@@ -122,9 +160,11 @@ describe("buildPlan : sections pilotées par la définition (#26)", () => {
 
   test("les sections restantes sont de la méthode, pas du programme", () => {
     for (const s of buildPlan(bare)) {
-      for (const b of s.blocks) {
-        if (b.t !== "p") continue;
-        assert.doesNotMatch(b.text, /squat|rameur|hip thrust|Haut [ABC]|Bas [AB]/i, `${s.id} cite un exercice ou une séance`);
+      /* #104 : le garde-fou lit maintenant les listes aussi. Écrit pour les
+         seuls paragraphes, il aurait cessé de couvrir une phrase le jour où
+         elle devient un item — c'est-à-dire exactement ce que #104 fait. */
+      for (const text of textsOf(s)) {
+        assert.doesNotMatch(text, /squat|rameur|hip thrust|Haut [ABC]|Bas [AB]/i, `${s.id} cite un exercice ou une séance`);
       }
     }
   });
@@ -137,7 +177,9 @@ describe("buildPlan : sections pilotées par la définition (#26)", () => {
     const anchored = buildPlan(withDef({
       program: { ...LEGACY_DEFINITION.program, SLOTS: { a: { reps: [4, 8], rest: 150, key: true, b1: "dc", b2: "dc" }, b: { reps: [8, 12], rest: 90, b1: "lat_db", b2: "lat_cable" } } },
     }));
-    const text = anchored.find((s) => s.id === "structure").blocks[1].text;
+    /* #104 : les ancres sont passées du deuxième bloc à une liste ; ce qui se
+       vérifie reste le même — le nom dérivé du slot est là, l'autre pas. */
+    const text = textsOf(anchored.find((s) => s.id === "structure")).join(" ");
     assert.match(text, /développé couché barre/i);
     assert.doesNotMatch(text, /élévations latérales/i); // ni clé, ni fixe
   });
