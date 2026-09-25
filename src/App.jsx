@@ -27,6 +27,7 @@ import Welcome from "./Welcome.jsx";
 import ExerciseCard from "./ExerciseCard.jsx";
 import { Block, PlanPage, CardioView, WeekTimeline } from "./PlanViews.jsx";
 import ReferenceView from "./ReferenceView.jsx";
+import ReferenceExercises from "./ReferenceExercises.jsx";
 import ExerciseSheet from "./ExerciseSheet.jsx";
 import ExercisePicker from "./ExercisePicker.jsx";
 /* #68 : la porte de l'accueil, réemployée telle quelle par l'onglet Plan. */
@@ -39,7 +40,7 @@ import { programSummaries, removeProgram } from "./program-list.js";
 import { facetsOf } from "./exercise-filter.js";
 import ProgramEditor from "./ProgramEditor.jsx";
 import GenerateProgram from "./GenerateProgram.jsx";
-import { emptyDraft, draftFrom, nextCycleFrom, withNewId, toDefinition, isDirty, withCarriedLoads } from "./program-editor.js";
+import { emptyDraft, draftFrom, nextCycleFrom, withNewId, toDefinition, isDirty, withCarriedLoads, referencedExercises } from "./program-editor.js";
 import { carriedLoad } from "./carryover.js";
 import { cycleReview } from "./cycle-review.js";
 import { buildPlan, PHASE_NOTES } from "./plan.js";
@@ -300,6 +301,17 @@ export default function Programme() {
      qu'à fournir les deux. */
   const [referenceAnchor, setReferenceAnchor] = useState(null);
   const [referenceReturn, setReferenceReturn] = useState(null);
+  /* #116 : la recherche et le filtre du catalogue vivent ici, pas dans
+     ReferenceExercises — la page Référence entière démonte quand on ouvre
+     une fiche (screen "exercice"), et un état interne au composant ne
+     survivrait pas l'aller-retour. C'est ce qui tient « même filtre » au
+     retour, sans rien écrire au stockage. */
+  const [exerciseQuery, setExerciseQuery] = useState("");
+  const [exerciseBucket, setExerciseBucket] = useState("");
+  /* Les exercices que le programme actif fait tourner, pour le repère
+     « au prog. » — dérivé de `prog`, jamais recalculé autrement (même
+     source que le reste de l'écran). */
+  const onProgramIds = useMemo(() => new Set(referencedExercises(prog)), [prog]);
   const openReference = (anchor, ret) => {
     setReferenceAnchor(anchor || null);
     setReferenceReturn(ret || null);
@@ -318,11 +330,21 @@ export default function Programme() {
      séance ne doit pas rouvrir un panneau qu'on avait quitté sans répondre. */
   const openSession = (id) => { setPendingLight(null); setNav({ screen: "seance", sessionId: id }); };
   /* #17 : la fiche garde le sessionId en poche — il n’y est que l’adresse du
-     retour, jamais un contexte. Ouverte sans séance (ce que fera un futur
-     onglet « Exercices »), le retour ramène sur Semaine et rien d’autre ne
-     change dans l’écran. */
-  const openExercise = (vid) => setNav({ screen: "exercice", sessionId: nav.sessionId, exerciseId: vid });
-  const closeExercise = () => (nav.sessionId ? setNav({ screen: "seance", sessionId: nav.sessionId }) : goSemaine());
+     retour, jamais un contexte. Ouverte sans séance (#116, depuis le
+     catalogue de Référence), le retour ramène sur Référence plutôt que sur
+     Semaine — `exerciseReturn` porte cette troisième adresse, hors de `nav`
+     comme planTopic et referenceAnchor (aucune des trois n'est stockée). */
+  const [exerciseReturn, setExerciseReturn] = useState(null);
+  const openExercise = (vid, from) => { setExerciseReturn(from || null); setNav({ screen: "exercice", sessionId: nav.sessionId, exerciseId: vid }); };
+  const closeExercise = () => {
+    if (exerciseReturn === "reference") {
+      setExerciseReturn(null);
+      setReferenceAnchor("exercices");
+      setNav({ screen: "reference", sessionId: null });
+      return;
+    }
+    nav.sessionId ? setNav({ screen: "seance", sessionId: nav.sessionId }) : goSemaine();
+  };
   const [week, setWeek] = useState(curWeek);
   /* #16 : date nominale du créneau (semaine parcourue + jour de la séance)
      dans le cycle actif — remplace w{week}_{sessionId} comme identité de
@@ -1117,7 +1139,7 @@ export default function Programme() {
   const cycleProgress = useMemo(() => cycleReview(prog, state, curWeek), [prog, state, curWeek]);
 
   const backSession = nav.sessionId ? prog.SESSIONS.find((s) => s.id === nav.sessionId) : null;
-  const backLabel = backSession ? `Séance ${backSession.name}` : "Semaine";
+  const backLabel = exerciseReturn === "reference" ? "Référence" : backSession ? `Séance ${backSession.name}` : "Semaine";
 
   const cardio = prog.cardioPlan ? prog.cardioPlan(week) : null;
   const ca = state.cardio[weekStartKey(definition.startDate, week)] || {};
@@ -1406,7 +1428,8 @@ export default function Programme() {
         {screen === "reference" && (
           <ReferenceView sections={plan.filter((s) => s.group === "methode")} onBack={closeReference}
             backLabel={referenceReturn ? referenceReturn.label : "Programme"} initialAnchor={referenceAnchor}>
-            <p className="mt-2 text-sm text-ink-muted">{EXERCISE_IDS.size} exercices dans le registre.</p>
+            <ReferenceExercises q={exerciseQuery} onQueryChange={setExerciseQuery} bucket={exerciseBucket} onBucketChange={setExerciseBucket}
+              onProgramIds={onProgramIds} onOpen={(vid) => openExercise(vid, "reference")} />
           </ReferenceView>
         )}
 
