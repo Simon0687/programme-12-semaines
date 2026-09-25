@@ -24,6 +24,7 @@ const textsOf = (s) => s.blocks.flatMap((b) => {
   if (b.t === "ul" || b.t === "chips") return b.items;
   if (b.t === "iconlist") return b.items.map((it) => it.text);
   if (b.t === "phaseline") return b.steps.map((s2) => s2.text);
+  if (b.t === "bars") return b.rows.flatMap((r) => [r.label, ...r.sessions.map((s2) => s2.label)]);
   if (b.t === "table" && b.variant === "compare") return b.rows.flatMap(([, a, c]) => [a, c]);
   return [];
 });
@@ -84,15 +85,27 @@ describe("PLAN", () => {
             assert.equal(typeof step.text, "string", s.id);
             assert.ok(step.text.trim().length > 0, s.id);
           }
-        } else if (b.t === "table") {
-          assert.ok(["volume", "compare"].includes(b.variant), `${s.id}: variant`);
+        } else if (b.t === "bars") {
           assert.ok(Array.isArray(b.rows) && b.rows.length > 0, `${s.id}: rows`);
-          if (b.variant === "compare") {
-            assert.ok(Array.isArray(b.head) && b.head.length === 2, `${s.id}: head`);
+          /* Trié décroissant, la plus grande valeur donnant l'échelle (#108). */
+          for (let i = 1; i < b.rows.length; i++) {
+            assert.ok(b.rows[i - 1].value >= b.rows[i].value, `${s.id}: pas trié décroissant`);
           }
-          const width = 3; // les deux variantes, volume et compare, sont des lignes à trois cellules
           for (const row of b.rows) {
-            assert.ok(Array.isArray(row) && row.length === width, `${s.id}: largeur de ligne`);
+            assert.equal(typeof row.label, "string", s.id);
+            assert.equal(typeof row.value, "number", s.id);
+            assert.ok(Array.isArray(row.sessions) && row.sessions.length > 0, `${s.id}: sessions`);
+            for (const sess of row.sessions) {
+              assert.equal(typeof sess.label, "string", s.id);
+              assert.ok(sess.sets === null || typeof sess.sets === "number", s.id);
+            }
+          }
+        } else if (b.t === "table") {
+          assert.ok(["compare"].includes(b.variant), `${s.id}: variant`);
+          assert.ok(Array.isArray(b.rows) && b.rows.length > 0, `${s.id}: rows`);
+          assert.ok(Array.isArray(b.head) && b.head.length === 2, `${s.id}: head`);
+          for (const row of b.rows) {
+            assert.ok(Array.isArray(row) && row.length === 3, `${s.id}: largeur de ligne`);
           }
         } else {
           assert.fail(`${s.id}: type de bloc inconnu ${JSON.stringify(b.t)}`);
