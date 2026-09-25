@@ -25,6 +25,18 @@ const hasEntries = (p) =>
   Object.keys((p && p.cardio) || {}).length > 0 ||
   Object.keys((p && p.checkin) || {}).length > 0;
 
+/* #117 : le compte que la confirmation d'import met en regard — celui de
+   cet appareil face à celui du fichier, avant de remplacer l'un par
+   l'autre. Même définition qu'une ligne de cycle (`sessions` ci-dessous) :
+   les séances validées, tous programmes confondus, tombstones exclus. */
+export function journalSessionCount(journal) {
+  const programs = (journal && journal.programs) || {};
+  return Object.values(programs).reduce(
+    (sum, p) => sum + liveLogs(p && p.logs).filter((l) => l.done === true).length,
+    0,
+  );
+}
+
 /* Une ligne par cycle enregistré.
 
    `sessions` compte les séances **validées** : c'est ce qu'on a fait. `entries`

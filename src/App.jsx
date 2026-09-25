@@ -34,7 +34,7 @@ import ExercisePicker from "./ExercisePicker.jsx";
 import Route from "./Route.jsx";
 /* #68 : les cycles enregistrés tels qu'une liste les montre, et la seule
    fonction qui a le droit d'en supprimer un. */
-import { programSummaries, removeProgram } from "./program-list.js";
+import { programSummaries, removeProgram, journalSessionCount } from "./program-list.js";
 /* #64 : « quelles facettes décrivent cet exercice » est une question du
    registre, pas de l'écran — la Séance la pose, exercise-filter.js y répond. */
 import { facetsOf } from "./exercise-filter.js";
@@ -1597,16 +1597,35 @@ export default function Programme() {
             </div>
             <input ref={journalInputRef} type="file" accept="application/json" onChange={handleJournalFile} className="hidden" />
             {importError && <p role="alert" className="text-sm text-alert mt-1">{importError}</p>}
-            {pendingImport && (
-              <div className="mt-2 rounded-md border border-rule bg-surface-raised p-3 space-y-2">
-                <p className="text-sm text-ink">{pendingImport.name}</p>
-                <p className="text-sm text-ink-muted">Remplacera le journal de cet appareil. Une copie de l'actuel est enregistrée avant, et reste téléchargeable ci-dessous.</p>
-                <div className="flex gap-2 flex-wrap">
-                  <Btn small primary onClick={() => { const p = pendingImport; setPendingImport(null); importData(p.res); }}>Remplacer le journal</Btn>
-                  <Btn small onClick={() => setPendingImport(null)}>Annuler</Btn>
+            {pendingImport && (() => {
+              /* #117 : les deux comptes sous la même définition — les séances
+                 validées, tombstones exclus (journalSessionCount,
+                 program-list.js) — pour que le chiffre qui manquerait à
+                 l'appel se voie avant de taper Remplacer, pas après. */
+              const onDevice = journalSessionCount(journal);
+              const inFile = journalSessionCount(pendingImport.res.data);
+              const fewer = inFile < onDevice;
+              return (
+                <div className="mt-2 rounded-md border border-rule bg-surface-raised p-3 space-y-3">
+                  <p className="text-sm text-ink font-medium">Remplacer le journal ?</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-xs text-ink-muted">Cet appareil</div>
+                      <div className="text-sm text-ink mt-0.5">{onDevice} séance{onDevice > 1 ? "s" : ""}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-ink-muted truncate">{pendingImport.name}</div>
+                      <div className={`text-sm mt-0.5 ${fewer ? "text-alert font-medium" : "text-ink"}`}>{inFile} séance{inFile > 1 ? "s" : ""}</div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-ink-muted">Copie de l'actuel gardée dans Sauvegardes.</p>
+                  <div className="flex gap-2 flex-wrap">
+                    <Btn small onClick={() => setPendingImport(null)}>Annuler</Btn>
+                    <Btn small primary onClick={() => { const p = pendingImport; setPendingImport(null); importData(p.res); }}>Remplacer</Btn>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* La ligne des sauvegardes automatiques est masquée quand il n'y
                 en a aucune — la lister vide serait un groupe qui promet
