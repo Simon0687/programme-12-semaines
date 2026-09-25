@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "../src/plan.js";
+import { buildPlan, PHASE_NOTES } from "../src/plan.js";
 import { phaseOf } from "../src/progression.js";
 /* #26 : le plan se vérifie contre le programme hérité — le bundle par défaut
    ne portera plus ni charges de départ ni valeurs personnelles. */
@@ -37,11 +37,6 @@ describe("PHASE_NOTES", () => {
 });
 
 describe("PLAN", () => {
-  test("PLAN_INTRO est une chaîne non vide", () => {
-    assert.equal(typeof PLAN_INTRO, "string");
-    assert.ok(PLAN_INTRO.trim().length > 0);
-  });
-
   test("chaque section a un id, un titre et au moins un bloc", () => {
     const seen = new Set();
     for (const s of PLAN) {

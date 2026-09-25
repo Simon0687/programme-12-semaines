@@ -87,6 +87,17 @@ module.exports = {
         "share-2": colors.slate[500],
         "share-3": colors.slate[600],
         "share-4": colors.slate[700],         // et tous les suivants
+
+        /* ---- Phases du cycle (#107, #114) ----
+           Un repère de lecture sur douze semaines, pas un accent ni un
+           statut : cinq couleurs distinctes, définies une fois et reprises
+           telles quelles par la timeline de l'index Programme et par la
+           frise de Référence. */
+        "phase-calib": colors.slate[400],
+        "phase-b1": colors.sky[400],
+        "phase-deload": colors.amber[400],
+        "phase-b2": colors.indigo[400],
+        "phase-bilan": colors.emerald[400],
       },
     },
   },
