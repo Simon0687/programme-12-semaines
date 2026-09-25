@@ -22,6 +22,19 @@ import { hasCardioItems, hasMobilityDays } from "./program.js";
 
 export function Block({ block }) {
   if (block.t === "p") return <p>{block.text}</p>;
+  /* #104 : deux formes de plus, et c'est tout ce que le rendu avait à
+     apprendre. Le reproche « beaucoup de texte » ne venait pas de la quantité
+     d'information mais de ce vocabulaire à trois formes : faute de liste, les
+     cinq déclencheurs de décharge s'écrivaient en une phrase de 299
+     caractères séparée par des points-virgules. La forme suit ce que le
+     contenu *est*, au lieu de l'aplatir. */
+  if (block.t === "h") return <h3 className="text-ink font-medium pt-2">{block.text}</h3>;
+  if (block.t === "ul")
+    return (
+      <ul className="list-disc pl-5 space-y-1 marker:text-ink-faint">
+        {block.items.map((it) => <li key={it}>{it}</li>)}
+      </ul>
+    );
   if (block.t === "table" && block.variant === "weeks")
     return (
       <table className="w-full text-sm">

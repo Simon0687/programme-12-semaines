@@ -39,6 +39,8 @@
        open         true => Section dépliée au montage (défaut : repliée).
        blocks[]     contenu, un objet par bloc :
          { t: "p", text }                    paragraphe.
+         { t: "h", text }                    intertitre dans la page (#104).
+         { t: "ul", items: [texte, …] }      liste à puces (#104).
          { t: "table", variant: "weeks",  rows: [[libellé, description], …] }
          { t: "table", variant: "volume", rows: [[groupe, nb, où], …] }
                                              (nb : cellule ambre, alignée à droite)
@@ -241,8 +243,23 @@ export function buildPlan(definition) {
       group: "methode",
       meta: "5 déclencheurs · 2 recettes",
       blocks: [
-        { t: "p", text: "Déclencheurs : baisse de performance sur ≥ 2 exercices clés pendant 2 séances de suite malgré sommeil et alimentation corrects ; douleur articulaire ≥ 3/10 qui persiste plus de 48 h ou augmente ; sommeil < 6 h plusieurs nuits ; FC de repos ou HRV dégradées 3 jours ou plus ; RIR ressenti qui dérive." },
-        { t: "p", text: "Décharge complète : mêmes exercices, volume −50 %, charges −10 à −20 %, 3–4 RIR, une semaine. Allègement ciblé (une articulation qui se plaint) : on retire uniquement les exercices qui la sollicitent, on garde le reste, on remplace par une variante indolore. Toute douleur nouvelle = arrêt de l'exercice concerné, avis médical si elle persiste." },
+        /* #104 : les cinq déclencheurs étaient une phrase de 299 caractères à
+           points-virgules, et les deux recettes une de 344. Aucun mot n'a été
+           retiré — ils sont rangés. Le sous-titre de l'index (« 5 déclencheurs
+           · 2 recettes ») promettait déjà cette forme ; la page la tient. */
+        { t: "h", text: "Déclencheurs" },
+        { t: "ul", items: [
+          "Baisse de performance sur ≥ 2 exercices clés, 2 séances de suite, malgré sommeil et alimentation corrects",
+          "Douleur articulaire ≥ 3/10 qui persiste plus de 48 h ou augmente",
+          "Sommeil < 6 h plusieurs nuits",
+          "FC de repos ou HRV dégradées 3 jours ou plus",
+          "RIR ressenti qui dérive",
+        ] },
+        { t: "h", text: "Décharge complète" },
+        { t: "p", text: "Mêmes exercices, volume −50 %, charges −10 à −20 %, 3–4 RIR, une semaine." },
+        { t: "h", text: "Allègement ciblé" },
+        { t: "p", text: "Quand une articulation se plaint : on retire uniquement les exercices qui la sollicitent, on garde le reste, on remplace par une variante indolore." },
+        { t: "p", text: "Toute douleur nouvelle = arrêt de l'exercice concerné, avis médical si elle persiste." },
       ],
     },
 
