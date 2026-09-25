@@ -330,6 +330,14 @@ export default function Programme() {
   const goReglages = () => setNav({ screen: "reglages", sessionId: null });
   /* #110 : sa propre porte, depuis A1. */
   const goMesProgrammes = () => setNav({ screen: "mesProgrammes", sessionId: null });
+  /* #111 : reachable depuis A1 et B1, donc « Annuler » doit revenir à
+     l'un ou à l'autre — même mécanisme générique que Référence (#114, #115) :
+     `from` est le nav exact à restaurer, non stocké (un rechargement en
+     pleine décision retombe sur Programme, comme Référence retombe sur son
+     en-tête normal). */
+  const [newProgramReturn, setNewProgramReturn] = useState(null);
+  const openNewProgram = (from) => { setNewProgramReturn(from); setNav({ screen: "nouveauProgramme", sessionId: null }); };
+  const closeNewProgram = () => { const back = newProgramReturn; setNewProgramReturn(null); back ? setNav(back) : goPlan(); };
   /* #114 : l'ancre de départ n'est pas dans `nav` — même règle que planTopic
      ci-dessus, un rechargement rouvre la page en haut.
      #115 : l'adresse de retour non plus. `ret` est { nav, label } — le nav
@@ -428,11 +436,9 @@ export default function Programme() {
      chargement et meurt au premier choix. */
   const [welcome, setWelcome] = useState(false);
   const [programError, setProgramError] = useState(""); // #6 : rejet d'un fichier de programme
-  /* #68 : deux états d'écran, rien de stocké. `newProgram` ouvre les portes de
-     création, `pendingDelete` porte l'id dont la suppression est proposée — la
-     confirmation est un panneau dans l'appli, comme pour l'import (#11), et
-     non un window.confirm qu'on écarte par réflexe. */
-  const [newProgram, setNewProgram] = useState(false);
+  /* #68, #110 : `pendingDelete` porte l'id dont la suppression est proposée —
+     la confirmation est un panneau dans l'appli (DeleteSheet), comme pour
+     l'import (#11), et non un window.confirm qu'on écarte par réflexe. */
   const [pendingDelete, setPendingDelete] = useState(null);
   /* #36 : le brouillon de l'éditeur vit ici et nulle part ailleurs — rien
      n'est écrit tant que « Enregistrer » n'a pas été touché (Q4). "editeur"
@@ -1118,7 +1124,12 @@ export default function Programme() {
     goPlan();
   };
 
-  const handleProgramFile = async (e) => {
+  /* #111 : `onLoaded` n'existe que pour la porte « Charger un fichier » de
+     Nouveau programme — un chargement réussi doit y quitter la décision pour
+     Programme, où le nouveau cycle actif se voit. L'accueil (#19) n'en passe
+     aucun : `welcome` bascule déjà tout l'écran, il n'y a rien de plus à
+     faire naviguer. */
+  const handleProgramFile = async (e, onLoaded) => {
     const file = e.target.files[0];
     e.target.value = ""; // permet de recharger le même fichier une deuxième fois
     if (!file) return;
@@ -1139,6 +1150,7 @@ export default function Programme() {
     if (!res.ok) { setProgramError(res.message); return; }
     setProgramError("");
     loadProgram(res.definition);
+    if (onLoaded) onLoaded();
   };
 
   /* #41 : « Aujourd'hui, jeudi : Upper B » est devenu la pastille sur la liste
@@ -1159,7 +1171,7 @@ export default function Programme() {
     ? { over: at.week > definition.weeks, review: cycleReview(prog, state, definition.weeks) }
     : null;
   const continueProgram = () => openEditor(nextCycleFrom(definition, today));
-  const changeProgram = () => { setNav({ screen: "plan", sessionId: null }); setPlanTopic("programme"); setNewProgram(true); };
+  const changeProgram = () => openNewProgram({ screen: "semaine", sessionId: null });
 
   /* #107 : la frise de l'index Programme, une phase par semaine. Dérivée de
      phaseOf() comme PHASE_NOTES[phase.id] plus haut — jamais recalculée
@@ -1243,25 +1255,11 @@ export default function Programme() {
      l'écran (des boutons, des fichiers), pas du contenu. Elles prennent leur
      place dans le même index parce que le lecteur, lui, ne fait pas la
      différence. */
-  const planTopics = [
-    ...plan.map((s) => ({ id: s.id, title: s.title, group: s.group, meta: s.meta })),
-    {
-      id: "programme",
-      title: "Programme",
-      group: "programme",
-      /* Le compte qui compte ici est l'avis : `assess()` est déjà calculé (#57),
-         et « 3 points à regarder » est ce qu'on vient vérifier. Le nom du
-         programme n'est pas répété — la carte en tête de l'index le porte.
-
-         #68 : le nombre de cycles s'y ajoute dès qu'il y en a plusieurs, parce
-         que la page n'est plus seulement l'avis sur l'actif — c'est de là qu'on
-         change de programme. À un seul cycle la mention n'apprendrait rien. */
-      meta: [
-        programRows.length > 1 ? `${programRows.length} programmes` : null,
-        advice.findings.length ? adviceSummary(advice.findings.length) : "Rien à signaler sur ce programme",
-      ].filter(Boolean).join(" · "),
-    },
-  ];
+  /* #111 : la porte de gestion de cycle (« Programme », son avis, sa liste)
+     n'est plus une ligne de cet index depuis #107 — elle a son propre écran
+     ("mesProgrammes", #110) et sa propre porte de création ("nouveauProgramme",
+     #111). Il ne reste ici que les cinq pages de données du programme actif. */
+  const planTopics = plan.map((s) => ({ id: s.id, title: s.title, group: s.group, meta: s.meta }));
   const planPage = planTopics.find((t) => t.id === planTopic) || null;
   return (
     <div className="min-h-screen bg-surface text-ink" style={{ fontVariantNumeric: "tabular-nums" }}>
@@ -1512,7 +1510,7 @@ export default function Programme() {
                 </div>
               ))}
             </div>
-            <Btn primary onClick={() => { setNav({ screen: "plan", sessionId: null }); setPlanTopic("programme"); setNewProgram(true); }}>
+            <Btn primary onClick={() => openNewProgram({ screen: "mesProgrammes", sessionId: null })}>
               <Plus size={16} />Nouveau programme
             </Btn>
             {pendingDelete && (
@@ -1524,6 +1522,36 @@ export default function Programme() {
               />
             )}
           </PlanPage>
+        )}
+
+        {/* #111 : la décision de créer un programme, plein écran et sans
+            onglets du bas — « on est dans une décision ». Reachable depuis A1
+            et B1 (openNewProgram(from)) ; Annuler restaure exactement le nav
+            d'où on vient, ou Programme par défaut si cette adresse n'a pas
+            survécu à un rechargement. */}
+        {screen === "nouveauProgramme" && (
+          <div className="px-4 pb-6">
+            <div className="sticky top-0 z-10 bg-surface border-b border-rule -mx-4 px-4 pt-1 pb-2">
+              <button onClick={closeNewProgram} className="h-11 -ml-2 px-2 inline-flex items-center text-sm text-ink-soft focus:outline-none focus:ring-2 focus:ring-focus rounded">Annuler</button>
+            </div>
+            <div className="text-xl font-semibold leading-tight pt-1">Nouveau programme</div>
+            <div className="grid gap-3 mt-4">
+              <Route primary icon={<Sparkles size={18} />} onClick={() => setNav({ screen: "generateur", sessionId: null })}
+                title="Générer mon programme" note="5 questions, l'appli compose" />
+              {/* #74 (charges reportées) est livré : la note peut le dire sans
+                  condition, contrairement à ce que #111 envisageait sinon. */}
+              <Route icon={<Copy size={18} />} onClick={() => openEditor(nextCycleFrom(definition, today))}
+                title="Partir du programme actif" note={`Copie de ${definition.name}, charges reprises`} />
+              <Route icon={<PenLine size={18} />} onClick={() => openEditor(emptyDraft(today))}
+                title="Composer le mien" note="Séance par séance" />
+              <Route icon={<Upload size={18} />} onClick={() => fileInputRef.current.click()}
+                title="Charger un fichier" note="Programme déjà écrit (.json)" />
+            </div>
+            <p className="text-xs text-ink-faint mt-4">Le cycle en cours n'est pas modifié. Le nouveau démarre sur une calibration.</p>
+            <input ref={fileInputRef} type="file" accept="application/json"
+              onChange={(e) => handleProgramFile(e, () => { setNewProgramReturn(null); goPlan(); })} className="hidden" />
+            {programError && <p role="alert" className="text-sm text-alert mt-2">{programError}</p>}
+          </div>
         )}
 
         {/* #106 : écran plein, sans onglets du bas — rien d'autre ne s'y
@@ -1792,110 +1820,7 @@ export default function Programme() {
         {screen === "plan" && (
           planPage ? (
             <PlanPage title={planPage.title} onBack={() => setPlanTopic(null)}>
-              {planPage.id === "programme" ? (
-                <>
-                  <p>{definition.name} — départ {dateLabel(START)}</p>
-                  {/* Avant le reste : un avis sur le programme actif se lit
-                      pendant qu'on sait encore de quel programme on parle. */}
-                  <ProgramAdvice findings={advice.findings} />
-
-                  {/* #68 : la liste des cycles était une rangée de pastilles
-                      identiques, apparue seulement au-delà de deux cycles, et
-                      posée juste sous quatre boutons de création du même
-                      dessin. Quatre verbes qui font des choses différentes se
-                      ressemblaient, et « lequel est actif » tenait à un style.
-
-                      Une ligne par cycle, ce qu'il porte écrit dessus, et les
-                      deux intentions séparées : changer de cycle est une liste,
-                      en créer un est une porte. Affichée même à un seul cycle :
-                      « mes programmes » est la réponse à une question qu'on se
-                      pose avant de savoir combien il y en a. */}
-                  <div className="text-xs uppercase tracking-wider text-ink-muted pt-1">Mes programmes</div>
-                  <div className="-mt-1">
-                    {programRows.map((row) => (
-                      <div key={row.id} className="py-3 border-b border-rule flex items-start gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className={`font-medium truncate ${row.active ? "text-ink" : "text-ink-soft"}`}>{row.name}</span>
-                            {row.active && <span className="shrink-0 text-xs text-ink-muted border border-rule rounded-full px-2 py-0.5">actif</span>}
-                          </div>
-                          <div className="text-sm text-ink-muted mt-0.5">{programMeta(row, today)}</div>
-                          {!row.usable && (
-                            <div className="text-sm text-notice mt-0.5">
-                              Pas exécutable par cette version. Il reste dans le journal et dans l'export.
-                            </div>
-                          )}
-                        </div>
-                        <div className="shrink-0 flex items-center gap-2">
-                          {!row.active && row.usable && (
-                            <Btn small onClick={() => setJournal((j) => ({ ...j, activeProgramId: row.id }))}>Activer</Btn>
-                          )}
-                          {/* #68 : un cycle ne se supprime que s'il n'a rien
-                              produit — la règle est tenue par `removeProgram`,
-                              ce bouton ne fait que ne pas proposer l'impossible.
-                              Un cycle qui porte des séances est de l'histoire :
-                              la fiche exercice la lit à travers tous les cycles
-                              et rien ne la reconstruirait. */}
-                          {row.removable && (
-                            <button onClick={() => setPendingDelete(row.id)} aria-label={`Supprimer ${row.name}`}
-                              className="h-9 w-9 inline-flex items-center justify-center rounded-md bg-surface-raised border border-rule text-ink-muted focus:outline-none focus:ring-2 focus:ring-focus">
-                              <Trash2 size={15} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Même panneau à deux boutons que l'import (#11) : la question
-                      se lit dans l'appli, et le bouton qui détruit n'est pas
-                      celui qu'on touche par réflexe. */}
-                  {pendingDelete && (
-                    <div className="rounded-md border border-rule bg-surface-raised p-3 space-y-2">
-                      <p className="text-sm text-ink font-medium">Supprimer ce programme ?</p>
-                      <p className="text-sm text-ink-muted">
-                        {(journal.programs[pendingDelete]?.definition?.name) || pendingDelete} n'a aucune séance enregistrée : il ne reste rien de lui après.
-                      </p>
-                      <div className="flex gap-2 flex-wrap">
-                        <Btn small onClick={() => { const next = removeProgram(journal, pendingDelete); setPendingDelete(null); if (next) { setJournal(next); showToast("Programme supprimé."); } }}>Supprimer</Btn>
-                        <Btn small onClick={() => setPendingDelete(null)}>Annuler</Btn>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* #68 : une seule porte, qui demande ensuite comment — au
-                      lieu de quatre boutons de même poids. Les trois premières
-                      sont mot pour mot celles de l'accueil (#19) : la question
-                      est la même, elle se présente pareil. */}
-                  {newProgram ? (
-                    <div className="grid gap-3">
-                      <Route primary icon={<Sparkles size={18} />} onClick={() => { setNewProgram(false); setNav({ screen: "generateur", sessionId: null }); }}
-                        title="Générer mon programme"
-                        note="Cinq questions — jours, durée, matériel, niveau, objectif — et l'appli compose." />
-                      <Route icon={<PenLine size={18} />} onClick={() => { setNewProgram(false); openEditor(emptyDraft(today)); }}
-                        title="Composer le mien"
-                        note="Séance par séance, dans le catalogue d'exercices de l'appli." />
-                      <Route icon={<Upload size={18} />} onClick={() => { setNewProgram(false); fileInputRef.current.click(); }}
-                        title="Charger un fichier"
-                        note="Un programme déjà écrit, au format de l'appli." />
-                      {/* #36 : « Partir du programme actif » et non « Modifier » —
-                          tant que l'édition en place n'existe pas (étape 8), ce
-                          bouton compose un nouveau cycle à partir de celui-ci, et un
-                          nouveau cycle repart sur la calibration. */}
-                      <Route icon={<Copy size={18} />} onClick={() => { setNewProgram(false); openEditor(nextCycleFrom(definition, today)); }}
-                        title="Partir du programme actif"
-                        note={`Une copie de ${definition.name} à retoucher. Le cycle en cours n'est pas modifié.`} />
-                      <Btn small onClick={() => setNewProgram(false)}>Annuler</Btn>
-                    </div>
-                  ) : (
-                    <Btn primary onClick={() => setNewProgram(true)}><Plus size={16} />Nouveau programme</Btn>
-                  )}
-                  <input ref={fileInputRef} type="file" accept="application/json" onChange={handleProgramFile} className="hidden" />
-                  {programError && <p role="alert" className="text-sm text-alert">{programError}</p>}
-                </>
-              ) : (
-                (plan.find((s) => s.id === planPage.id) || { blocks: [] }).blocks.map((b, i) => <Block key={i} block={b} />)
-              )}
+              {(plan.find((s) => s.id === planPage.id) || { blocks: [] }).blocks.map((b, i) => <Block key={i} block={b} />)}
             </PlanPage>
           ) : (
             <>
@@ -1967,7 +1892,7 @@ export default function Programme() {
                   sans changer ce que ces boutons déclenchent ici. */}
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <Btn onClick={goMesProgrammes}>Mes programmes</Btn>
-                <Btn onClick={() => { setPlanTopic("programme"); setNewProgram(true); }}><Plus size={16} />Nouveau</Btn>
+                <Btn onClick={() => openNewProgram({ screen: "plan", sessionId: null })}><Plus size={16} />Nouveau</Btn>
               </div>
 
               <div className="mt-5">
@@ -1989,7 +1914,7 @@ export default function Programme() {
 
         {/* Navigation — absente sur les écrans plein écran sans onglets
             (#106, #111) : rien d'autre ne s'y passe. */}
-        {screen !== "reglages" && (
+        {screen !== "reglages" && screen !== "nouveauProgramme" && (
         <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-rule">
           {/* #41 : le badge de progression est parti avec cet onglet — il vit
               maintenant en tête de la liste des séances, sur l'écran où l'on
