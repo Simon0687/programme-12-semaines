@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, Upload, Zap, X, Plus, Trash2, Copy, Sparkles, PenLine } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, Upload, Zap, X, Plus, Trash2, Copy, Sparkles, PenLine, Settings, AlertTriangle } from "lucide-react";
 import { SCHEMA_VERSION, emptyJournal, weekStartKey, dateForSlot, slotForDate, findLog, writeLog, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport, IMPORT_MESSAGES } from "./import.js";
 import { listBackups, readDroppedBackup, backupPreImportOnce, readPreImportBackup } from "./backup.js";
@@ -273,6 +273,11 @@ export default function Programme() {
      barre du bas ramène à l'index, comme on l'attend d'un onglet. */
   const [planTopic, setPlanTopic] = useState(null);
   const goPlan = () => { setPlanTopic(null); setNav({ screen: "plan", sessionId: null }); };
+  /* #106 : le ⚙ de l'en-tête Programme. Écran plein, sans onglets du bas —
+     rien d'autre ne se passe ici — et fermé par « Fermer » plutôt que par un
+     retour, puisqu'on peut y arriver depuis l'index sans avoir choisi un
+     sujet. */
+  const goReglages = () => setNav({ screen: "reglages", sessionId: null });
   /* La question de #43 ne survit pas à un changement d'écran : revenir sur une
      séance ne doit pas rouvrir un panneau qu'on avait quitté sans répondre. */
   const openSession = (id) => { setPendingLight(null); setNav({ screen: "seance", sessionId: id }); };
@@ -1145,12 +1150,6 @@ export default function Programme() {
         advice.findings.length ? adviceSummary(advice.findings.length) : "Rien à signaler sur ce programme",
       ].filter(Boolean).join(" · "),
     },
-    {
-      id: "donnees",
-      title: "Données : sauvegarde et restauration",
-      group: "appareil",
-      meta: `${lastExport ? `Export ${dateLabel(parseLocalDate(lastExport))}` : "Jamais exporté"} · ${persisted === true ? "stockage persistant" : persisted === false ? "stockage non persistant" : "persistance inconnue"}`,
-    },
   ];
   const planPage = planTopics.find((t) => t.id === planTopic) || null;
   return (
@@ -1343,6 +1342,91 @@ export default function Programme() {
             qu'à l'éditeur — c'est lui, et lui seul, qui écrit. */}
         {screen === "generateur" && (
           <GenerateProgram today={today} onBack={goPlan} onAccept={(def) => openEditor(draftFrom(def))} />
+        )}
+
+        {/* #106 : écran plein, sans onglets du bas — rien d'autre ne s'y
+            passe. « Fermer » plutôt qu'un retour : on peut y arriver sans
+            avoir choisi un sujet dans Plan. Tout ce que faisait la page
+            « Données » reste joignable, aux mêmes fonctions. */}
+        {screen === "reglages" && (
+          <div className="px-4 pb-6">
+            <div className="sticky top-0 z-10 bg-surface border-b border-rule -mx-4 px-4 pt-1 pb-2 flex items-center justify-between">
+              <button onClick={goPlan} className="h-11 -ml-2 px-2 inline-flex items-center gap-1 text-sm text-ink-soft focus:outline-none focus:ring-2 focus:ring-focus rounded">Fermer</button>
+            </div>
+            <div className="text-xl font-semibold leading-tight pt-1">Réglages</div>
+
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <div className="rounded-md border border-rule bg-surface-raised p-3">
+                <div className="text-xs text-ink-muted">Stockage persistant</div>
+                <div className="text-sm text-ink mt-0.5">{persisted === true ? "Oui" : persisted === false ? "Non" : "Inconnu"}</div>
+              </div>
+              <div className="rounded-md border border-rule bg-surface-raised p-3">
+                <div className="text-xs text-ink-muted">Export</div>
+                <div className="text-sm text-ink mt-0.5">{lastExport ? (daysBetween(lastExport, todayIso) === 0 ? "Aujourd'hui" : `Il y a ${daysBetween(lastExport, todayIso)} j`) : "Jamais"}</div>
+              </div>
+            </div>
+            {persisted === false && (
+              <p className="text-xs text-ink-muted mt-2">Le navigateur n'a pas accordé de stockage persistant : il peut vider ces données pour faire de la place. Le fichier reste la vraie sauvegarde.</p>
+            )}
+
+            <div className="text-xs uppercase tracking-wider text-ink-muted mt-6">Exporter</div>
+            <div className="mt-1 divide-y divide-rule border-y border-rule">
+              <button onClick={exportJournal} className="w-full flex items-center gap-3 py-3.5 text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
+                <Download size={18} className="text-ink-muted shrink-0" />
+                <span className="flex-1 min-w-0"><span className="block text-ink">Journal complet (.json)</span><span className="block text-sm text-ink-muted mt-0.5">La vraie sauvegarde, réimportable</span></span>
+              </button>
+            </div>
+            {exportStatus && <p className="text-xs text-ink-soft mt-1">{exportStatus}</p>}
+
+            <div className="text-xs uppercase tracking-wider text-ink-muted mt-6">Restaurer</div>
+            <div className="mt-1 divide-y divide-rule border-y border-rule">
+              <button onClick={() => journalInputRef.current.click()} className="w-full flex items-center gap-3 py-3.5 text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
+                <AlertTriangle size={18} className="text-notice shrink-0" />
+                <span className="flex-1 min-w-0"><span className="block text-ink">Importer un journal</span><span className="block text-sm text-ink-muted mt-0.5">Remplace celui de l'appareil</span></span>
+              </button>
+            </div>
+            <input ref={journalInputRef} type="file" accept="application/json" onChange={handleJournalFile} className="hidden" />
+            {importError && <p role="alert" className="text-sm text-alert mt-1">{importError}</p>}
+            {pendingImport && (
+              <div className="mt-2 rounded-md border border-rule bg-surface-raised p-3 space-y-2">
+                <p className="text-sm text-ink">{pendingImport.name}</p>
+                <p className="text-sm text-ink-muted">Remplacera le journal de cet appareil. Une copie de l'actuel est enregistrée avant, et reste téléchargeable ci-dessous.</p>
+                <div className="flex gap-2 flex-wrap">
+                  <Btn small primary onClick={() => { const p = pendingImport; setPendingImport(null); importData(p.res); }}>Remplacer le journal</Btn>
+                  <Btn small onClick={() => setPendingImport(null)}>Annuler</Btn>
+                </div>
+              </div>
+            )}
+
+            {/* La ligne des sauvegardes automatiques est masquée quand il n'y
+                en a aucune — la lister vide serait un groupe qui promet
+                quelque chose et ne montre rien. */}
+            {(backups.length > 0 || droppedBackup || preImportBackup) && (
+              <>
+                <div className="text-xs uppercase tracking-wider text-ink-muted mt-6">Sauvegardes automatiques</div>
+                <div className="mt-1 divide-y divide-rule border-y border-rule">
+                  {backups.map((b) => (
+                    <button key={b.from} onClick={() => downloadBackup(`prog12-journal-v${b.from}-avant-migration.json`, b.value)} className="w-full flex items-center gap-3 py-3.5 text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
+                      <Download size={16} className="text-ink-muted shrink-0" />
+                      <span className="flex-1 min-w-0 text-ink">Sauvegarde d'avant-migration (v{b.from})</span>
+                    </button>
+                  ))}
+                  {droppedBackup && (
+                    <button onClick={() => downloadBackup("prog12-journal-avant-lignes-ecartees.json", droppedBackup)} className="w-full flex items-center gap-3 py-3.5 text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
+                      <Download size={16} className="text-ink-muted shrink-0" />
+                      <span className="flex-1 min-w-0 text-ink">Journal d'avant les séances écartées</span>
+                    </button>
+                  )}
+                  {preImportBackup && (
+                    <button onClick={() => downloadBackup("prog12-journal-avant-import.json", preImportBackup)} className="w-full flex items-center gap-3 py-3.5 text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
+                      <Download size={16} className="text-ink-muted shrink-0" />
+                      <span className="flex-1 min-w-0 text-ink">Journal d'avant le premier import</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         )}
 
         {screen === "editeur" && editor && (
@@ -1624,55 +1708,6 @@ export default function Programme() {
                   <input ref={fileInputRef} type="file" accept="application/json" onChange={handleProgramFile} className="hidden" />
                   {programError && <p role="alert" className="text-sm text-alert">{programError}</p>}
                 </>
-              ) : planPage.id === "donnees" ? (
-                <>
-                  <p>{storageOk ? "Le journal est enregistré automatiquement sur cet appareil." : "Stockage automatique indisponible ici."} Avant une mise à jour du fichier, télécharge le journal et garde le fichier : il se réimporte ci-dessous.</p>
-                  <div className="flex gap-2 flex-wrap">
-                    <Btn small onClick={exportJournal}><Download size={14} />Télécharger le journal</Btn>
-                    <Btn small onClick={() => journalInputRef.current.click()}><Upload size={14} />Importer un fichier</Btn>
-                  </div>
-                  <input ref={journalInputRef} type="file" accept="application/json" onChange={handleJournalFile} className="hidden" />
-                  {/* #15 : la date est affichée, pas seulement enregistrée. Sur le
-                      chemin « ancre », l'app ne peut pas savoir si le fichier a
-                      atterri (decisions-spec.md Q2) — la montrer est ce qui rend
-                      une valeur optimiste vérifiable. */}
-                  <p className="text-xs text-ink-muted">{lastExport ? `Dernier export : ${dateLabel(parseLocalDate(lastExport))}.` : "Aucun export enregistré sur cet appareil."}</p>
-                  {/* #15 : dire ce que le navigateur a répondu, en clair. Un
-                      stockage « éligible à l'éviction » est la raison d'être de
-                      tout ce panneau — la nommer vaut mieux que la sous-entendre. */}
-                  <p className="text-xs text-ink-muted">
-                    {persisted === true
-                      ? "Le navigateur a marqué ce stockage comme persistant : il ne sera pas vidé pour faire de la place."
-                      : persisted === false
-                        ? "Le navigateur n'a pas accordé de stockage persistant : il peut vider ces données pour faire de la place. Le fichier reste la vraie sauvegarde."
-                        : "Ce navigateur ne dit pas si le stockage est persistant."}
-                  </p>
-                  {exportStatus && <p className="text-xs text-ink-soft">{exportStatus}</p>}
-                  {importError && <p role="alert" className="text-sm text-alert">{importError}</p>}
-                  {pendingImport && (
-                    <div className="rounded-md border border-rule bg-surface-raised p-3 space-y-2">
-                      <p className="text-sm text-ink">{pendingImport.name}</p>
-                      <p className="text-sm text-ink-muted">Remplacera le journal de cet appareil. Une copie de l'actuel est enregistrée avant, et reste téléchargeable ci-dessous.</p>
-                      <div className="flex gap-2 flex-wrap">
-                        <Btn small primary onClick={() => { const p = pendingImport; setPendingImport(null); importData(p.res); }}>Remplacer le journal</Btn>
-                        <Btn small onClick={() => setPendingImport(null)}>Annuler</Btn>
-                      </div>
-                    </div>
-                  )}
-                  {(backups.length > 0 || droppedBackup || preImportBackup) && (
-                    <div className="flex gap-2 flex-wrap">
-                      {backups.map((b) => (
-                        <Btn key={b.from} small onClick={() => downloadBackup(`prog12-journal-v${b.from}-avant-migration.json`, b.value)}><Download size={14} />Sauvegarde d'avant-migration (v{b.from})</Btn>
-                      ))}
-                      {/* #32 : le journal tel qu'il était avant que des séances
-                          illisibles n'en soient écartées. Comme les autres
-                          sauvegardes, elle n'est jamais restaurée toute seule :
-                          on la sort du téléphone, on la relit, on décide. */}
-                      {droppedBackup && <Btn small onClick={() => downloadBackup("prog12-journal-avant-lignes-ecartees.json", droppedBackup)}><Download size={14} />Journal d'avant les séances écartées</Btn>}
-                      {preImportBackup && <Btn small onClick={() => downloadBackup("prog12-journal-avant-import.json", preImportBackup)}><Download size={14} />Journal d'avant le premier import</Btn>}
-                    </div>
-                  )}
-                </>
               ) : (
                 (plan.find((s) => s.id === planPage.id) || { blocks: [] }).blocks.map((b, i) => <Block key={i} block={b} />)
               )}
@@ -1682,8 +1717,13 @@ export default function Programme() {
             {/* #83 : l'index perd l'en-tête de semaine et gagne le sien, du même
                 dessin que celui de PlanPage — un titre, sans flèches. La
                 semaine reste dite, sur la carte du programme actif. */}
-            <div className="sticky top-0 z-10 bg-surface border-b border-rule px-4 pt-3 pb-2">
+            <div className="sticky top-0 z-10 bg-surface border-b border-rule px-4 pt-3 pb-2 flex items-center justify-between">
               <div className="text-xl font-semibold leading-tight">Plan</div>
+              {/* #106 : sorti d'ici — le rarement touché n'a plus la même
+                  place que ce qu'on lit au repos. */}
+              <button onClick={goReglages} aria-label="Réglages" className="h-11 w-11 -mr-2 inline-flex items-center justify-center text-ink-muted rounded focus:outline-none focus:ring-2 focus:ring-focus">
+                <Settings size={20} />
+              </button>
             </div>
             <div className="px-4">
               <p className="text-sm text-ink-soft mt-3">{PLAN_INTRO}</p>
@@ -1707,7 +1747,9 @@ export default function Programme() {
 
         {toast && <div className="fixed left-1/2 -translate-x-1/2 bottom-20 bg-accent text-ink-inverse px-4 py-2 rounded-md text-sm font-medium shadow-none">{toast}</div>}
 
-        {/* Navigation */}
+        {/* Navigation — absente sur les écrans plein écran sans onglets
+            (#106, #111) : rien d'autre ne s'y passe. */}
+        {screen !== "reglages" && (
         <nav className="fixed bottom-0 left-0 right-0 bg-surface border-t border-rule">
           {/* #41 : le badge de progression est parti avec cet onglet — il vit
               maintenant en tête de la liste des séances, sur l'écran où l'on
@@ -1726,6 +1768,7 @@ export default function Programme() {
             <button onClick={guarded(goPlan)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen === "plan" || screen === "editeur" ? "text-accent font-medium" : "text-ink-muted"}`}>Plan</button>
           </div>
         </nav>
+        )}
       </div>
     </div>
   );
