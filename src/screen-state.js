@@ -23,7 +23,7 @@
 
 export const SCREEN_KEY = "prog12_screen";
 
-const SCREENS = ["semaine", "seance", "plan", "exercice"];
+const SCREENS = ["semaine", "seance", "plan", "exercice", "reglages"];
 const HOME = { screen: "semaine", sessionId: null };
 
 /* EXERCISE_IDS est un Set, prog.SESSIONS une liste : le module ne sait ce
