@@ -25,7 +25,7 @@ import { prescribedVid, vidFor, isSubstituted, withSub, takenVids, slotIdsOf } f
 import { isFirstLaunch, startingNow } from "./onboarding.js";
 import Welcome from "./Welcome.jsx";
 import ExerciseCard from "./ExerciseCard.jsx";
-import { Block, PlanIndex, PlanPage, CardioView } from "./PlanViews.jsx";
+import { Block, PlanPage, CardioView, WeekTimeline } from "./PlanViews.jsx";
 import ExerciseSheet from "./ExerciseSheet.jsx";
 import ExercisePicker from "./ExercisePicker.jsx";
 /* #68 : la porte de l'accueil, réemployée telle quelle par l'onglet Plan. */
@@ -41,7 +41,7 @@ import GenerateProgram from "./GenerateProgram.jsx";
 import { emptyDraft, draftFrom, nextCycleFrom, withNewId, toDefinition, isDirty, withCarriedLoads } from "./program-editor.js";
 import { carriedLoad } from "./carryover.js";
 import { cycleReview } from "./cycle-review.js";
-import { buildPlan, PLAN_INTRO, PHASE_NOTES } from "./plan.js";
+import { buildPlan, PHASE_NOTES } from "./plan.js";
 import { buildBilan } from "./bilan.js";
 import { bodyMeasures } from "./measures.js";
 import MeasureCharts from "./MeasureChart.jsx";
@@ -1065,6 +1065,21 @@ export default function Programme() {
   const continueProgram = () => openEditor(nextCycleFrom(definition, today));
   const changeProgram = () => { setNav({ screen: "plan", sessionId: null }); setPlanTopic("programme"); setNewProgram(true); };
 
+  /* #107 : la frise de l'index Programme, une phase par semaine. Dérivée de
+     phaseOf() comme PHASE_NOTES[phase.id] plus haut — jamais recalculée
+     autrement, pour qu'une frise et une séance décrivent toujours le même
+     découpage. `curWeek`, pas `week` : l'index dit où en est le cycle
+     aujourd'hui, indépendamment de la semaine feuilletée dans Semaine. */
+  const weekPhases = useMemo(
+    () => Array.from({ length: definition.weeks }, (_, i) => phaseOf(i + 1, policies, definition.weeks).id),
+    [definition.weeks, policies],
+  );
+  /* « Séances faites » de l'index : le même calcul que le bilan de fin de
+     cycle (cycleReview), mais borné à ce qui a eu lieu jusqu'ici — passer
+     curWeek plutôt que definition.weeks donne "planned so far" sans
+     dupliquer la règle. */
+  const cycleProgress = useMemo(() => cycleReview(prog, state, curWeek), [prog, state, curWeek]);
+
   const backSession = nav.sessionId ? prog.SESSIONS.find((s) => s.id === nav.sessionId) : null;
   const backLabel = backSession ? `Séance ${backSession.name}` : "Semaine";
 
@@ -1204,8 +1219,8 @@ export default function Programme() {
           <div className="mx-4 mt-3 flex items-start justify-between gap-3 rounded-md border border-rule bg-surface-raised p-3">
             <p className="text-sm text-notice">
               {lastExport
-                ? `Dernier export il y a ${daysBetween(lastExport, todayIso)} jours. Télécharge une copie du journal : onglet Plan, section Données.`
-                : "Aucune copie de ce journal n'a jamais quitté cet appareil. Télécharge-la : onglet Plan, section Données."}
+                ? `Dernier export il y a ${daysBetween(lastExport, todayIso)} jours. Télécharge une copie du journal : ⚙ Réglages, dans l'onglet Programme.`
+                : "Aucune copie de ce journal n'a jamais quitté cet appareil. Télécharge-la : ⚙ Réglages, dans l'onglet Programme."}
             </p>
             <button onClick={() => setExportWarnDismissed(true)} aria-label="Masquer ce rappel" className="shrink-0 h-11 w-11 -my-1 -mr-1 inline-flex items-center justify-center text-ink-muted rounded focus:outline-none focus:ring-2 focus:ring-focus">
               <X size={18} />
@@ -1234,7 +1249,7 @@ export default function Programme() {
                 disabledIds={takenVids(prog, log, slotIdsOf(prog, session), week, subSlot)}
               />
             )}
-            {!storageOk && !loadError && <p className="text-sm text-notice mt-3">Stockage indisponible ici : les saisies ne survivront pas à la fermeture. Télécharge le journal (onglet Plan) en fin de séance.</p>}
+            {!storageOk && !loadError && <p className="text-sm text-notice mt-3">Stockage indisponible ici : les saisies ne survivront pas à la fermeture. Télécharge le journal (⚙ Réglages) en fin de séance.</p>}
 
             {/* #41 : le rail de chips est parti. Il faisait doublon avec la
                 liste de Semaine — qui dit la même chose avec plus
@@ -1714,11 +1729,12 @@ export default function Programme() {
             </PlanPage>
           ) : (
             <>
-            {/* #83 : l'index perd l'en-tête de semaine et gagne le sien, du même
-                dessin que celui de PlanPage — un titre, sans flèches. La
-                semaine reste dite, sur la carte du programme actif. */}
+            {/* #107 : Programme atterrit sur le cycle actif — le reste de
+                l'index (Mes programmes, Nouveau, Référence) devient des
+                portes explicites plutôt que des lignes noyées parmi huit
+                autres. */}
             <div className="sticky top-0 z-10 bg-surface border-b border-rule px-4 pt-3 pb-2 flex items-center justify-between">
-              <div className="text-xl font-semibold leading-tight">Plan</div>
+              <div className="text-xl font-semibold leading-tight">Programme</div>
               {/* #106 : sorti d'ici — le rarement touché n'a plus la même
                   place que ce qu'on lit au repos. */}
               <button onClick={goReglages} aria-label="Réglages" className="h-11 w-11 -mr-2 inline-flex items-center justify-center text-ink-muted rounded focus:outline-none focus:ring-2 focus:ring-focus">
@@ -1726,20 +1742,74 @@ export default function Programme() {
               </button>
             </div>
             <div className="px-4">
-              <p className="text-sm text-ink-soft mt-3">{PLAN_INTRO}</p>
-              {/* De quel programme cette référence parle, dit une fois en haut
-                  plutôt que sous-entendu par chaque ligne. C'est la question
-                  que #34 a passé une issue entière à rendre répondable : avant
-                  lui, l'écran décrivait parfois un autre programme que celui
-                  qui tourne. */}
-              <div className="mt-3 rounded-md border border-rule bg-surface-raised px-3 py-2.5 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-medium truncate">{definition.name}</div>
-                  <div className="text-sm text-ink-muted">Semaine {week} sur {definition.weeks} · {phase.label}</div>
+              {/* Carte du cycle actif : nom, semaine/phase, frise des W
+                  semaines, deux chiffres. `curWeek`, pas `week` : c'est le
+                  cycle qui tourne aujourd'hui, pas la semaine feuilletée
+                  dans l'onglet Semaine. */}
+              <div className="mt-3 rounded-md border border-rule bg-surface-raised px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{definition.name}</div>
+                    <div className="text-sm text-ink-muted">Semaine {curWeek} sur {definition.weeks} · {phaseOf(curWeek, policies, definition.weeks).label}</div>
+                  </div>
+                  <span className="shrink-0 text-xs text-ink-muted border border-rule rounded-full px-2 py-0.5">actif</span>
                 </div>
-                <span className="shrink-0 text-xs text-ink-muted border border-rule rounded-full px-2 py-0.5">actif</span>
+                <WeekTimeline phases={weekPhases} current={curWeek} />
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-xs text-ink-muted">Séances faites</div>
+                    <div className="text-sm text-ink mt-0.5">{cycleProgress.done} sur {cycleProgress.planned}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-ink-muted">Départ</div>
+                    <div className="text-sm text-ink mt-0.5">{dateLabel(START)}</div>
+                  </div>
+                </div>
               </div>
-              <PlanIndex topics={planTopics} onOpen={setPlanTopic} />
+
+              {/* L'avis du validateur (#57) : replié, absent s'il n'a rien à
+                  dire. Avant, il ne se lisait qu'en ouvrant la page
+                  Programme ; il monte ici parce que c'est désormais l'écran
+                  où l'on atterrit. */}
+              <ProgramAdvice findings={advice.findings} />
+
+              {plan.some((s) => s.group === "programme") && (
+                <div className="mt-5">
+                  <div className="text-xs uppercase tracking-wider text-ink-muted">Ce programme</div>
+                  <div className="mt-1">
+                    {plan.filter((s) => s.group === "programme").map((s) => (
+                      <button key={s.id} onClick={() => setPlanTopic(s.id)}
+                        className="w-full flex items-center gap-3 py-3.5 text-left border-b border-rule focus:outline-none focus:ring-2 focus:ring-focus rounded">
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-ink">{s.title}</span>
+                          {s.meta && <span className="block text-sm text-ink-muted mt-0.5">{s.meta}</span>}
+                        </span>
+                        <ChevronRight size={16} className="text-ink-faint shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* #68 : les deux portes de gestion de cycle. Provisoirement
+                  toutes deux vers la page « programme » actuelle — B1 (#110)
+                  et B2 (#111) les remplaceront chacune par un écran plein,
+                  sans changer ce que ces boutons déclenchent ici. */}
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <Btn onClick={() => setPlanTopic("programme")}>Mes programmes</Btn>
+                <Btn onClick={() => { setPlanTopic("programme"); setNewProgram(true); }}><Plus size={16} />Nouveau</Btn>
+              </div>
+
+              <div className="mt-5">
+                <button onClick={() => setPlanTopic("structure")}
+                  className="w-full flex items-center gap-3 py-3.5 text-left border-y border-rule focus:outline-none focus:ring-2 focus:ring-focus rounded">
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-ink">Référence de la méthode</span>
+                    <span className="block text-sm text-ink-muted mt-0.5">Structure · Progression · Décharge · {EXERCISE_IDS.size} exercices</span>
+                  </span>
+                  <ChevronRight size={16} className="text-ink-faint shrink-0" />
+                </button>
+              </div>
             </div>
             </>
           )
@@ -1765,7 +1835,7 @@ export default function Programme() {
                 allumée pendant une séance. Les deux onglets passent par le
                 garde-fou : quitter par le bas perd autant qu'en haut. */}
             <button onClick={guarded(goSemaine)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen !== "plan" && screen !== "editeur" ? "text-accent font-medium" : "text-ink-muted"}`}>Semaine</button>
-            <button onClick={guarded(goPlan)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen === "plan" || screen === "editeur" ? "text-accent font-medium" : "text-ink-muted"}`}>Plan</button>
+            <button onClick={guarded(goPlan)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen === "plan" || screen === "editeur" ? "text-accent font-medium" : "text-ink-muted"}`}>Programme</button>
           </div>
         </nav>
         )}

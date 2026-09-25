@@ -180,7 +180,7 @@ export default function ProgramEditor({ draft, onChange, onBack, onSave, error, 
       <div className="sticky top-0 z-10 bg-surface border-b border-rule -mx-4 px-4 pt-3 pb-2">
         <div className="flex items-center gap-2">
           <button type="button" onClick={onBack} className="h-11 -ml-2 px-2 inline-flex items-center gap-1 text-sm text-ink-muted rounded focus:outline-none focus:ring-2 focus:ring-focus">
-            <ChevronLeft size={18} />Plan
+            <ChevronLeft size={18} />Programme
           </button>
           <div className="flex-1 text-lg font-semibold truncate">{draft.name || "Programme"}</div>
           <button type="button" onClick={onSave} className="h-11 px-4 shrink-0 rounded-md bg-accent text-ink-inverse font-medium focus:outline-none focus:ring-2 focus:ring-focus">

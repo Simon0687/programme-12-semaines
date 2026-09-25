@@ -16,9 +16,10 @@
    dans un composant).
    ========================================================= */
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { cardioWhen, mobilityDayNames } from "./display.js";
 import { hasCardioItems, hasMobilityDays } from "./program.js";
+import { PHASE_BG, PHASE_SHORT_LABELS, PHASE_ORDER } from "./phase-colors.js";
 
 export function Block({ block }) {
   if (block.t === "p") return <p>{block.text}</p>;
@@ -57,55 +58,6 @@ export function Block({ block }) {
     );
   return null;
 }
-/* ---------- Le Plan comme index (revue Claude Design, 1c) ----------
-
-   Remplace l'accordéon de huit sections. Ce que l'accordéon savait faire et
-   que ceci ne sait plus : ouvrir deux sujets à la fois pour les comparer.
-   Ce qu'il ne savait pas faire : dire ce qu'il y a dedans sans l'ouvrir.
-
-   Les intertitres sont la taxonomie que le code portait déjà sans la montrer
-   — plan.js annote chaque section « toujours (méthode) » ou « tirée de la
-   donnée ». Une règle qui vaut pour tout le monde et un fait sur le programme
-   chargé ne se lisaient pas différemment ; maintenant si.
-
-   Le sous-titre est un **compte**, pas une accroche : il dit la taille ou la
-   forme de ce qu'il y a derrière. Sur les trois sujets de méthode c'est une
-   constante — une référence a le droit de ne pas bouger — et ça se voit, ce
-   qui est une information de plus et non un défaut à cacher. */
-const PLAN_GROUPS = [
-  ["methode", "La méthode"],
-  ["programme", "Ce programme"],
-  ["appareil", "Appareil"],
-];
-
-export function PlanIndex({ topics, onOpen }) {
-  return (
-    <div className="pb-4">
-      {PLAN_GROUPS.map(([group, label]) => {
-        const rows = topics.filter((t) => t.group === group);
-        if (!rows.length) return null;
-        return (
-          <div key={group} className="mt-5">
-            <div className="text-xs uppercase tracking-wider text-ink-muted">{label}</div>
-            <div className="mt-1">
-              {rows.map((t) => (
-                <button key={t.id} onClick={() => onOpen(t.id)}
-                  className="w-full flex items-center gap-3 py-3.5 text-left border-b border-rule focus:outline-none focus:ring-2 focus:ring-focus rounded">
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-ink">{t.title}</span>
-                    {t.meta && <span className="block text-sm text-ink-muted mt-0.5">{t.meta}</span>}
-                  </span>
-                  <ChevronRight size={16} className="text-ink-faint shrink-0" />
-                </button>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 /* Même en-tête que la fiche exercice (#17) : bouton de retour collant, titre
    en dessous. Le retour est en `text-ink-soft` et non en ambre — l'accent
    porte déjà trop de sens (triage du 2026-09-14, C2), et une flèche de retour
@@ -115,12 +67,40 @@ export function PlanPage({ title, onBack, children }) {
     <>
       <div className="sticky top-0 z-10 bg-surface border-b border-rule px-4 pt-1 pb-2">
         <button onClick={onBack} className="h-11 -ml-2 px-2 inline-flex items-center gap-1 text-sm text-ink-soft focus:outline-none focus:ring-2 focus:ring-focus rounded">
-          <ChevronLeft size={18} />Plan
+          <ChevronLeft size={18} />Programme
         </button>
         <div className="text-xl font-semibold leading-tight">{title}</div>
       </div>
       <div className="px-4 pt-3 pb-6 text-sm text-ink-soft leading-relaxed space-y-2">{children}</div>
     </>
+  );
+}
+
+/* ---------- La frise de phases (#107) ----------
+
+   `phases` est un id de phase par semaine (indices 0..W-1, semaine i+1),
+   déjà calculé par phaseOf() — ce composant ne connaît ni les politiques ni
+   le calendrier, seulement le résultat. `current` est la semaine du jour
+   (curWeek dans App.jsx), pas la semaine feuilletée dans l'onglet Semaine :
+   la carte de l'index dit où en est le cycle, pas où on regarde. */
+export function WeekTimeline({ phases, current }) {
+  const used = PHASE_ORDER.filter((id) => phases.includes(id));
+  return (
+    <div className="mt-3">
+      <div className="flex gap-1" role="img" aria-label={`Semaine ${current} sur ${phases.length}`}>
+        {phases.map((id, i) => (
+          <span key={i + 1}
+            className={`flex-1 h-2 rounded-full ${PHASE_BG[id] || "bg-rule"} ${i + 1 === current ? "ring-2 ring-ink ring-offset-2 ring-offset-surface" : ""}`} />
+        ))}
+      </div>
+      <div className="flex gap-3 flex-wrap mt-2">
+        {used.map((id) => (
+          <span key={id} className="inline-flex items-center gap-1.5 text-xs text-ink-muted">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${PHASE_BG[id]}`} />{PHASE_SHORT_LABELS[id]}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
