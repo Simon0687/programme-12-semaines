@@ -524,7 +524,7 @@ describe("de la collecte à l'avis de Plan (#58)", () => {
   });
 
   test("l'onglet Plan sait le décrire, table de volume comprise", () => {
-    assert.deepEqual(buildPlan(saved).map((s) => s.id), ["structure", "volume", "progression", "deload"]);
+    assert.deepEqual(buildPlan(saved).map((s) => s.id), ["structure", "volume", "progression", "deload", "repos"]);
   });
 
   test("avec son intention, l'avis n'a plus rien à dire", () => {
