@@ -141,6 +141,18 @@ function Btn({ children, onClick, primary, small, disabled }) {
   );
 }
 
+/* #115 : le badge de décharge — week header et sous-titre de séance. Un
+   bouton, pas un texte : il ouvre Référence à l'ancre #deload, avec une
+   adresse de retour vers l'endroit d'où on l'a tapé. */
+function DeloadBadge({ onClick }) {
+  return (
+    <button onClick={onClick}
+      className="mt-1.5 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs bg-surface-raised border border-rule text-notice focus:outline-none focus:ring-2 focus:ring-focus">
+      Semaine de décharge
+    </button>
+  );
+}
+
 /* ---------- Avis du validateur sur le programme actif (#57) ----------
 
    `assess()` existe depuis #37 sans qu'aucun écran l'appelle : ses tests
@@ -280,9 +292,28 @@ export default function Programme() {
      sujet. */
   const goReglages = () => setNav({ screen: "reglages", sessionId: null });
   /* #114 : l'ancre de départ n'est pas dans `nav` — même règle que planTopic
-     ci-dessus, un rechargement rouvre la page en haut. */
+     ci-dessus, un rechargement rouvre la page en haut.
+     #115 : l'adresse de retour non plus. `ret` est { nav, label } — le nav
+     exact d'où on est venu (Semaine, ou la Séance précise) et le libellé du
+     bouton de retour. Générique : n'importe quel appelant futur (une carte
+     d'exercice vers #progression, prévu par #115 mais pas encore câblé) n'a
+     qu'à fournir les deux. */
   const [referenceAnchor, setReferenceAnchor] = useState(null);
-  const openReference = (anchor) => { setReferenceAnchor(anchor || null); setNav({ screen: "reference", sessionId: null }); };
+  const [referenceReturn, setReferenceReturn] = useState(null);
+  const openReference = (anchor, ret) => {
+    setReferenceAnchor(anchor || null);
+    setReferenceReturn(ret || null);
+    setNav({ screen: "reference", sessionId: null });
+  };
+  /* Sans adresse de retour (ouverte depuis A1), Référence renvoie sur
+     Programme comme n'importe quelle page du Plan. Avec une adresse, on
+     restaure le nav exact — la même valeur qu'avant l'ouverture, jamais
+     recalculée — pour ne rien perdre de la séance ou de la semaine
+     d'origine. */
+  const closeReference = () => {
+    if (referenceReturn) { setNav(referenceReturn.nav); setReferenceReturn(null); }
+    else goPlan();
+  };
   /* La question de #43 ne survit pas à un changement d'écran : revenir sur une
      séance ne doit pas rouvrir un panneau qu'on avait quitté sans répondre. */
   const openSession = (id) => { setPendingLight(null); setNav({ screen: "seance", sessionId: id }); };
@@ -1265,6 +1296,9 @@ export default function Programme() {
               <div>
                 <div className="pt-3 pb-2">
                   <div className="text-sm text-ink-muted">{setsFor(session.ex.reduce((a, [, n]) => a + n, 0), week, policies)} séries dures + abdos. {PHASE_NOTES[phase.id]}</div>
+                  {phase.id === "deload" && (
+                    <DeloadBadge onClick={() => openReference("deload", { nav: { screen: "seance", sessionId: session.id }, label: "Retour à la séance" })} />
+                  )}
                   {log.done && <div className="mt-2 text-sm text-done inline-flex items-center gap-1"><Check size={15} />Validée le {log.updatedAt && log.updatedAt.slice(0, 10)}. <button onClick={reopen} className="underline text-ink-soft ml-1 focus:outline-none">Rouvrir</button></div>}
                 </div>
                 <Section title="Échauffement"><p>{prog.WARM[session.warm]}</p>{warmLine && <p className="text-ink">{warmLine}</p>}</Section>
@@ -1370,7 +1404,8 @@ export default function Programme() {
             Exercices reste un simple compte tant que #116 n'a pas livré la
             recherche dans le registre. */}
         {screen === "reference" && (
-          <ReferenceView sections={plan.filter((s) => s.group === "methode")} onBack={goPlan} initialAnchor={referenceAnchor}>
+          <ReferenceView sections={plan.filter((s) => s.group === "methode")} onBack={closeReference}
+            backLabel={referenceReturn ? referenceReturn.label : "Programme"} initialAnchor={referenceAnchor}>
             <p className="mt-2 text-sm text-ink-muted">{EXERCISE_IDS.size} exercices dans le registre.</p>
           </ReferenceView>
         )}
@@ -1519,6 +1554,9 @@ export default function Programme() {
               <p className="text-sm text-notice mt-3">Semaine de décharge : volume et charges réduits, 3–4 RIR.</p>
             )}
             <p className="text-sm text-ink-soft mt-3">{PHASE_NOTES[phase.id]}</p>
+            {phase.id === "deload" && (
+              <DeloadBadge onClick={() => openReference("deload", { nav: { screen: "semaine", sessionId: null }, label: "Retour à la semaine" })} />
+            )}
             {/* #41 : le compte remplace le badge que portait la barre du bas.
                 Il monte ici parce que Semaine devient l'écran d'accueil : ce
                 qu'on vient y chercher, c'est où on en est. */}
