@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, Upload, Zap, X, Plus, Trash2, Copy, Sparkles, PenLine, Settings, AlertTriangle } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Download, Upload, Zap, X, Plus, Trash2, Copy, Sparkles, PenLine, Settings, AlertTriangle, Lock } from "lucide-react";
 import { SCHEMA_VERSION, emptyJournal, weekStartKey, dateForSlot, slotForDate, findLog, writeLog, withVersion } from "./schema.js";
 import { parseJournalImport, parseProgramImport, IMPORT_MESSAGES } from "./import.js";
 import { listBackups, readDroppedBackup, backupPreImportOnce, readPreImportBackup } from "./backup.js";
@@ -90,6 +90,12 @@ const LOAD_ERROR_MESSAGE = "Le journal enregistré n'a pas pu être lu. Rien n'a
 const BILAN_KEYS = ["poids", "taille", "sommeil", "sommeilScore", "energie", "rir", "nutrition", "remarques"];
 const BILAN_FIELDS = BILAN_KEYS.length;
 const MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+/* #107, #110, #114 : tous les écrans que l'onglet Programme couvre — sa
+   page, l'éditeur, et les portes qui s'en détachent. Un Set plutôt qu'une
+   chaîne de `||` qui s'allongerait à chaque nouvel écran (screen ===
+   "reference" || screen === "mesProgrammes" || …) : la barre du bas n'a
+   qu'à savoir si l'écran courant en fait partie. */
+const PROGRAMME_SCREENS = new Set(["plan", "editeur", "reference", "mesProgrammes"]);
 const addDays = (d, n) =>{ const r = new Date(d); r.setDate(r.getDate() + n); return r; };
 const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const dateLabel = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
@@ -97,12 +103,16 @@ const dateLabel = (d) => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
    nombres et des dates ISO et s'interdit toute mise en forme ; la phrase se
    compose ici, une fois. Les séances d'abord — c'est ce qu'on perdrait — puis
    la date de départ, seule chose qui distingue deux cycles du même nom. */
-const programMeta = (row) => {
-  const bits = row.sessions > 0
-    ? [`${row.sessions} séance${row.sessions > 1 ? "s" : ""}`, ...(row.lastDate ? [`dernière le ${dateLabel(parseLocalDate(row.lastDate))}`] : [])]
-    : ["aucune séance enregistrée"];
-  if (row.startDate) bits.push(`départ ${dateLabel(parseLocalDate(row.startDate))}`);
-  return bits.join(" · ");
+/* #110 : « terminé » quand les douze (ou W) semaines du cycle sont révolues
+   — pas seulement « la dernière séance remonte à loin », qui dirait la même
+   chose d'un cycle actif qu'on a délaissé quelques jours. La date de départ
+   sort de la ligne : elle ne distinguait plus rien une fois « terminé »
+   présent, et B1 (#110) ne la montre pas. */
+const programMeta = (row, today) => {
+  if (row.sessions === 0) return "aucune séance";
+  const over = row.startDate && row.weeks && today >= addDays(parseLocalDate(row.startDate), row.weeks * 7);
+  const dateBit = row.lastDate ? `${over ? "terminé" : "dernière"} le ${dateLabel(parseLocalDate(row.lastDate))}` : null;
+  return [`${row.sessions} séance${row.sessions > 1 ? "s" : ""}`, dateBit].filter(Boolean).join(" · ");
 };
 
 const weekRange = (start, w) => {
@@ -151,6 +161,32 @@ function DeloadBadge({ onClick }) {
       className="mt-1.5 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs bg-surface-raised border border-rule text-notice focus:outline-none focus:ring-2 focus:ring-focus">
       Semaine de décharge
     </button>
+  );
+}
+
+/* #110 : la confirmation de suppression d'un cycle, à portée de pouce plutôt
+   qu'un panneau qui pousse la liste. Annuler est en accent — le geste qui ne
+   détruit rien mérite d'être celui qu'on touche par réflexe, pas l'inverse.
+   Se ferme sans rien supprimer sur un tap hors du panneau ou sur Échap. */
+function DeleteSheet({ name, entries, onCancel, onConfirm }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onCancel(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+  return (
+    <div className="fixed inset-0 z-30 flex items-end justify-center" onClick={onCancel}>
+      <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
+      <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-md bg-surface border-t border-rule rounded-t-xl p-4 pb-6 space-y-3">
+        <p className="text-base font-medium text-ink">Supprimer {name} ?</p>
+        <p className="text-sm text-ink-muted">{entries} séance{entries > 1 ? "s" : ""} · rien ne sera perdu</p>
+        <div className="flex gap-2 pt-1">
+          <button onClick={onCancel} className="flex-1 h-12 rounded-md border border-accent text-accent font-medium focus:outline-none focus:ring-2 focus:ring-focus">Annuler</button>
+          <button onClick={onConfirm} className="flex-1 h-12 rounded-md bg-surface-raised text-ink border border-rule font-medium focus:outline-none focus:ring-2 focus:ring-focus">Supprimer</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -292,6 +328,8 @@ export default function Programme() {
      retour, puisqu'on peut y arriver depuis l'index sans avoir choisi un
      sujet. */
   const goReglages = () => setNav({ screen: "reglages", sessionId: null });
+  /* #110 : sa propre porte, depuis A1. */
+  const goMesProgrammes = () => setNav({ screen: "mesProgrammes", sessionId: null });
   /* #114 : l'ancre de départ n'est pas dans `nav` — même règle que planTopic
      ci-dessus, un rechargement rouvre la page en haut.
      #115 : l'adresse de retour non plus. `ret` est { nav, label } — le nav
@@ -1433,6 +1471,61 @@ export default function Programme() {
           </ReferenceView>
         )}
 
+        {/* #110 : sa propre page, plutôt qu'une liste mêlée à la suppression et
+            aux quatre portes de création (#68) sur la même page. Le verrou et
+            la corbeille suivent `row.removable`, qui suit lui-même la seule
+            règle qui compte : `removeProgram` (program-list.js). */}
+        {screen === "mesProgrammes" && (
+          <PlanPage title="Mes programmes" onBack={goPlan}>
+            <div>
+              {programRows.map((row) => (
+                <div key={row.id} className={`py-3 border-b border-rule flex items-start gap-3 ${row.active ? "pl-2.5 -ml-2.5 border-l-2 border-l-accent" : ""}`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`font-medium truncate ${row.active ? "text-ink" : "text-ink-soft"}`}>{row.name}</span>
+                      {row.active && <span className="shrink-0 text-xs text-ink-muted border border-rule rounded-full px-2 py-0.5">actif</span>}
+                    </div>
+                    <div className="text-sm text-ink-muted mt-0.5">{programMeta(row, today)}</div>
+                    {!row.usable && (
+                      <div className="text-sm text-notice mt-0.5">Pas exécutable par cette version. Il reste dans le journal et dans l'export.</div>
+                    )}
+                  </div>
+                  <div className="shrink-0 flex items-center gap-2">
+                    {!row.active && row.usable && (
+                      <Btn small onClick={() => setJournal((j) => ({ ...j, activeProgramId: row.id }))}>Activer</Btn>
+                    )}
+                    {/* Le verrou dit "porte des séances", la corbeille dit "vide,
+                        supprimable" — jamais les deux, et jamais une corbeille
+                        grisée : un programme actif et vide n'affiche ni l'un ni
+                        l'autre, sa protection tient à une autre raison. */}
+                    {row.entries > 0 ? (
+                      <span aria-label="Protégé : porte des séances" title="Protégé : porte des séances" className="h-9 w-9 inline-flex items-center justify-center text-ink-faint">
+                        <Lock size={15} />
+                      </span>
+                    ) : row.removable ? (
+                      <button onClick={() => setPendingDelete(row.id)} aria-label={`Supprimer ${row.name}`}
+                        className="h-9 w-9 inline-flex items-center justify-center rounded-md bg-surface-raised border border-rule text-ink-muted focus:outline-none focus:ring-2 focus:ring-focus">
+                        <Trash2 size={15} />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Btn primary onClick={() => { setNav({ screen: "plan", sessionId: null }); setPlanTopic("programme"); setNewProgram(true); }}>
+              <Plus size={16} />Nouveau programme
+            </Btn>
+            {pendingDelete && (
+              <DeleteSheet
+                name={(journal.programs[pendingDelete]?.definition?.name) || pendingDelete}
+                entries={programRows.find((r) => r.id === pendingDelete)?.entries || 0}
+                onCancel={() => setPendingDelete(null)}
+                onConfirm={() => { const next = removeProgram(journal, pendingDelete); setPendingDelete(null); if (next) { setJournal(next); showToast("Programme supprimé."); } }}
+              />
+            )}
+          </PlanPage>
+        )}
+
         {/* #106 : écran plein, sans onglets du bas — rien d'autre ne s'y
             passe. « Fermer » plutôt qu'un retour : on peut y arriver sans
             avoir choisi un sujet dans Plan. Tout ce que faisait la page
@@ -1726,7 +1819,7 @@ export default function Programme() {
                             <span className={`font-medium truncate ${row.active ? "text-ink" : "text-ink-soft"}`}>{row.name}</span>
                             {row.active && <span className="shrink-0 text-xs text-ink-muted border border-rule rounded-full px-2 py-0.5">actif</span>}
                           </div>
-                          <div className="text-sm text-ink-muted mt-0.5">{programMeta(row)}</div>
+                          <div className="text-sm text-ink-muted mt-0.5">{programMeta(row, today)}</div>
                           {!row.usable && (
                             <div className="text-sm text-notice mt-0.5">
                               Pas exécutable par cette version. Il reste dans le journal et dans l'export.
@@ -1873,7 +1966,7 @@ export default function Programme() {
                   et B2 (#111) les remplaceront chacune par un écran plein,
                   sans changer ce que ces boutons déclenchent ici. */}
               <div className="mt-5 grid grid-cols-2 gap-3">
-                <Btn onClick={() => setPlanTopic("programme")}>Mes programmes</Btn>
+                <Btn onClick={goMesProgrammes}>Mes programmes</Btn>
                 <Btn onClick={() => { setPlanTopic("programme"); setNewProgram(true); }}><Plus size={16} />Nouveau</Btn>
               </div>
 
@@ -1911,8 +2004,8 @@ export default function Programme() {
                 Plan qui reste allumé pendant qu'on édite, comme Semaine reste
                 allumée pendant une séance. Les deux onglets passent par le
                 garde-fou : quitter par le bas perd autant qu'en haut. */}
-            <button onClick={guarded(goSemaine)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen !== "plan" && screen !== "editeur" && screen !== "reference" ? "text-accent font-medium" : "text-ink-muted"}`}>Semaine</button>
-            <button onClick={guarded(goPlan)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen === "plan" || screen === "editeur" || screen === "reference" ? "text-accent font-medium" : "text-ink-muted"}`}>Programme</button>
+            <button onClick={guarded(goSemaine)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${!PROGRAMME_SCREENS.has(screen) ? "text-accent font-medium" : "text-ink-muted"}`}>Semaine</button>
+            <button onClick={guarded(goPlan)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${PROGRAMME_SCREENS.has(screen) ? "text-accent font-medium" : "text-ink-muted"}`}>Programme</button>
           </div>
         </nav>
         )}
