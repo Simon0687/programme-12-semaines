@@ -24,6 +24,8 @@
                     section omise.
        progression  toujours (méthode, cf. progression.js).
        deload       toujours (méthode).
+       repos        toujours (méthode) — sorti de progression en #114 pour
+                    porter sa propre ancre dans le manuel de Référence.
        fallback     program.fallback (tableau de paragraphes) — absent =>
                     section omise.
        cardio       omise quand program.cardio vaut null (#25/#13).
@@ -33,16 +35,40 @@
                     plus d'exercices en dur.
 
      Structure d'une section :
-       id           clé stable (key React, ancrage éventuel).
+       id           clé stable (key React, ancrage éventuel — les quatre
+                    sections « methode » sont aussi les ancres du manuel de
+                    Référence, #114).
        title        titre de la Section.
        open         true => Section dépliée au montage (défaut : repliée).
        blocks[]     contenu, un objet par bloc :
          { t: "p", text }                    paragraphe.
          { t: "h", text }                    intertitre dans la page (#104).
          { t: "ul", items: [texte, …] }      liste à puces (#104).
-         { t: "table", variant: "weeks",  rows: [[libellé, description], …] }
+         { t: "chips", items: [texte, …] }   liste courte, en jetons (#114 —
+                                             ancres du cycle, structure).
+         { t: "callout", text }              encadré, hors du flux de lecture
+                                             ordinaire — un repère ou une
+                                             consigne de sécurité (#114).
+         { t: "iconlist", items: [{ icon, text }, …] }
+                                             liste à puces avec un pictogramme
+                                             par entrée (#114 — déclencheurs de
+                                             décharge). `icon` est un nom
+                                             abstrait ; PlanViews.jsx choisit
+                                             le tracé, ce fichier n'importe
+                                             jamais lucide-react (§2.6).
+         { t: "phaseline", steps: [{ phase, label, text }, …] }
+                                             frise verticale, une étape par
+                                             phase (#114). `phase` est un id de
+                                             phaseOf() (progression.js) — la
+                                             couleur vient de phase-colors.js,
+                                             partagée avec la timeline de
+                                             l'index Programme (#107).
          { t: "table", variant: "volume", rows: [[groupe, nb, où], …] }
                                              (nb : cellule ambre, alignée à droite)
+         { t: "table", variant: "compare", head: [libelléA, libelléB],
+           rows: [[libellé, valeurA, valeurB], …] }
+                                             comparaison à deux colonnes (#114
+                                             — les deux recettes de décharge).
 
    PHASE_NOTES[id]  note éditoriale par phase, sortie de phaseOf()
                     (progression.js). Clés = les id renvoyés par phaseOf() :
@@ -174,31 +200,36 @@ export function buildPlan(definition) {
       meta: "Calibration, bloc 1, décharge, bloc 2, bilan",
       open: true,
       blocks: [
+        /* #114 : la table à deux colonnes devient une frise verticale, dans
+           les couleurs de phase que l'index Programme utilise déjà pour la
+           sienne (#107, phase-colors.js) — le même découpage, lu à deux
+           endroits, doit se voir de la même couleur aux deux. */
         {
-          t: "table",
-          variant: "weeks",
-          rows: [
-            ["S1", "Calibration, 2–3 RIR"],
-            ["S2–S6", "Bloc 1, 1 RIR, double progression"],
-            ["S7", "Décharge (volume −50 %, charges −15 %, 3–4 RIR) et calibration des variantes du bloc 2"],
-            ["S8–S11", "Bloc 2, 1 RIR"],
-            ["S12", "Bloc 2, dernière série AMRAP sur les exercices clés, mesures, re-baseline"],
+          t: "phaseline",
+          steps: [
+            { phase: "calib", label: "S1", text: "Calibration, 2–3 RIR" },
+            { phase: "b1", label: "S2–S6", text: "Bloc 1, 1 RIR, double progression" },
+            { phase: "deload", label: "S7", text: "Décharge (volume −50 %, charges −15 %, 3–4 RIR) et calibration des variantes du bloc 2" },
+            { phase: "b2", label: "S8–S11", text: "Bloc 2, 1 RIR" },
+            { phase: "bilan", label: "S12", text: "Bloc 2, dernière série AMRAP sur les exercices clés, mesures, re-baseline" },
           ],
         },
         /* #104 : les ancres étaient énumérées au milieu d'un paragraphe qui
            disait ensuite deux autres choses. Une liste d'exercices se lit en
            liste — et la phrase sur les autres créneaux redevient lisible une
-           fois qu'elle ne traîne plus sept noms derrière elle. */
+           fois qu'elle ne traîne plus sept noms derrière elle. #114 : la
+           liste devient des jetons, plus proches d'une énumération de noms
+           courts qu'un argumentaire à puces. */
         ...(anchors.length
           ? [
             { t: "h", text: "Ancres conservées sur les deux blocs" },
-            { t: "ul", items: anchors },
+            { t: "chips", items: anchors },
             { t: "p", text: "Les autres créneaux changent de variante en S7 : la charge y repart en paliers, c'est le rôle de la semaine de calibration." },
           ]
           : [
             { t: "p", text: "Tous les créneaux changent de variante en S7 : la charge y repart en paliers, c'est le rôle de la semaine de calibration." },
           ]),
-        { t: "p", text: "Point volume à la fin de S4 : on décide s'il faut ajouter des séries sur les groupes prioritaires dès S5." },
+        { t: "callout", text: "Point volume à la fin de S4 : on décide s'il faut ajouter des séries sur les groupes prioritaires dès S5." },
       ],
     },
 
@@ -255,12 +286,6 @@ export function buildPlan(definition) {
           "Isolations : une rep, une demi-rep ou une exécution plus stricte à charge égale",
           "Poids du corps : le lest prend le relais dès que le haut de la fourchette est tenu à 1 RIR",
         ] },
-        { t: "h", text: "Repos et exécution" },
-        { t: "ul", items: [
-          "Repos : 2–3 min sur les gros mouvements, 1–2 min sur les isolations, 1 min sur les abdos",
-          "Descente 2–4 s, montée forte",
-          "Concentrique dynamique, pas de ralentissement pour « sentir »",
-        ] },
       ],
     },
 
@@ -273,20 +298,44 @@ export function buildPlan(definition) {
         /* #104 : les cinq déclencheurs étaient une phrase de 299 caractères à
            points-virgules, et les deux recettes une de 344. Aucun mot n'a été
            retiré — ils sont rangés. Le sous-titre de l'index (« 5 déclencheurs
-           · 2 recettes ») promettait déjà cette forme ; la page la tient. */
+           · 2 recettes ») promettait déjà cette forme ; la page la tient.
+           #114 : les déclencheurs gagnent un pictogramme chacun, et les deux
+           recettes se comparent en table plutôt qu'en deux paragraphes qu'il
+           fallait déjà relire côte à côte pour voir ce qui change. */
         { t: "h", text: "Déclencheurs" },
-        { t: "ul", items: [
-          "Baisse de performance sur ≥ 2 exercices clés, 2 séances de suite, malgré sommeil et alimentation corrects",
-          "Douleur articulaire ≥ 3/10 qui persiste plus de 48 h ou augmente",
-          "Sommeil < 6 h plusieurs nuits",
-          "FC de repos ou HRV dégradées 3 jours ou plus",
-          "RIR ressenti qui dérive",
+        { t: "iconlist", items: [
+          { icon: "decline", text: "Baisse de performance sur ≥ 2 exercices clés, 2 séances de suite, malgré sommeil et alimentation corrects" },
+          { icon: "pain", text: "Douleur articulaire ≥ 3/10 qui persiste plus de 48 h ou augmente" },
+          { icon: "sleep", text: "Sommeil < 6 h plusieurs nuits" },
+          { icon: "vitals", text: "FC de repos ou HRV dégradées 3 jours ou plus" },
+          { icon: "rir", text: "RIR ressenti qui dérive" },
         ] },
-        { t: "h", text: "Décharge complète" },
-        { t: "p", text: "Mêmes exercices, volume −50 %, charges −10 à −20 %, 3–4 RIR, une semaine." },
-        { t: "h", text: "Allègement ciblé" },
-        { t: "p", text: "Quand une articulation se plaint : on retire uniquement les exercices qui la sollicitent, on garde le reste, on remplace par une variante indolore." },
-        { t: "p", text: "Toute douleur nouvelle = arrêt de l'exercice concerné, avis médical si elle persiste." },
+        { t: "h", text: "Les deux recettes" },
+        { t: "table", variant: "compare", head: ["Complète", "Ciblée"], rows: [
+          ["Quand", "Suite à un déclencheur ci-dessus, pendant une semaine", "Une articulation qui se plaint"],
+          ["Exercices", "Mêmes exercices", "Ceux qui sollicitent l'articulation retirés et remplacés par une variante indolore, le reste gardé"],
+          ["Volume", "−50 %", "Inchangé sur le reste"],
+          ["Charges", "−10 à −20 %", "Inchangées sur le reste"],
+          ["RIR", "3–4", "Inchangé sur le reste"],
+        ] },
+        { t: "callout", text: "Toute douleur nouvelle = arrêt de l'exercice concerné, avis médical si elle persiste." },
+      ],
+    },
+
+    /* #114 : sorti de « progression », dont il ne parlait déjà plus vraiment
+       — le manuel de Référence lui donne sa propre ancre, entre décharge et
+       exercices, là où le sommaire de la maquette approuvée le place. */
+    {
+      id: "repos",
+      title: "Repos et exécution",
+      group: "methode",
+      meta: "Temps de repos · tempo d'exécution",
+      blocks: [
+        { t: "ul", items: [
+          "Repos : 2–3 min sur les gros mouvements, 1–2 min sur les isolations, 1 min sur les abdos",
+          "Descente 2–4 s, montée forte",
+          "Concentrique dynamique, pas de ralentissement pour « sentir »",
+        ] },
       ],
     },
 

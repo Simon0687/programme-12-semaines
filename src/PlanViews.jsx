@@ -16,10 +16,14 @@
    dans un composant).
    ========================================================= */
 
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, TrendingDown, Bone, Moon, HeartPulse, Gauge } from "lucide-react";
 import { cardioWhen, mobilityDayNames } from "./display.js";
 import { hasCardioItems, hasMobilityDays } from "./program.js";
 import { PHASE_BG, PHASE_SHORT_LABELS, PHASE_ORDER } from "./phase-colors.js";
+
+/* #114 : plan.js ne connaît que des noms abstraits (§2.6, aucun import
+   lucide-react hors de ce fichier) — c'est ici qu'un nom devient un tracé. */
+const TRIGGER_ICONS = { decline: TrendingDown, pain: Bone, sleep: Moon, vitals: HeartPulse, rir: Gauge };
 
 export function Block({ block }) {
   if (block.t === "p") return <p>{block.text}</p>;
@@ -36,15 +40,56 @@ export function Block({ block }) {
         {block.items.map((it) => <li key={it}>{it}</li>)}
       </ul>
     );
-  if (block.t === "table" && block.variant === "weeks")
+  /* #114 : une énumération de noms courts (les ancres du cycle), pas un
+     argumentaire — les jetons le disent d'un coup d'œil, une liste à puces
+     l'aurait fait lire ligne à ligne. */
+  if (block.t === "chips")
     return (
-      <table className="w-full text-sm">
-        <tbody>
-          {block.rows.map(([a, b]) => (
-            <tr key={a} className="border-t border-rule"><td className="py-1.5 pr-3 text-ink-muted whitespace-nowrap align-top">{a}</td><td className="py-1.5">{b}</td></tr>
+      <div className="flex flex-wrap gap-2">
+        {block.items.map((it) => (
+          <span key={it} className="rounded-full px-2.5 py-1 text-xs bg-surface-raised border border-rule text-ink-soft">{it}</span>
+        ))}
+      </div>
+    );
+  /* #114 : un repère ou une consigne de sécurité, hors du flux de lecture
+     ordinaire — « Point volume fin S4 », la règle de douleur nouvelle. */
+  if (block.t === "callout")
+    return <p className="rounded-md border border-rule bg-surface-raised px-3 py-2.5 text-notice">{block.text}</p>;
+  /* #114 : les cinq déclencheurs de décharge, un pictogramme par entrée —
+     l'icône ne remplace pas le texte, elle donne une forme à reconnaître
+     avant même de lire. */
+  if (block.t === "iconlist")
+    return (
+      <ul className="space-y-2.5">
+        {block.items.map((it) => {
+          const Icon = TRIGGER_ICONS[it.icon];
+          return (
+            <li key={it.text} className="flex items-start gap-2.5">
+              {Icon && <Icon size={16} className="text-ink-muted shrink-0 mt-0.5" />}
+              <span>{it.text}</span>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  /* #114 : la structure des douze semaines, une frise verticale plutôt qu'une
+     table à deux colonnes — les mêmes couleurs de phase que la timeline de
+     l'index Programme (#107), pour que le même découpage se lise pareil aux
+     deux endroits. */
+  if (block.t === "phaseline")
+    return (
+      <div className="relative pl-5">
+        <div className="absolute left-[7px] top-1.5 bottom-1.5 w-px bg-rule" aria-hidden="true" />
+        <div className="space-y-4">
+          {block.steps.map((s, i) => (
+            <div key={i} className="relative">
+              <span className={`absolute -left-5 top-1 w-3.5 h-3.5 rounded-full ring-2 ring-surface ${PHASE_BG[s.phase] || "bg-rule"}`} />
+              <div className="text-xs uppercase tracking-wider text-ink-muted">{s.label}</div>
+              <div className="text-ink">{s.text}</div>
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+      </div>
     );
   if (block.t === "table" && block.variant === "volume")
     return (
@@ -52,6 +97,29 @@ export function Block({ block }) {
         <tbody>
           {block.rows.map(([g, n, o]) => (
             <tr key={g} className="border-t border-rule"><td className="py-1.5 pr-2">{g}</td><td className="py-1.5 pr-2 text-accent text-right">{n}</td><td className="py-1.5 text-ink-muted">{o}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  /* #114 : les deux recettes de décharge, côte à côte — ce qui change entre
+     Complète et Ciblée se lisait avant en comparant deux paragraphes à la
+     main. */
+  if (block.t === "table" && block.variant === "compare")
+    return (
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-rule">
+            <th className="py-1.5 pr-3" />
+            {block.head.map((h) => <th key={h} className="py-1.5 px-2 text-left text-ink font-medium">{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {block.rows.map(([label, a, b]) => (
+            <tr key={label} className="border-t border-rule align-top">
+              <td className="py-1.5 pr-3 text-ink-muted whitespace-nowrap">{label}</td>
+              <td className="py-1.5 px-2">{a}</td>
+              <td className="py-1.5 px-2">{b}</td>
+            </tr>
           ))}
         </tbody>
       </table>

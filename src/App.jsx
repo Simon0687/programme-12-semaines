@@ -26,6 +26,7 @@ import { isFirstLaunch, startingNow } from "./onboarding.js";
 import Welcome from "./Welcome.jsx";
 import ExerciseCard from "./ExerciseCard.jsx";
 import { Block, PlanPage, CardioView, WeekTimeline } from "./PlanViews.jsx";
+import ReferenceView from "./ReferenceView.jsx";
 import ExerciseSheet from "./ExerciseSheet.jsx";
 import ExercisePicker from "./ExercisePicker.jsx";
 /* #68 : la porte de l'accueil, réemployée telle quelle par l'onglet Plan. */
@@ -278,6 +279,10 @@ export default function Programme() {
      retour, puisqu'on peut y arriver depuis l'index sans avoir choisi un
      sujet. */
   const goReglages = () => setNav({ screen: "reglages", sessionId: null });
+  /* #114 : l'ancre de départ n'est pas dans `nav` — même règle que planTopic
+     ci-dessus, un rechargement rouvre la page en haut. */
+  const [referenceAnchor, setReferenceAnchor] = useState(null);
+  const openReference = (anchor) => { setReferenceAnchor(anchor || null); setNav({ screen: "reference", sessionId: null }); };
   /* La question de #43 ne survit pas à un changement d'écran : revenir sur une
      séance ne doit pas rouvrir un panneau qu'on avait quitté sans répondre. */
   const openSession = (id) => { setPendingLight(null); setNav({ screen: "seance", sessionId: id }); };
@@ -1359,6 +1364,17 @@ export default function Programme() {
           <GenerateProgram today={today} onBack={goPlan} onAccept={(def) => openEditor(draftFrom(def))} />
         )}
 
+        {/* #114 : le manuel de méthode, en une page à sommaire ancré — Structure,
+            Progression, Décharge et Repos sont les quatre sections « methode »
+            de buildPlan(), dans l'ordre où le sommaire les nomme. L'anchor
+            Exercices reste un simple compte tant que #116 n'a pas livré la
+            recherche dans le registre. */}
+        {screen === "reference" && (
+          <ReferenceView sections={plan.filter((s) => s.group === "methode")} onBack={goPlan} initialAnchor={referenceAnchor}>
+            <p className="mt-2 text-sm text-ink-muted">{EXERCISE_IDS.size} exercices dans le registre.</p>
+          </ReferenceView>
+        )}
+
         {/* #106 : écran plein, sans onglets du bas — rien d'autre ne s'y
             passe. « Fermer » plutôt qu'un retour : on peut y arriver sans
             avoir choisi un sujet dans Plan. Tout ce que faisait la page
@@ -1801,7 +1817,7 @@ export default function Programme() {
               </div>
 
               <div className="mt-5">
-                <button onClick={() => setPlanTopic("structure")}
+                <button onClick={() => openReference(null)}
                   className="w-full flex items-center gap-3 py-3.5 text-left border-y border-rule focus:outline-none focus:ring-2 focus:ring-focus rounded">
                   <span className="flex-1 min-w-0">
                     <span className="block text-ink">Référence de la méthode</span>
@@ -1834,8 +1850,8 @@ export default function Programme() {
                 Plan qui reste allumé pendant qu'on édite, comme Semaine reste
                 allumée pendant une séance. Les deux onglets passent par le
                 garde-fou : quitter par le bas perd autant qu'en haut. */}
-            <button onClick={guarded(goSemaine)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen !== "plan" && screen !== "editeur" ? "text-accent font-medium" : "text-ink-muted"}`}>Semaine</button>
-            <button onClick={guarded(goPlan)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen === "plan" || screen === "editeur" ? "text-accent font-medium" : "text-ink-muted"}`}>Programme</button>
+            <button onClick={guarded(goSemaine)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen !== "plan" && screen !== "editeur" && screen !== "reference" ? "text-accent font-medium" : "text-ink-muted"}`}>Semaine</button>
+            <button onClick={guarded(goPlan)} className={`h-14 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${screen === "plan" || screen === "editeur" || screen === "reference" ? "text-accent font-medium" : "text-ink-muted"}`}>Programme</button>
           </div>
         </nav>
         )}

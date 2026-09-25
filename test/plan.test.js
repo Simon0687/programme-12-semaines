@@ -17,9 +17,16 @@ const withDef = (over) => ({ ...LEGACY_DEFINITION, ...over });
 
 const PLAN = buildPlan(LEGACY_DEFINITION);
 
-/* #104 : tout le texte lisible d'une section, quelle que soit la forme du
-   bloc qui le porte. */
-const textsOf = (s) => s.blocks.flatMap((b) => (b.t === "p" || b.t === "h" ? [b.text] : b.t === "ul" ? b.items : []));
+/* #104, #114 : tout le texte lisible d'une section, quelle que soit la forme
+   du bloc qui le porte. */
+const textsOf = (s) => s.blocks.flatMap((b) => {
+  if (b.t === "p" || b.t === "h" || b.t === "callout") return [b.text];
+  if (b.t === "ul" || b.t === "chips") return b.items;
+  if (b.t === "iconlist") return b.items.map((it) => it.text);
+  if (b.t === "phaseline") return b.steps.map((s2) => s2.text);
+  if (b.t === "table" && b.variant === "compare") return b.rows.flatMap(([, a, c]) => [a, c]);
+  return [];
+});
 
 describe("PHASE_NOTES", () => {
   test("couvre exactement les id de phase renvoyés par phaseOf()", () => {
@@ -50,10 +57,10 @@ describe("PLAN", () => {
   test("chaque bloc est un type connu et bien formé", () => {
     for (const s of PLAN) {
       for (const b of s.blocks) {
-        if (b.t === "p" || b.t === "h") {
+        if (b.t === "p" || b.t === "h" || b.t === "callout") {
           assert.equal(typeof b.text, "string", s.id);
           assert.ok(b.text.trim().length > 0, s.id);
-        } else if (b.t === "ul") {
+        } else if (b.t === "ul" || b.t === "chips") {
           assert.ok(Array.isArray(b.items) && b.items.length > 0, `${s.id}: items`);
           /* Les items servent de clé React dans <Block> : deux items égaux
              dans une même liste seraient un doublon de clé. */
@@ -62,10 +69,28 @@ describe("PLAN", () => {
             assert.equal(typeof it, "string", s.id);
             assert.ok(it.trim().length > 0, s.id);
           }
+        } else if (b.t === "iconlist") {
+          assert.ok(Array.isArray(b.items) && b.items.length > 0, `${s.id}: items`);
+          for (const it of b.items) {
+            assert.equal(typeof it.icon, "string", s.id);
+            assert.equal(typeof it.text, "string", s.id);
+            assert.ok(it.text.trim().length > 0, s.id);
+          }
+        } else if (b.t === "phaseline") {
+          assert.ok(Array.isArray(b.steps) && b.steps.length > 0, `${s.id}: steps`);
+          for (const step of b.steps) {
+            assert.equal(typeof step.phase, "string", s.id);
+            assert.equal(typeof step.label, "string", s.id);
+            assert.equal(typeof step.text, "string", s.id);
+            assert.ok(step.text.trim().length > 0, s.id);
+          }
         } else if (b.t === "table") {
-          assert.ok(["weeks", "volume"].includes(b.variant), `${s.id}: variant`);
+          assert.ok(["volume", "compare"].includes(b.variant), `${s.id}: variant`);
           assert.ok(Array.isArray(b.rows) && b.rows.length > 0, `${s.id}: rows`);
-          const width = b.variant === "volume" ? 3 : 2;
+          if (b.variant === "compare") {
+            assert.ok(Array.isArray(b.head) && b.head.length === 2, `${s.id}: head`);
+          }
+          const width = 3; // les deux variantes, volume et compare, sont des lignes à trois cellules
           for (const row of b.rows) {
             assert.ok(Array.isArray(row) && row.length === width, `${s.id}: largeur de ligne`);
           }
@@ -150,7 +175,7 @@ describe("buildPlan : sections pilotées par la définition (#26)", () => {
 
   test("sans profil, sans charges, sans cardio : ces sections disparaissent", () => {
     const ids = buildPlan(bare).map((s) => s.id);
-    assert.deepEqual(ids, ["structure", "progression", "deload"]);
+    assert.deepEqual(ids, ["structure", "progression", "deload", "repos"]);
   });
 
   test("les sections restantes sont de la méthode, pas du programme", () => {
@@ -259,7 +284,7 @@ describe("buildPlan : groupes et comptes", () => {
     /* Méthode = ce qui vaut pour tout le monde et ne disparaît jamais.
        Programme = ce qui vient de la donnée, et qui disparaît avec elle. */
     const L = byId(LEGACY_DEFINITION);
-    for (const id of ["structure", "progression", "deload"]) assert.equal(L[id].group, "methode", id);
+    for (const id of ["structure", "progression", "deload", "repos"]) assert.equal(L[id].group, "methode", id);
     for (const id of ["volume", "fallback", "cardio", "nutrition", "startloads"]) assert.equal(L[id].group, "programme", id);
   });
 
@@ -276,7 +301,7 @@ describe("buildPlan : groupes et comptes", () => {
        voie : trois lignes constantes sur huit est une information, pas un
        défaut à cacher. */
     const L = byId(LEGACY_DEFINITION), N = byId(NEUTRAL);
-    for (const id of ["structure", "progression", "deload"]) {
+    for (const id of ["structure", "progression", "deload", "repos"]) {
       assert.equal(L[id].meta, N[id].meta, id);
     }
   });
