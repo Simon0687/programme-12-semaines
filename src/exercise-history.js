@@ -252,18 +252,24 @@ export function headline(entries, unit) {
    la phrase sous la table promettait déjà.
 
    Sans charge (time, reps), la table dégénère en une ligne — même écran, même
-   code (#17, critère d'acceptation). */
-export function recordsFor(entries, unit) {
+   code (#17, critère d'acceptation).
+
+   Le calcul garde l'**entrée** qui a établi chaque record, pas seulement sa
+   date : l'onglet Historique pose un trophée sur ces séances-là (maquette
+   « Fiche exercice », E2), et une date seule ne les désigne pas — le même
+   jour peut porter deux séances dans deux cycles ouverts (#17, constaté le
+   2026-09-14). La forme publique de `recordsFor` ne change pas. */
+function recordRows(entries, unit) {
   const list = entries || [];
 
   if (!hasLoad(unit)) {
-    let best = null, date = null;
+    let best = null, entry = null;
     for (const e of list) {
       for (const s of e.sets) {
-        if (s.r != null && (best == null || s.r > best)) { best = s.r; date = e.date; }
+        if (s.r != null && (best == null || s.r > best)) { best = s.r; entry = e; }
       }
     }
-    return { mode: "best", best, date };
+    return { mode: "best", best, entry };
   }
 
   const repCounts = new Set();
@@ -271,19 +277,34 @@ export function recordsFor(entries, unit) {
 
   const rows = [];
   for (const reps of [...repCounts].sort((a, b) => a - b)) {
-    let load = null, date = null;
+    let load = null, entry = null;
     for (const e of list) {
       for (const s of e.sets) {
         if (s.r == null || s.r < reps) continue;
         const w = s.w == null ? 0 : s.w;
-        if (load == null || w > load) { load = w; date = e.date; }
+        if (load == null || w > load) { load = w; entry = e; }
       }
     }
-    if (load != null) rows.push({ reps, load, date });
+    if (load != null) rows.push({ reps, load, entry });
   }
   /* Les reps montent, la charge ne peut que descendre : une ligne est
      redondante exactement quand la suivante porte la même charge. Filtrer
      après coup plutôt que dans la boucle garde la règle du « ou plus » — la
      seule qui produise la date — intacte et lisible d'un bloc. */
   return { mode: "byReps", rows: rows.filter((r, i) => i === rows.length - 1 || rows[i + 1].load < r.load) };
+}
+
+export function recordsFor(entries, unit) {
+  const r = recordRows(entries, unit);
+  if (r.mode === "best") return { mode: "best", best: r.best, date: r.entry ? r.entry.date : null };
+  return { mode: "byReps", rows: r.rows.map(({ reps, load, entry }) => ({ reps, load, date: entry.date })) };
+}
+
+/* Les séances qui ont établi un record encore debout — celles que la table
+   affiche, ni plus ni moins. Un ensemble d'entrées (les objets mêmes que rend
+   `exerciseHistory`) : la vue teste l'appartenance sans recomposer de clé. */
+export function recordEntries(entries, unit) {
+  const r = recordRows(entries, unit);
+  if (r.mode === "best") return new Set(r.entry ? [r.entry] : []);
+  return new Set(r.rows.map((row) => row.entry));
 }

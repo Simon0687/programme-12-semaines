@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   setSummary, rowIsDone, completedSets, muscleRows, detailRows, chartGeometry, framed, valueText, deltaText, dateShort, dayNumber, MUSCLE_LABELS, KIND_LABELS, PATTERN_LABELS, dayName, weekdayName, adviceSummary, unitColumns, unitLoadLabel, warmupRamp, warmupText, WARMUP_RAMP, carryNote,
+  setCondensed, setLine, sheetFacts, signed, headlineTiles, cueKind, cuePoints,
 } from "../src/display.js";
 import { EXERCISES, UNSELECTABLE_IDS, MUSCLE_GROUPS, PATTERNS } from "../src/registry.js";
 import { fmt } from "../src/progression.js";
@@ -527,4 +528,124 @@ test("carryNote : la date quand la charge est reprise, l'origine quand elle est 
   assert.equal(carryNote({ load: 92.5, date: "2026-09-07", fromLoad: 115, fromReps: 4, converted: true }, v), "converti de 115 kg × 4 · 7 sept.");
   assert.equal(carryNote({ load: 40, date: "2026-09-07", fromLoad: 44, fromReps: 4, converted: true }, { name: "x", perHand: true }), "converti de 44 kg / main × 4 · 7 sept.");
   assert.equal(carryNote(null, v), "");
+});
+
+/* ---------- Fiche exercice en onglets (#119) ---------- */
+
+test("setCondensed : la ligne de la maquette, « 4 × 8 · 72,5 »", () => {
+  const four = [1, 2, 3, 4].map(() => ({ w: 72.5, r: 8, rir: 1 }));
+  assert.equal(setCondensed(four, { unit: "kg" }), "4 × 8 · 72,5");
+  assert.equal(setCondensed(four, {}), "4 × 8 · 72,5", "sans unité, du kilo");
+});
+
+test("setCondensed : des reps qui varient en fourchette, une charge qui varie en bornes ordonnées", () => {
+  assert.equal(setCondensed([{ w: 80, r: 8 }, { w: 80, r: 7 }, { w: 80, r: 6 }], {}), "3 × 6–8 · 80");
+  assert.equal(setCondensed([{ w: 70, r: 8 }, { w: 72.5, r: 8 }], {}), "2 × 8 · 70 → 72,5");
+  assert.equal(setCondensed([{ w: 72.5, r: 8 }, { w: 70, r: 8 }], {}), "2 × 8 · 72,5 → 70", "le sens de la séance, pas un tri");
+});
+
+test("setCondensed : lest, porté, tenue, reps — le kilo écrit là où un nombre nu se lirait autrement", () => {
+  assert.equal(setCondensed([{ w: 5, r: 9 }, { w: 5, r: 8 }], { unit: "bw" }), "2 × 8–9 · +5 kg");
+  assert.equal(setCondensed([{ w: 0, r: 11 }], { unit: "bw" }), "1 × 11 · PDC");
+  assert.equal(setCondensed([{ w: 0, r: 8 }, { w: 5, r: 6 }], { unit: "bw" }), "2 × 6–8 · PDC → +5 kg");
+  assert.equal(setCondensed([{ w: 24, r: 40 }, { w: 24, r: 40 }], { unit: "carry" }), "2 × 40 s · 24 kg");
+  assert.equal(setCondensed([{ w: null, r: 60 }, { w: null, r: 45 }], { unit: "time" }), "2 × 45–60 s");
+  assert.equal(setCondensed([{ w: null, r: 12 }], { unit: "reps" }), "1 × 12");
+});
+
+test("setCondensed : une série sans reps n'est pas comptée, aucune série donne un tiret", () => {
+  assert.equal(setCondensed([{ w: 80, r: 8 }, { w: 80, r: null }], {}), "1 × 8 · 80");
+  assert.equal(setCondensed([], {}), "—");
+  assert.equal(setCondensed(null, {}), "—");
+});
+
+test("setLine : une série telle qu'elle a été faite, RIR compris", () => {
+  assert.equal(setLine({ w: 72.5, r: 8, rir: 1 }, {}), "72,5 kg × 8 · 1 RIR");
+  assert.equal(setLine({ w: 72.5, r: 8, rir: null }, {}), "72,5 kg × 8");
+  assert.equal(setLine({ w: 5, r: 9, rir: 1 }, { unit: "bw" }), "+5 kg × 9 · 1 RIR");
+  assert.equal(setLine({ w: 0, r: 11 }, { unit: "bw" }), "PDC × 11");
+  assert.equal(setLine({ w: 24, r: 40 }, { unit: "carry" }), "24 kg × 40 s");
+  assert.equal(setLine({ w: null, r: 60 }, { unit: "time" }), "60 s");
+  assert.equal(setLine({ w: null, r: 12 }, { unit: "reps" }), "12 reps");
+  assert.equal(setLine({ w: 80, r: null }, {}), "80 kg × ?");
+});
+
+test("sheetFacts : les pastilles sous le titre, lues dans le registre", () => {
+  assert.deepEqual(sheetFacts(EXERCISES.dc), {
+    equipment: "barre · banc · rack", gear: "free", type: "composé", weighted: false, joints: "Sollicite épaule, poignet",
+  });
+  const pull = sheetFacts(EXERCISES.pullup);
+  assert.equal(pull.gear, "body");
+  assert.equal(pull.weighted, true, "« lestable » vient de l'unité bw");
+  assert.equal(sheetFacts(EXERCISES.legpress).gear, "machine");
+  assert.equal(sheetFacts(EXERCISES.rpd).joints, "", "aucune articulation, aucune ligne");
+  assert.equal(sheetFacts(null), null);
+});
+
+test("signed : le signe toujours écrit, moins typographique", () => {
+  assert.equal(signed(9), "+9");
+  assert.equal(signed(-2.5), "−2,5");
+  assert.equal(signed(0), "0");
+});
+
+test("headlineTiles : 10RM et sa variation datée (maquette E1)", () => {
+  const tiles = headlineTiles({ value: 71, bar: null, dim: false, delta: 9 }, "kg", "2026-09-08", "10RM estimé");
+  assert.deepEqual(tiles, [
+    { value: "71", unit: "kg", label: "10RM estimé", dim: false },
+    { value: "+9", label: "kg depuis le 8 sept.", trend: 1 },
+  ]);
+});
+
+test("headlineTiles : une seule séance, pas de tuile de variation", () => {
+  const tiles = headlineTiles({ value: 60, bar: null, dim: true, delta: null }, "kg", "2026-09-08", "10RM estimé");
+  assert.equal(tiles.length, 1);
+  assert.equal(tiles[0].dim, true, "l'estimation hors fenêtre reste grisée");
+  assert.deepEqual(headlineTiles(null, "kg", null, "x"), []);
+});
+
+test("headlineTiles : double progression en trois tuiles (maquette E3)", () => {
+  assert.deepEqual(headlineTiles({ value: 9, bar: 5, dim: false, delta: 3 }, "bw", "2026-09-10", "x"), [
+    { value: "9", label: "reps" },
+    { value: "+5", label: "kg de lest" },
+    { value: "+3", label: "reps depuis le 10 sept.", trend: 1 },
+  ]);
+  assert.equal(headlineTiles({ value: 8, bar: 0, delta: null }, "bw", "2026-09-10", "x")[1].value, "0");
+  assert.deepEqual(headlineTiles({ value: 40, bar: 24, delta: -5 }, "carry", "2026-09-10", "x").map((t) => t.label), [
+    "s", "kg", "s depuis le 10 sept.",
+  ]);
+});
+
+test("headlineTiles : mesure brute sans charge", () => {
+  assert.deepEqual(headlineTiles({ value: 60, bar: null, dim: false, delta: 15 }, "time", "2026-08-01", "Tenue"), [
+    { value: "60", unit: "s", label: "Tenue", dim: false },
+    { value: "+15", label: "s depuis le 1 août", trend: 1 },
+  ]);
+});
+
+test("cuePoints : la consigne du développé couché, une phrase par point", () => {
+  assert.deepEqual(cuePoints(EXERCISES.dc.cue), [
+    { text: "Omoplates serrées et abaissées, pieds ancrés, cambrure naturelle", kind: "posture" },
+    { text: "Barre sur le bas des pecs, descente 2–3 s, poussée explosive, pas de rebond", kind: "grip" },
+  ]);
+  assert.deepEqual(cuePoints(undefined), []);
+});
+
+test("cueKind : le premier mot-clé rencontré décide, un inconnu reste neutre", () => {
+  assert.equal(cueKind("Descente 2–3 s"), "tempo");
+  assert.equal(cueKind("Pousser fort, freiner 2–3 s"), "power");
+  assert.equal(cueKind("Montée forte, descente contrôlée"), "power");
+  assert.equal(cueKind("Pieds à mi-hauteur, largeur épaules"), "stance");
+  assert.equal(cueKind("Dossier à 60–70°, haltères poussés ensemble"), "stance", "« dossier » n'est pas « dos »");
+  assert.equal(cueKind("Au moindre signal lombaire : hack squat ou presse"), "caution");
+  assert.equal(cueKind("Lest dès 3 × 8 à ≤ 1 RIR"), "progress");
+  assert.equal(cueKind("Cible le soléaire"), "point");
+});
+
+test("cuePoints : toutes les consignes du registre se découpent sans point vide", () => {
+  for (const [id, v] of Object.entries(EXERCISES)) {
+    if (!v.cue) continue;
+    const pts = cuePoints(v.cue);
+    assert.ok(pts.length >= 1, id);
+    for (const p of pts) assert.ok(p.text.length > 2 && !p.text.endsWith("."), `${id} : « ${p.text} »`);
+  }
 });
