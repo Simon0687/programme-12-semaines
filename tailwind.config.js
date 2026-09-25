@@ -52,6 +52,7 @@ module.exports = {
       colors: {
         /* ---- Accent : ce qui est vivant ---- */
         accent: "#9184d9",                    // charge prévue, série en cours, onglet actif, bouton primaire, toast
+        "accent-ink": "#d2cefd",              // l'accent posé en texte ou en picto sur une surface : option choisie, tendance, trophée (accent-300 de la maquette)
         focus: "#d2cefd",                     // anneau de focus — séparé pour qu'il puisse garder son contraste si l'accent change
         badge: "#b5abfc",                     // mentions de la prescription : échec OK, AMRAP
         done: colors.emerald[400],            // validé : série, séance, semaine. Jamais un succès générique.
@@ -74,6 +75,7 @@ module.exports = {
         /* ---- Surfaces et traits ---- */
         surface: "#161826",                   // fond de page, en-têtes collants, barre d'onglets
         "surface-raised": "#232532",          // champs, cartes, pastilles
+        chip: "#3f424d",                      // pastille neutre et case de picto posées sur une carte (tag-neutral de la maquette)
         rule: "rgba(233, 233, 237, 0.16)",    // bordures, séparateurs, filets d'un pixel — le filet qui s'estompe de la maquette
         "rule-strong": "#75798c",             // pastille de séance non validée
         "rule-faint": "#3f424d",              // bordure d'un champ déjà validé, sur `surface`
@@ -95,13 +97,18 @@ module.exports = {
         /* ---- Parts de muscle : une échelle, pas quatre couleurs ----
            Les segments de la barre empilée, du dominant au plus discret (#49).
            L'ordre porte le sens : c'est un rang, donc les tokens se lisent
-           comme un rang. Volontairement hors de l'accent — une part de muscle
-           est une donnée de référence, pas quelque chose de vivant. Le
-           dominant se repère à sa largeur et à sa clarté, sans légende. */
-        "share-1": "#cfd3e5",
-        "share-2": "#9397ab",
-        "share-3": "#75798c",
-        "share-4": "#595d6c",                 // et tous les suivants
+           comme un rang. Le dominant se repère à sa largeur et à sa clarté,
+           sans légende.
+
+           2026-09-26 : la maquette « Fiche exercice » (#119) pose le dominant
+           et le second dans l'accent (accent-400, accent-700), le reste en
+           neutre. #49 les tenait hors de l'accent parce que l'accent était un
+           ambre qui voulait dire « alerte » ailleurs ; la lavande de Nocturne
+           ne porte plus ce sens, et c'est la maquette validée qui tranche. */
+        "share-1": "#b5abfc",
+        "share-2": "#5d5294",
+        "share-3": "#595d6c",
+        "share-4": "#3f424d",                 // et tous les suivants
 
         /* ---- Phases du cycle (#107, #114) ----
            Un repère de lecture sur douze semaines, pas un accent ni un

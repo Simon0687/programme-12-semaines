@@ -84,12 +84,7 @@ export function setSummary(sets, v) {
   if (!loaded) {
     head = "";
   } else if (varies) {
-    /* Bornes, pas extrémités : sur 70 / 90 / 80 la flèche doit encadrer le 90,
-       que la dernière série ne porte pas. L'ordre est celui de la première des
-       deux rencontrée, donc celui de la séance. */
-    const lo = Math.min(...loads), hi = Math.max(...loads);
-    const [a, b] = loads.find((w) => w === lo || w === hi) === hi ? [hi, lo] : [lo, hi];
-    head = bounds(a, b);
+    head = bounds(...orderedBounds(loads));
   } else {
     /* La forme à charge constante est figée : elle est ce que trois écrans
        affichent depuis #17, et les tests l'épinglent au caractère. */
@@ -99,6 +94,63 @@ export function setSummary(sets, v) {
   const body = `${head}${sets.map(reps).join("/")}${secs ? " s" : ""}`;
   const rir = [...new Set(sets.map((s) => s.rir).filter((x) => x != null))];
   return rir.length ? `${body} · ${rir.join("-")} RIR` : body;
+}
+
+/* Bornes, pas extrémités : sur 70 / 90 / 80 la flèche doit encadrer le 90,
+   que la dernière série ne porte pas. L'ordre est celui de la première des
+   deux rencontrée, donc celui de la séance. Partagé par la forme bornée
+   ci-dessus et la forme condensée ci-dessous, pour que les deux ne puissent
+   pas dire deux sens de flèche différents sur la même séance. */
+function orderedBounds(loads) {
+  const lo = Math.min(...loads), hi = Math.max(...loads);
+  return loads.find((w) => w === lo || w === hi) === hi ? [hi, lo] : [lo, hi];
+}
+
+/* ---------- La ligne d'historique condensée (#119, maquette E2) ----------
+
+   « 4 × 8 · 72,5 » : le nombre de séries, les reps, la charge. C'est la ligne
+   de l'onglet Historique de la fiche ; le détail série par série s'ouvre au
+   toucher (`setLine`), donc la ligne n'a plus à tout porter — c'est ce qui
+   lui permet d'être plus courte que la forme bornée de `setSummary`, qui
+   reste celle de la liste Semaine.
+
+   Elle garde la même honnêteté : des reps qui varient s'écrivent en
+   fourchette (« 3 × 6–8 »), une charge qui varie en bornes dans l'ordre de la
+   séance (« 70 → 72,5 »), jamais une valeur qui n'a pas été faite. Le RIR n'y
+   est pas : il est dans le détail.
+
+   Le kilo reste nu sur une charge — la fiche est celle d'un exercice à la
+   charge, la tête de fiche et les records le disent déjà — et s'écrit
+   ailleurs, là où un nombre nu se lirait autrement : un lest (« +5 kg »),
+   ou la charge d'un porté, posée à côté de secondes. */
+export function setCondensed(sets, v) {
+  const done = (sets || []).filter((s) => s.r != null);
+  if (!done.length) return "—";
+  const u = traitsOf(v && v.unit);
+  const reps = done.map((s) => s.r);
+  const lo = Math.min(...reps), hi = Math.max(...reps);
+  const body = `${done.length} × ${lo === hi ? fmt(lo) : `${fmt(lo)}–${fmt(hi)}`}${u.repUnit === "s" ? " s" : ""}`;
+  if (!u.hasLoad) return body;
+
+  const loads = done.map((s) => (s.w == null ? 0 : s.w));
+  const one = u.bodyweight ? (w) => (w > 0 ? `+${fmt(w)}` : "PDC") : fmt;
+  const [a, b] = new Set(loads).size > 1 ? orderedBounds(loads) : [loads[0], null];
+  const load = b == null ? one(a) : `${one(a)} → ${one(b)}`;
+  const kg = u.bodyweight ? loads.some((w) => w > 0) : u.repUnit === "s";
+  return `${body} · ${load}${kg ? " kg" : ""}`;
+}
+
+/* Une série, telle qu'elle a été faite : ce que la ligne condensée replie. */
+export function setLine(s, v) {
+  const u = traitsOf(v && v.unit);
+  const r = s.r == null ? "?" : fmt(s.r);
+  const measure = u.repUnit === "s" ? `${r} s` : `${r} reps`;
+  const w = s.w == null ? 0 : s.w;
+  let out;
+  if (!u.hasLoad) out = measure;
+  else if (u.bodyweight) out = `${w > 0 ? `+${fmt(w)} kg` : "PDC"} × ${r}`;
+  else out = `${fmt(w)} kg × ${u.repUnit === "s" ? measure : r}`;
+  return s.rir == null ? out : `${out} · ${s.rir} RIR`;
 }
 
 /* ---------- Dates ---------- */
@@ -371,6 +423,117 @@ export function detailRows(ex) {
     articulations: capitalize(joinLabels(ex.articulations, JOINT_LABELS)),
     type: TYPE_LABELS[ex.type] || "",
   };
+}
+
+/* ---------- La fiche exercice en onglets (#119, maquette « Fiche exercice ») ----------
+
+   Trois lectures du registre et de la tête de fiche, reformulées pour la
+   maquette : ce que le bloc « Détails » disait en lignes de tableau remonte en
+   pastilles sous le titre, le chiffre de tête se découpe en tuiles, la
+   consigne se lit en points. Rien de nouveau n'est calculé — la donnée est
+   celle de `detailRows`, `headline` et `v.cue`. */
+
+/* Le pictogramme de la pastille matériel, choisi sur le premier équipement
+   listé (le registre met en tête ce qui définit l'exercice : « barre » avant
+   « banc »). Trois familles, parce que la maquette en montre trois : une
+   barre, une machine, le corps. */
+const BODY_GEAR = ["barre_traction", "barres_paralleles", "poids_du_corps"];
+const MACHINE_GEAR = ["machine", "poulie"];
+
+export function sheetFacts(ex) {
+  if (!ex) return null;
+  const gear = Array.isArray(ex.equipement) ? ex.equipement : [];
+  const joints = joinLabels(ex.articulations, JOINT_LABELS);
+  return {
+    equipment: gear.map((k) => EQUIPMENT_LABELS[k] || k).join(" · "),
+    gear: MACHINE_GEAR.includes(gear[0]) ? "machine" : BODY_GEAR.includes(gear[0]) ? "body" : "free",
+    type: TYPE_LABELS[ex.type] ? TYPE_LABELS[ex.type].toLowerCase() : "",
+    /* « lestable » : la maquette l'affiche sur les tractions, et c'est
+       exactement ce que dit l'unité `bw` — un poids du corps auquel une
+       charge s'ajoute. */
+    weighted: traitsOf(ex.unit).bodyweight,
+    joints: joints ? `Sollicite ${joints}` : "",
+  };
+}
+
+const unitWord = (u) => (traitsOf(u).hasLoad ? "kg" : traitsOf(u).repUnit);
+
+/* Signe toujours écrit, moins typographique : la règle de `deltaText`, sans
+   l'unité, que la tuile pose dans son libellé. */
+export const signed = (n) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${fmt(Math.abs(n))}`;
+
+/* Les tuiles de tête de l'onglet Progrès. Deux formes, comme la maquette :
+
+   - une valeur et sa variation (E1) — le 10RM estimé en kilo, ou la mesure
+     brute d'un exercice sans charge ;
+   - trois valeurs en double progression (E3) — les reps (ou la tenue), la
+     charge, la variation — parce qu'un 10RM n'y a pas de sens et que taire la
+     charge ferait lire pareil 8 tractions à vide et 8 à +20 kg.
+
+   La variation garde sa base écrite (« depuis le 8 sept. ») pour la raison de
+   #49 : deux bases possibles, et le lecteur ne peut pas deviner laquelle. Elle
+   est absente sur une seule séance, jamais « +0 ». */
+export function headlineTiles(head, unit, since, label) {
+  if (!head) return [];
+  const t = traitsOf(unit);
+  const w = unitWord(t.chart.line);
+  const trend = head.delta == null ? [] : [{
+    value: signed(head.delta),
+    label: `${w} depuis le ${dateShort(since)}`,
+    trend: Math.sign(head.delta),
+  }];
+  if (t.chart.kind === "dual") {
+    return [
+      { value: fmt(head.value), label: w },
+      { value: head.bar > 0 ? `+${fmt(head.bar)}` : "0", label: t.bodyweight ? "kg de lest" : "kg" },
+      ...trend,
+    ];
+  }
+  return [{ value: fmt(head.value), unit: w, label, dim: head.dim === true }, ...trend];
+}
+
+/* La consigne technique en points (maquette E2 : « un paragraphe dans l'app,
+   devient 4 points à picto »). Le registre la garde en paragraphe — c'est
+   une donnée rédigée, et la découper à la source doublerait les quarante
+   entrées pour un choix d'affichage. Le découpage se fait donc ici, à la
+   phrase : une virgule couperait « pas de rebond » de ce qu'il qualifie.
+
+   Le pictogramme est une famille, repérée au premier mot-clé rencontré dans
+   la phrase — le premier, parce qu'une consigne dit d'abord de quoi elle
+   parle (« Descente 2–3 s, … » est un tempo, « Pieds ancrés, … » un
+   appui). À égalité de position, l'ordre de la table tranche. Une phrase
+   sans mot-clé reçoit `point` : un repère neutre plutôt qu'un pictogramme
+   qui dirait faux. */
+const CUE_KINDS = [
+  ["caution", ["stop", "au moindre", "jamais", "si besoin", "pour ménager", "sans hyperextension"]],
+  ["progress", ["lest dès", "paliers", "à traiter comme"]],
+  ["power", ["explosi", "pousser fort", "montée forte"]],
+  ["tempo", ["descente", "pause", "tenir", "contraction", "freiner", "retour", "montée"]],
+  ["range", ["amplitude", "profondeur", "étirement", "jusqu'", "extension complète", "descendre"]],
+  ["grip", ["prise", "poignée", "poignets", "mains", "sangles", "haltère", "barre sur"]],
+  ["stance", ["pieds", "genoux", "tibias", "jambes", "assise", "assis", "debout", "dossier", "hanches", "bassin", "épaules sur"]],
+  ["posture", ["omoplates", "coude", "buste", "dos", "poitrine", "épaule", "lombaires", "cambrure", "côtes", "menton", "corps", "bras", "cuisses"]],
+];
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const CUE_RES = CUE_KINDS.map(([kind, words]) => [kind, new RegExp(`(?<!\\p{L})(?:${words.map(escapeRe).join("|")})`, "iu")]);
+
+export function cueKind(sentence) {
+  let best = null;
+  for (const [kind, re] of CUE_RES) {
+    const m = re.exec(sentence);
+    if (m && (best == null || m.index < best.index)) best = { kind, index: m.index };
+  }
+  return best ? best.kind : "point";
+}
+
+export function cuePoints(cue) {
+  if (typeof cue !== "string") return [];
+  return cue
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim().replace(/\.$/, ""))
+    .filter(Boolean)
+    .map((text) => ({ text, kind: cueKind(text) }));
 }
 
 /* ---------- Géométrie de la courbe ----------

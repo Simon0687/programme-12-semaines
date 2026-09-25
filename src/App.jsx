@@ -1450,9 +1450,10 @@ export default function Programme() {
         )}
 
         {/* #17 : la fiche ne reçoit ni prog, ni week, ni session — voir
-            l’en-tête de ExerciseSheet.jsx. */}
+            l’en-tête de ExerciseSheet.jsx. `key` (#119) : l’onglet ouvert
+            appartient à un exercice, chaque fiche repart sur Progrès. */}
         {screen === "exercice" && (
-          <ExerciseSheet journal={journal} exerciseId={nav.exerciseId} backLabel={backLabel} onBack={closeExercise} />
+          <ExerciseSheet key={nav.exerciseId} journal={journal} exerciseId={nav.exerciseId} backLabel={backLabel} onBack={closeExercise} />
         )}
 
         {/* #58 : la collecte ne possède rien de stocké et ne passe la main

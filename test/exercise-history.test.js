@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { exerciseHistory, recordsFor, seriesByCycle, chartPoint, chartMode, headline, estimate10RM } from "../src/exercise-history.js";
+import { exerciseHistory, recordsFor, recordEntries, seriesByCycle, chartPoint, chartMode, headline, estimate10RM } from "../src/exercise-history.js";
 
 /* Deux cycles, comme un journal réel après un an : l'ancien porte ses propres
    noms de séance (« Pousser »), le nouveau les siens (« Haut A »). C'est la
@@ -174,6 +174,45 @@ test("recordsFor : au poids du corps, le record porte le lest, PDC valant zéro"
   const { rows } = recordsFor(entries, "bw");
   assert.deepEqual(rows.find((r) => r.reps === 6), { reps: 6, load: 10, date: "2026-07-29" });
   assert.deepEqual(rows.find((r) => r.reps === 8), { reps: 8, load: 0, date: "2026-07-01" });
+});
+
+/* ---------- Trophées de l'historique (#119) ---------- */
+
+test("recordEntries : les séances qui portent un record de la table, et elles seules", () => {
+  const h = exerciseHistory(journal(), "dc");
+  const set = recordEntries(h, "kg");
+  /* Deux lignes dans la table (87,5 × 5 le 31 août, 85 × 8 le 24 août) : deux
+     trophées, posés sur ces deux séances-là. */
+  assert.deepEqual(h.filter((e) => set.has(e)).map((e) => e.date), ["2026-08-24", "2026-08-31"]);
+});
+
+test("recordEntries : une ligne retirée comme redondante ne laisse pas de trophée (#63)", () => {
+  const entries = [
+    { date: "2026-09-10", sets: [{ w: 105, r: 7, rir: 1 }] },
+    { date: "2026-09-17", sets: [{ w: 105, r: 8, rir: 1 }] },
+  ];
+  const set = recordEntries(entries, "kg");
+  assert.equal(set.has(entries[0]), false);
+  assert.equal(set.has(entries[1]), true);
+});
+
+test("recordEntries : même date dans deux cycles, seul le cycle du record est désigné", () => {
+  const entries = [
+    { date: "2026-09-07", programId: "a", sets: [{ w: 60, r: 8 }] },
+    { date: "2026-09-07", programId: "b", sets: [{ w: 80, r: 8 }] },
+  ];
+  const set = recordEntries(entries, "kg");
+  assert.deepEqual([...set].map((e) => e.programId), ["b"]);
+});
+
+test("recordEntries : sans charge, la séance de la meilleure série ; vide sans donnée", () => {
+  const entries = [
+    { date: "2026-08-01", sets: [{ w: null, r: 40 }] },
+    { date: "2026-09-07", sets: [{ w: null, r: 60 }] },
+  ];
+  assert.deepEqual([...recordEntries(entries, "time")], [entries[1]]);
+  assert.equal(recordEntries([], "time").size, 0);
+  assert.equal(recordEntries(null, "kg").size, 0);
 });
 
 /* ---------- Courbe ---------- */
