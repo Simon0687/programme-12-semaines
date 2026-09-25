@@ -16,7 +16,8 @@
    dans un composant).
    ========================================================= */
 
-import { ChevronLeft, TrendingDown, Bone, Moon, HeartPulse, Gauge } from "lucide-react";
+import { useState } from "react";
+import { ChevronLeft, ChevronDown, TrendingDown, Bone, Moon, HeartPulse, Gauge } from "lucide-react";
 import { cardioWhen, mobilityDayNames } from "./display.js";
 import { hasCardioItems, hasMobilityDays } from "./program.js";
 import { PHASE_BG, PHASE_SHORT_LABELS, PHASE_ORDER } from "./phase-colors.js";
@@ -91,16 +92,10 @@ export function Block({ block }) {
         </div>
       </div>
     );
-  if (block.t === "table" && block.variant === "volume")
-    return (
-      <table className="w-full text-sm">
-        <tbody>
-          {block.rows.map(([g, n, o]) => (
-            <tr key={g} className="border-t border-rule"><td className="py-1.5 pr-2">{g}</td><td className="py-1.5 pr-2 text-accent text-right">{n}</td><td className="py-1.5 text-ink-muted">{o}</td></tr>
-          ))}
-        </tbody>
-      </table>
-    );
+  /* #108 : le volume par groupe, en barres plutôt qu'en table — la question
+     qu'on vient poser (« lequel est le plus gros ? ») se répond au premier
+     coup d'œil, sans lire les nombres. */
+  if (block.t === "bars") return <VolumeBars rows={block.rows} />;
   /* #114 : les deux recettes de décharge, côte à côte — ce qui change entre
      Complète et Ciblée se lisait avant en comparant deux paragraphes à la
      main. */
@@ -126,6 +121,54 @@ export function Block({ block }) {
     );
   return null;
 }
+
+/* ---------- Le volume par groupe, en barres (#108) ----------
+
+   Un seul groupe déplié à la fois — `open` est l'index de celui-là, pas un
+   Set : la question qu'on vient poser (« ce groupe-là, où se fait-il ? »)
+   ne se pose jamais deux fois d'affilée. `rows` arrive déjà trié et déjà
+   mis à l'échelle par `value` (plan.js) ; ce composant ne fait qu'une
+   division, purement visuelle : la largeur de chaque barre en proportion de
+   la plus grande. */
+function VolumeBars({ rows }) {
+  const [open, setOpen] = useState(null);
+  const max = Math.max(1, ...rows.map((r) => r.value));
+  return (
+    <div className="space-y-3">
+      {rows.map((r, i) => {
+        const expanded = open === i;
+        return (
+          <div key={r.label}>
+            <button type="button" onClick={() => setOpen(expanded ? null : i)} aria-expanded={expanded}
+              className="w-full text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-ink inline-flex items-center gap-1">
+                  {r.label}
+                  <ChevronDown size={14} className={`text-ink-faint transition-transform ${expanded ? "rotate-180" : ""}`} />
+                </span>
+                <span className="text-accent font-medium shrink-0">{r.display}</span>
+              </div>
+              <div className="mt-1 h-2 rounded-full bg-surface-raised overflow-hidden">
+                <div className="h-full bg-accent rounded-full" style={{ width: `${(r.value / max) * 100}%` }} />
+              </div>
+            </button>
+            {expanded && (
+              <div className="mt-1.5 pl-1 space-y-0.5">
+                {r.sessions.map((s, j) => (
+                  <div key={j} className="flex items-baseline justify-between gap-2 text-ink-muted">
+                    <span>{s.label}</span>
+                    {s.sets != null && <span className="shrink-0">{s.sets} séries</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* Même en-tête que la fiche exercice (#17) : bouton de retour collant, titre
    en dessous. Le retour est en `text-ink-soft` et non en ambre — l'accent
    porte déjà trop de sens (triage du 2026-09-14, C2), et une flèche de retour

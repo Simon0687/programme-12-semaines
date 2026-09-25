@@ -63,8 +63,21 @@
                                              couleur vient de phase-colors.js,
                                              partagée avec la timeline de
                                              l'index Programme (#107).
-         { t: "table", variant: "volume", rows: [[groupe, nb, où], …] }
-                                             (nb : cellule ambre, alignée à droite)
+         { t: "bars", rows: [{ label, value, display, sessions }, …] }
+                                             barres horizontales triées par
+                                             valeur décroissante (#108 — volume
+                                             par groupe). `value` est le nombre
+                                             (parsé, pour trier et mettre à
+                                             l'échelle), `display` la chaîne
+                                             d'origine (peut porter une
+                                             virgule) ; `sessions` la
+                                             ventilation "où ça se fait",
+                                             dérivée de la troisième colonne
+                                             de program.volume — jamais une
+                                             réinterprétation stockée, un
+                                             segment qui ne suit pas le motif
+                                             attendu redevient une ligne
+                                             unique.
          { t: "table", variant: "compare", head: [libelléA, libelléB],
            rows: [[libellé, valeurA, valeurB], …] }
                                              comparaison à deux colonnes (#114
@@ -79,9 +92,29 @@
 import { EXERCISES } from "./registry.js";
 import { normalizeCardio, cardioTargets, MODALITIES } from "./cardio.js";
 import { dayName } from "./display.js";
+import { num } from "./progression.js";
 
 const kg = (n) => String(n).replace(".", ",");                       // 72.5 -> "72,5"
 const sp = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");   // 3150 -> "3 150"
+
+/* #108 : la troisième colonne de program.volume est une prose stable, jamais
+   une donnée structurée — "Haut A 6 + Haut B 4" pour un programme généré,
+   mais aussi "Haut C 3 (développé assis) + les presses pecs" pour le
+   programme hérité, où rien ne nomme une séance ni un nombre de séries à la
+   fin du segment. Rien ici ne réinterprète ce qui est stocké : un segment
+   qui suit le motif "nom N" en sort en { label: nom, sets: N } ; les autres
+   redeviennent une ligne, verbatim, sets: null — aucun mot n'est perdu, la
+   ventilation par « + » remplace seulement la ponctuation par des lignes. */
+function parseVolumeWhere(where) {
+  return String(where || "")
+    .split(" + ")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const m = /^(.*)\s(\d+)$/.exec(part);
+      return m ? { label: m[1], sets: Number(m[2]) } : { label: part, sets: null };
+    });
+}
 
 /* Ancres du cycle : les exercices clés que le bloc 2 ne fait pas tourner
    (b1 === b2). Dérivé plutôt qu'écrit en dur — c'est une propriété du
@@ -237,9 +270,19 @@ export function buildPlan(definition) {
       id: "volume",
       title: "Volume par semaine, et où il se fait",
       group: "programme",
-      meta: `${program.volume.length} groupes · ${Math.max(...program.volume.map((r) => Number(r[1]) || 0))} séries max`,
+      meta: `${program.volume.length} groupes · ${Math.max(...program.volume.map((r) => num(r[1]) ?? 0))} séries max`,
       blocks: [
-        { t: "table", variant: "volume", rows: program.volume },
+        /* #108 : triées décroissant, la barre la plus longue étant celle du
+           groupe qui en fait le plus — c'est la question que la table posait
+           déjà, sans qu'il faille lire les nombres pour y répondre. Un tri
+           stable (Array#sort l'est depuis ES2019) : deux groupes à égalité
+           gardent l'ordre où program.volume les déclare. */
+        {
+          t: "bars",
+          rows: [...program.volume]
+            .map(([label, n, where]) => ({ label, value: num(n) ?? 0, display: n, sessions: parseVolumeWhere(where) }))
+            .sort((a, b) => b.value - a.value),
+        },
         { t: "p", text: "Une « série dure » = une série de travail menée à 1 RIR (ou à l'échec). Les séries d'échauffement ne comptent pas." },
       ],
     } : null,
