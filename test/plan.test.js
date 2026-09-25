@@ -86,7 +86,7 @@ describe("PLAN", () => {
      point d'atterrissage. Les sections listées ici n'ont pas encore été
      reprises ; **cette liste doit finir vide**, et c'est le seul état où #104
      est terminée. Retirer un id sans l'avoir repris fait échouer le test. */
-  const PENDING_104 = ["structure", "progression", "nutrition", "startloads"];
+  const PENDING_104 = [];
 
   test("aucun texte de section ne dépasse 300 caractères", () => {
     for (const s of PLAN) {
@@ -114,11 +114,15 @@ describe("buildPlan : reflète le profil reçu (#6)", () => {
       startingLoads: { ...STARTING_LOADS, dc: 40, squat: 60 },
     }));
 
-    const nutritionText = other.find((s) => s.id === "nutrition").blocks[0].text;
+    /* #104 : la section entière, et plus son premier bloc. Ces deux pages sont
+       maintenant faites d'intertitres et de listes — lire `blocks[0].text`
+       n'interrogeait plus que le titre « Cibles », qui ne porte aucun chiffre
+       et aurait laissé passer un profil ignoré. */
+    const nutritionText = textsOf(other.find((s) => s.id === "nutrition")).join(" ");
     assert.match(nutritionText, /2 200 kcal/);
     assert.doesNotMatch(nutritionText, new RegExp(String(PROFILE.startKcal)));
 
-    const loadsText = other.find((s) => s.id === "startloads").blocks[0].text;
+    const loadsText = textsOf(other.find((s) => s.id === "startloads")).join(" ");
     assert.match(loadsText, /40 kg/);
     assert.match(loadsText, /60 kg/);
   });
@@ -173,7 +177,9 @@ describe("buildPlan : sections pilotées par la définition (#26)", () => {
     const anchored = buildPlan(withDef({
       program: { ...LEGACY_DEFINITION.program, SLOTS: { a: { reps: [4, 8], rest: 150, key: true, b1: "dc", b2: "dc" }, b: { reps: [8, 12], rest: 90, b1: "lat_db", b2: "lat_cable" } } },
     }));
-    const text = anchored.find((s) => s.id === "structure").blocks[1].text;
+    /* #104 : les ancres sont passées du deuxième bloc à une liste ; ce qui se
+       vérifie reste le même — le nom dérivé du slot est là, l'autre pas. */
+    const text = textsOf(anchored.find((s) => s.id === "structure")).join(" ");
     assert.match(text, /développé couché barre/i);
     assert.doesNotMatch(text, /élévations latérales/i); // ni clé, ni fixe
   });

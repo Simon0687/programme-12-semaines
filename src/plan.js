@@ -79,14 +79,22 @@ function anchorNames(SLOTS) {
     .map((n) => n.toLowerCase());
 }
 
-function startLoadsText(startingLoads) {
-  const parts = Object.entries(startingLoads).map(([vid, load]) => {
+/* #104 : une charge par exercice, donc une ligne par exercice. Jointes par
+   des points-virgules, neuf entrées faisaient un paragraphe de 402 caractères
+   qu'il fallait relire pour retrouver un seul nom — alors que c'est
+   exactement la question qu'on vient poser à cette page. La règle des paliers
+   reste un paragraphe : elle ne parle d'aucun exercice en particulier. */
+function startLoadsBlocks(startingLoads) {
+  const items = Object.entries(startingLoads).map(([vid, load]) => {
     const v = EXERCISES[vid];
     const name = v ? v.name : vid;
     if (v && (v.unit || "kg") === "bw") return load > 0 ? `${name} lesté de ${kg(load)} kg` : `${name} au poids du corps`;
     return `${name} ${kg(load)} kg${v && v.perHand ? " par main" : ""}`;
   });
-  return `${parts.join(" ; ")}. Tout le reste en paliers : 50 → 75 → 100 % de la charge devinée, la première série dans la fourchette à 2–3 RIR devient la charge de travail.`;
+  return [
+    { t: "ul", items },
+    { t: "p", text: "Tout le reste en paliers : 50 → 75 → 100 % de la charge devinée, la première série dans la fourchette à 2–3 RIR devient la charge de travail." },
+  ];
 }
 
 
@@ -189,12 +197,20 @@ export function buildPlan(definition) {
             ["S12", "Bloc 2, dernière série AMRAP sur les exercices clés, mesures, re-baseline"],
           ],
         },
-        {
-          t: "p",
-          text: anchors.length
-            ? `Ancres conservées sur les deux blocs : ${anchors.join(", ")}. Les autres créneaux changent de variante en S7 : la charge y repart en paliers, c'est le rôle de la semaine de calibration. Point volume à la fin de S4 : on décide s'il faut ajouter des séries sur les groupes prioritaires dès S5.`
-            : "Tous les créneaux changent de variante en S7 : la charge y repart en paliers, c'est le rôle de la semaine de calibration. Point volume à la fin de S4 : on décide s'il faut ajouter des séries sur les groupes prioritaires dès S5.",
-        },
+        /* #104 : les ancres étaient énumérées au milieu d'un paragraphe qui
+           disait ensuite deux autres choses. Une liste d'exercices se lit en
+           liste — et la phrase sur les autres créneaux redevient lisible une
+           fois qu'elle ne traîne plus sept noms derrière elle. */
+        ...(anchors.length
+          ? [
+            { t: "h", text: "Ancres conservées sur les deux blocs" },
+            { t: "ul", items: anchors },
+            { t: "p", text: "Les autres créneaux changent de variante en S7 : la charge y repart en paliers, c'est le rôle de la semaine de calibration." },
+          ]
+          : [
+            { t: "p", text: "Tous les créneaux changent de variante en S7 : la charge y repart en paliers, c'est le rôle de la semaine de calibration." },
+          ]),
+        { t: "p", text: "Point volume à la fin de S4 : on décide s'il faut ajouter des séries sur les groupes prioritaires dès S5." },
       ],
     },
 
@@ -215,7 +231,19 @@ export function buildPlan(definition) {
       group: "methode",
       meta: "Double progression · incréments par exercice",
       blocks: [
-        { t: "p", text: "Double progression. Quand toutes les séries faites à ta charge de travail atteignent le haut de la fourchette — 8 reps sur du 4–8 —, la charge monte à la séance suivante : barre +2,5 kg haut du corps, +5 kg bas du corps ; haltères +2 kg ; machines et poulies +5 kg ou le plus petit incrément disponible. Si 2 séries ou plus tombent sous le bas de la fourchette, on garde la charge ; si ça se répète, −5 %. L'appli calcule la charge prévue à partir de tes séances validées." },
+        /* #104 : 472 caractères qui disaient trois choses — la règle, les
+           incréments, et quoi faire quand ça ne passe pas. Les incréments
+           étaient le pire : quatre valeurs par matériel, en points-virgules,
+           au milieu d'une phrase. Ce sont les trois blocs ci-dessous, mot
+           pour mot. */
+        { t: "h", text: "Double progression" },
+        { t: "p", text: "Quand toutes les séries faites à ta charge de travail atteignent le haut de la fourchette — 8 reps sur du 4–8 —, la charge monte à la séance suivante." },
+        { t: "ul", items: [
+          "Barre : +2,5 kg haut du corps, +5 kg bas du corps",
+          "Haltères : +2 kg",
+          "Machines et poulies : +5 kg, ou le plus petit incrément disponible",
+        ] },
+        { t: "p", text: "Si 2 séries ou plus tombent sous le bas de la fourchette, on garde la charge ; si ça se répète, −5 %. L'appli calcule la charge prévue à partir de tes séances validées." },
         /* Rien ici sur le choix de la charge de travail quand une séance en
            porte plusieurs, et c'est délibéré (#31). Deux versions y sont passées
            — le seuil de sélection énoncé en toutes lettres, puis un simple
@@ -230,10 +258,21 @@ export function buildPlan(definition) {
            « décharge » ni de « référence de progression ». La seconde moitié
            existe pour que personne ne cherche un réglage qu'il n'a jamais vu :
            la question ne se pose que quand on descend (#43). */
+        { t: "h", text: "Séance allégée" },
         { t: "p", text: "Une séance que tu marques allégée ne change pas tes charges de référence : la suivante repart de là où tu en étais. L'appli te le propose seulement quand tu descends nettement sous ta référence, au moment de valider." },
-        { t: "p", text: "Calibration (S1 et S7) : toutes les séries au haut de la fourchette → +5 % ; une série sous le bas de la fourchette → −5 %." },
-        { t: "p", text: "Sur les isolations, une rep, une demi-rep ou une exécution plus stricte à charge égale comptent comme un progrès. Sur les mouvements au poids du corps, le lest prend le relais dès que le haut de la fourchette est tenu à 1 RIR." },
-        { t: "p", text: "Repos : 2–3 min sur les gros mouvements, 1–2 min sur les isolations, 1 min sur les abdos. Descente 2–4 s, montée forte. Concentrique dynamique, pas de ralentissement pour « sentir »." },
+        { t: "h", text: "Calibration (S1 et S7)" },
+        { t: "p", text: "Toutes les séries au haut de la fourchette → +5 % ; une série sous le bas de la fourchette → −5 %." },
+        { t: "h", text: "Ce qui compte comme un progrès" },
+        { t: "ul", items: [
+          "Isolations : une rep, une demi-rep ou une exécution plus stricte à charge égale",
+          "Poids du corps : le lest prend le relais dès que le haut de la fourchette est tenu à 1 RIR",
+        ] },
+        { t: "h", text: "Repos et exécution" },
+        { t: "ul", items: [
+          "Repos : 2–3 min sur les gros mouvements, 1–2 min sur les isolations, 1 min sur les abdos",
+          "Descente 2–4 s, montée forte",
+          "Concentrique dynamique, pas de ralentissement pour « sentir »",
+        ] },
       ],
     },
 
@@ -279,12 +318,51 @@ export function buildPlan(definition) {
       group: "programme",
       meta: `${sp(profile.startKcal)} kcal · ${profile.macros.p}/${profile.macros.f}/${profile.macros.c} g`,
       blocks: [
-        { t: "p", text: `Maintenance estimée ≈ ${sp(profile.maintenanceKcal)} kcal. Départ : ${sp(profile.startKcal)} kcal par jour, 7 jours sur 7. Protéines ${profile.macros.p} g, lipides ${profile.macros.f} g, glucides ${profile.macros.c} g. Quatre repas à 40–50 g de protéines, glucides concentrés autour des séances.` },
-        { t: "p", text: "Lecture des deux premières semaines : +0,5 à 1 kg d'eau et de glycogène en S1, on juge la pente entre la moyenne de S2 et celle de S4. Pente +0,2–0,3 kg/sem → maintenance confirmée." },
-        { t: "p", text: `Ajustements (toutes les 2 semaines) : gain > 0,4 kg/sem sur 2 semaines ou taille +1 cm sur 2 semaines → −150 à −200 kcal ; gain < 0,1 kg/sem sur 2 semaines → +100 à +150 kcal ; taille +3 cm cumulés ou masse grasse estimée ≥ 15–16 % → retour à maintenance et réévaluation. Cible : ${kg(profile.targetWeightKg[0])}–${kg(profile.targetWeightKg[1])} kg fin S12.` },
-        { t: "p", text: `Journée type, jour d'entraînement (~${sp(profile.startKcal)} kcal) : matin, 100 g de flocons d'avoine, 300 ml de lait, une banane, 30 g de whey, 20 g d'amandes. Midi, 150 g de poulet, 120 g de riz basmati (cru), légumes, une cuillère d'huile d'olive, un yaourt grec. 60–90 min avant la séance, 200 g de fromage blanc, 2 tranches de pain complet et de la confiture. Soir, 150 g de saumon ou de bœuf 5 %, 300 g de pommes de terre, légumes, une cuillère d'huile. Collation, 250 g de fromage blanc, 30 g de miel, 30 g de noix. Jour de repos : mêmes totaux, la collation pré-séance devient un goûter.` },
-        { t: "p", text: "Version minimale, les 4 règles qui tiennent quand la semaine part en vrille : quatre repas avec 40 g de protéines ; pesée chaque matin ; mètre ruban et bilan copié-collé le dimanche ; le plancher alimentaire ne dépend pas de la séance, séance ratée = on mange pareil." },
-        { t: "p", text: `Optionnel : créatine 3–5 g/j, whey pour atteindre ${profile.macros.p} g, vitamine D 1 000–2 000 UI/j d'octobre à mars, caféine 100–200 mg avant séance.` },
+        /* #104 : la page la plus lourde du Plan — 1 658 caractères, dont une
+           journée type de 576 en un seul paragraphe. Elle est faite de cinq
+           sujets que rien ne séparait, et de trois énumérations (les repas,
+           les ajustements, les quatre règles) qui n'avaient que le
+           point-virgule pour respirer. Aucun chiffre n'a bougé. */
+        { t: "h", text: "Cibles" },
+        { t: "ul", items: [
+          `Maintenance estimée ≈ ${sp(profile.maintenanceKcal)} kcal`,
+          `Départ : ${sp(profile.startKcal)} kcal par jour, 7 jours sur 7`,
+          `Protéines ${profile.macros.p} g, lipides ${profile.macros.f} g, glucides ${profile.macros.c} g`,
+          "Quatre repas à 40–50 g de protéines, glucides concentrés autour des séances",
+        ] },
+        { t: "h", text: "Lecture des deux premières semaines" },
+        { t: "p", text: "+0,5 à 1 kg d'eau et de glycogène en S1, on juge la pente entre la moyenne de S2 et celle de S4. Pente +0,2–0,3 kg/sem → maintenance confirmée." },
+        { t: "h", text: "Ajustements, toutes les 2 semaines" },
+        { t: "ul", items: [
+          "Gain > 0,4 kg/sem sur 2 semaines, ou taille +1 cm sur 2 semaines → −150 à −200 kcal",
+          "Gain < 0,1 kg/sem sur 2 semaines → +100 à +150 kcal",
+          "Taille +3 cm cumulés, ou masse grasse estimée ≥ 15–16 % → retour à maintenance et réévaluation",
+        ] },
+        { t: "p", text: `Cible : ${kg(profile.targetWeightKg[0])}–${kg(profile.targetWeightKg[1])} kg fin S12.` },
+        { t: "h", text: `Journée type, jour d'entraînement (~${sp(profile.startKcal)} kcal)` },
+        { t: "ul", items: [
+          "Matin : 100 g de flocons d'avoine, 300 ml de lait, une banane, 30 g de whey, 20 g d'amandes",
+          "Midi : 150 g de poulet, 120 g de riz basmati (cru), légumes, une cuillère d'huile d'olive, un yaourt grec",
+          "60–90 min avant la séance : 200 g de fromage blanc, 2 tranches de pain complet et de la confiture",
+          "Soir : 150 g de saumon ou de bœuf 5 %, 300 g de pommes de terre, légumes, une cuillère d'huile",
+          "Collation : 250 g de fromage blanc, 30 g de miel, 30 g de noix",
+        ] },
+        { t: "p", text: "Jour de repos : mêmes totaux, la collation pré-séance devient un goûter." },
+        { t: "h", text: "Version minimale" },
+        { t: "p", text: "Les 4 règles qui tiennent quand la semaine part en vrille." },
+        { t: "ul", items: [
+          "Quatre repas avec 40 g de protéines",
+          "Pesée chaque matin",
+          "Mètre ruban et bilan copié-collé le dimanche",
+          "Le plancher alimentaire ne dépend pas de la séance : séance ratée = on mange pareil",
+        ] },
+        { t: "h", text: "Optionnel" },
+        { t: "ul", items: [
+          "Créatine 3–5 g/j",
+          `Whey pour atteindre ${profile.macros.p} g de protéines`,
+          "Vitamine D 1 000–2 000 UI/j d'octobre à mars",
+          "Caféine 100–200 mg avant séance",
+        ] },
       ],
     } : null,
 
@@ -293,7 +371,7 @@ export function buildPlan(definition) {
       title: "Charges de départ (S1)",
       group: "programme",
       meta: `${Object.keys(startingLoads).length} exercices renseignés`,
-      blocks: [{ t: "p", text: startLoadsText(startingLoads) }],
+      blocks: startLoadsBlocks(startingLoads),
     } : null,
   ];
 
