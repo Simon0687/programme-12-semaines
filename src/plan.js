@@ -113,25 +113,6 @@ import { num } from "./progression.js";
 const kg = (n) => String(n).replace(".", ",");                       // 72.5 -> "72,5"
 const sp = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");   // 3150 -> "3 150"
 
-/* #108 : la troisième colonne de program.volume est une prose stable, jamais
-   une donnée structurée — "Haut A 6 + Haut B 4" pour un programme généré,
-   mais aussi "Haut C 3 (développé assis) + les presses pecs" pour le
-   programme hérité, où rien ne nomme une séance ni un nombre de séries à la
-   fin du segment. Rien ici ne réinterprète ce qui est stocké : un segment
-   qui suit le motif "nom N" en sort en { label: nom, sets: N } ; les autres
-   redeviennent une ligne, verbatim, sets: null — aucun mot n'est perdu, la
-   ventilation par « + » remplace seulement la ponctuation par des lignes. */
-function parseVolumeWhere(where) {
-  return String(where || "")
-    .split(" + ")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const m = /^(.*)\s(\d+)$/.exec(part);
-      return m ? { label: m[1], sets: Number(m[2]) } : { label: part, sets: null };
-    });
-}
-
 /* Ancres du cycle : les exercices clés que le bloc 2 ne fait pas tourner
    (b1 === b2). Dérivé plutôt qu'écrit en dur — c'est une propriété du
    programme chargé, pas du programme de l'auteur. */
@@ -350,7 +331,7 @@ export function buildPlan(definition) {
 
     program.volume && program.volume.length ? {
       id: "volume",
-      title: "Volume par semaine, et où il se fait",
+      title: "Volume par semaine",
       group: "programme",
       meta: `${program.volume.length} groupes · ${Math.max(...program.volume.map((r) => num(r[1]) ?? 0))} séries max`,
       blocks: [
@@ -358,11 +339,15 @@ export function buildPlan(definition) {
            groupe qui en fait le plus — c'est la question que la table posait
            déjà, sans qu'il faille lire les nombres pour y répondre. Un tri
            stable (Array#sort l'est depuis ES2019) : deux groupes à égalité
-           gardent l'ordre où program.volume les déclare. */
+           gardent l'ordre où program.volume les déclare.
+
+           « Où ça se fait » (le nom des séances derrière chaque groupe) a été
+           retiré au retour de test : la ligne de volume et son chiffre
+           suffisent, comme le sommaire de la maquette validée. */
         {
           t: "bars",
           rows: [...program.volume]
-            .map(([label, n, where]) => ({ label, value: num(n) ?? 0, display: n, sessions: parseVolumeWhere(where) }))
+            .map(([label, n]) => ({ label, value: num(n) ?? 0, display: n }))
             .sort((a, b) => b.value - a.value),
         },
         { t: "p", text: "Une « série dure » = une série de travail menée à 1 RIR (ou à l'échec). Les séries d'échauffement ne comptent pas." },

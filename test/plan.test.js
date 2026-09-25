@@ -25,7 +25,7 @@ const blockTexts = (blocks) => blocks.flatMap((b) => {
   if (b.t === "ul" || b.t === "chips") return b.items;
   if (b.t === "iconlist") return b.items.map((it) => it.text);
   if (b.t === "phaseline") return b.steps.map((s2) => s2.text);
-  if (b.t === "bars") return b.rows.flatMap((r) => [r.label, ...r.sessions.map((s2) => s2.label)]);
+  if (b.t === "bars") return b.rows.map((r) => r.label);
   if (b.t === "tiles") return b.items.flatMap((it) => [it.label, it.value]);
   if (b.t === "table" && b.variant === "compare") return b.rows.flatMap(([, a, c]) => [a, c]);
   if (b.t === "table" && b.variant === "ifthen") return b.rows.flatMap(([si, alors]) => [si, alors]);
@@ -106,11 +106,6 @@ describe("PLAN", () => {
       for (const row of b.rows) {
         assert.equal(typeof row.label, "string", sid);
         assert.equal(typeof row.value, "number", sid);
-        assert.ok(Array.isArray(row.sessions) && row.sessions.length > 0, `${sid}: sessions`);
-        for (const sess of row.sessions) {
-          assert.equal(typeof sess.label, "string", sid);
-          assert.ok(sess.sets === null || typeof sess.sets === "number", sid);
-        }
       }
     } else if (b.t === "fold") {
       assert.ok(b.title && b.title.trim().length > 0, `${sid}: title`);

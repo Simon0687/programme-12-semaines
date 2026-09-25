@@ -182,47 +182,26 @@ function Fold({ title, count, children }) {
 
 /* ---------- Le volume par groupe, en barres (#108) ----------
 
-   Un seul groupe déplié à la fois — `open` est l'index de celui-là, pas un
-   Set : la question qu'on vient poser (« ce groupe-là, où se fait-il ? »)
-   ne se pose jamais deux fois d'affilée. `rows` arrive déjà trié et déjà
-   mis à l'échelle par `value` (plan.js) ; ce composant ne fait qu'une
-   division, purement visuelle : la largeur de chaque barre en proportion de
-   la plus grande. */
+   `rows` arrive déjà trié et déjà mis à l'échelle par `value` (plan.js) ; ce
+   composant ne fait qu'une division, purement visuelle : la largeur de
+   chaque barre en proportion de la plus grande. Statique — un retour de test
+   a retiré le détail « où ça se fait » par ligne : la barre et son chiffre
+   répondent déjà à la question posée. */
 function VolumeBars({ rows }) {
-  const [open, setOpen] = useState(null);
   const max = Math.max(1, ...rows.map((r) => r.value));
   return (
     <div className="space-y-3">
-      {rows.map((r, i) => {
-        const expanded = open === i;
-        return (
-          <div key={r.label}>
-            <button type="button" onClick={() => setOpen(expanded ? null : i)} aria-expanded={expanded}
-              className="w-full text-left focus:outline-none focus:ring-2 focus:ring-focus rounded">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-ink inline-flex items-center gap-1">
-                  {r.label}
-                  <ChevronDown size={14} className={`text-ink-faint transition-transform ${expanded ? "rotate-180" : ""}`} />
-                </span>
-                <span className="text-accent font-medium shrink-0">{r.display}</span>
-              </div>
-              <div className="mt-1 h-2 rounded-full bg-surface-raised overflow-hidden">
-                <div className="h-full bg-accent rounded-full" style={{ width: `${(r.value / max) * 100}%` }} />
-              </div>
-            </button>
-            {expanded && (
-              <div className="mt-1.5 pl-1 space-y-0.5">
-                {r.sessions.map((s, j) => (
-                  <div key={j} className="flex items-baseline justify-between gap-2 text-ink-muted">
-                    <span>{s.label}</span>
-                    {s.sets != null && <span className="shrink-0">{s.sets} séries</span>}
-                  </div>
-                ))}
-              </div>
-            )}
+      {rows.map((r) => (
+        <div key={r.label}>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-ink">{r.label}</span>
+            <span className="text-accent font-medium shrink-0">{r.display}</span>
           </div>
-        );
-      })}
+          <div className="mt-1 h-2 rounded-full bg-surface-raised overflow-hidden">
+            <div className="h-full bg-accent rounded-full" style={{ width: `${(r.value / max) * 100}%` }} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
