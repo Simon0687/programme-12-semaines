@@ -20,7 +20,8 @@
 import { useState, useMemo } from "react";
 import { Check, ChevronDown, ChevronRight, Timer, Zap, Repeat, Plus } from "lucide-react";
 import { num, fmt, setsFor, lastEntry, lastEntryLabel, historyBefore, planned, normalizeSets, phaseOf } from "./progression.js";
-import { setSummary, unitColumns, rowIsDone, completedSets } from "./display.js";
+import { setSummary, unitColumns, rowIsDone, completedSets, cuePoints } from "./display.js";
+import TechniqueList from "./TechniqueList.jsx";
 import { traitsOf } from "./units.js";
 import { prescribedVid } from "./session-sub.js";
 import { isDeloadWeek } from "./policies.js";
@@ -67,6 +68,7 @@ export default function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date
   /* #66 : le repli de la consigne technique, distinct du repli de la carte
      elle-même, qui est tenu par le parent (une seule carte ouverte). */
   const [cueOpen, setCueOpen] = useState(false);
+  const cue = useMemo(() => cuePoints(v), [v]);
   const phase = phaseOf(week, policies, weeks);
   /* #14 : « pas en décharge » se lit dans la politique, plus dans un numéro de
      semaine écrit en dur. Un programme qui décharge en S5 autorisait encore
@@ -224,10 +226,15 @@ export default function ExerciseCard({ idx, slotId, nSets, week, weeks, si, date
           {last && <div className="text-sm text-ink-muted mt-0.5">Dernière fois ({lastEntryLabel(last)}) : {setSummary(last.sets, v)}</div>}
           {lastTest && <div className="text-sm text-badge">Dernier test ({lastEntryLabel(lastTest)}) : {setSummary(lastTest.sets, v)}</div>}
 
-          <button onClick={() => setCueOpen(!cueOpen)} className="mt-1 text-sm text-ink-muted inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-focus rounded">
-            Technique <ChevronDown size={14} className={cueOpen ? "rotate-180" : ""} />
-          </button>
-          {cueOpen && <p className="text-sm text-ink-soft leading-relaxed mt-1">{v.cue}</p>}
+          {/* #119 : les points à picto de la fiche exercice, pas un second
+              rendu de la même consigne. Sans consigne, pas de bouton : un
+              dépli qui s'ouvre sur du vide promet ce qu'il ne tient pas. */}
+          {cue.length > 0 && (
+            <button onClick={() => setCueOpen(!cueOpen)} className="mt-1 text-sm text-ink-muted inline-flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-focus rounded">
+              Technique <ChevronDown size={14} className={cueOpen ? "rotate-180" : ""} />
+            </button>
+          )}
+          {cueOpen && cue.length > 0 && <div className="mt-2"><TechniqueList points={cue} /></div>}
 
           <div className="mt-3 grid gap-2" style={{ gridTemplateColumns: fields.length === 3 ? "2rem 1fr 1fr 1fr 2.75rem" : "2rem 1fr 1fr 2.75rem" }}>
         <div />

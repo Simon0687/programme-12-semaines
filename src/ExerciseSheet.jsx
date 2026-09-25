@@ -36,8 +36,9 @@
 import { useMemo, useState } from "react";
 import {
   ChevronLeft, ChevronDown, Dumbbell, Cog, PersonStanding, TrendingUp, TrendingDown, Minus, Trophy, Info, Hand,
-  LineChart, ListChecks, Timer, Zap, MoveVertical, TriangleAlert, Footprints, Dot,
+  LineChart, ListChecks,
 } from "lucide-react";
+import TechniqueList from "./TechniqueList.jsx";
 import { EXERCISES } from "./registry.js";
 import { exerciseHistory, recordsFor, recordEntries, seriesByCycle, chartMode, headline } from "./exercise-history.js";
 import { loadText, fmt } from "./progression.js";
@@ -64,12 +65,9 @@ const COPY = {
 
 /* Les pictogrammes de la maquette, ramenés à lucide-react (déjà embarqué,
    l'appli reste hors ligne) : une famille par clé de `display.js`, jamais un
-   tracé choisi dans ce fichier sans clé en face. */
+   tracé choisi dans ce fichier sans clé en face. Ceux de la consigne vivent
+   dans TechniqueList.jsx, partagé avec la carte de Séance. */
 const GEAR_ICONS = { free: Dumbbell, machine: Cog, body: PersonStanding };
-const CUE_ICONS = {
-  caution: TriangleAlert, progress: TrendingUp, power: Zap, tempo: Timer, range: MoveVertical,
-  grip: Hand, stance: Footprints, posture: PersonStanding, point: Dot,
-};
 
 const CHIP = "inline-flex items-center gap-1 rounded-md px-2.5 py-0.5 text-[11px] tracking-[0.02em] bg-chip text-ink";
 
@@ -284,22 +282,6 @@ function Muscles({ rows, joints }) {
   );
 }
 
-function Technique({ points }) {
-  return (
-    <div className="flex flex-col gap-2.5">
-      {points.map((p) => {
-        const Icon = CUE_ICONS[p.kind] || Dot;
-        return (
-          <div key={p.text} className="flex items-start gap-2.5 text-[13px] text-ink">
-            <span className="w-7 h-7 shrink-0 rounded-md bg-chip text-accent-ink flex items-center justify-center"><Icon size={15} /></span>
-            <span className="pt-1 leading-snug">{p.text}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 /* La ligne condensée, et le détail série par série au toucher (maquette E2).
    Le nom de séance passe dans le détail : les groupes par cycle suffisent à
    départager deux séances du même jour, ce que le nom faisait avant eux. Le
@@ -381,7 +363,7 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
      absente, jamais une section vide. */
   const details = useMemo(() => detailRows(v), [v]);
   const facts = useMemo(() => sheetFacts(v), [v]);
-  const points = useMemo(() => cuePoints(v && v.cue), [v]);
+  const points = useMemo(() => cuePoints(v), [v]);
 
   /* resolveScreen garantit un id connu ; ce repli existe pour que le
      composant ne soit pas le seul endroit du code à supposer le contraire. */
@@ -433,14 +415,14 @@ export default function ExerciseSheet({ journal, exerciseId, backLabel, onBack }
             {points.length > 0 && (
               <div>
                 <SectionTitle icon={ListChecks}>Technique</SectionTitle>
-                <Technique points={points} />
+                <TechniqueList points={points} />
               </div>
             )}
           </>
         ) : tab === "historique" ? (
           <History groups={groups} v={v} trophies={trophies} />
         ) : tab === "technique" ? (
-          <Technique points={points} />
+          <TechniqueList points={points} />
         ) : (
           <>
             {tiles.length > 0 && <Tiles tiles={tiles} dual={mode.kind === "dual"} />}
