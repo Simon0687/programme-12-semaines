@@ -253,33 +253,27 @@ describe("buildPlan : plan de repli, deux formes valides (#120)", () => {
     assert.equal(s.blocks[0].text, LEGACY_DEFINITION.program.fallback[0]);
   });
 
-  test("l'objet structuré { levels } produit un paragraphe par niveau, plus la règle de non-répétition", () => {
-    const structured = {
-      levels: [
-        { keep: ["hautA", "hautC"], merge: { from: ["jambes", "hautB"], into: { id: "j1", ex: [["s_squat", 3]] } } },
-      ],
-    };
+  test("l'objet structuré { levels } produit un fold par niveau (séances existantes, jamais fusionnées)", () => {
+    const structured = { levels: [{ keep: ["hautA", "hautC", "jambes"] }] };
     const def = withDef({
       program: {
         ...LEGACY_DEFINITION.program,
         fallback: structured,
-        SLOTS: { ...LEGACY_DEFINITION.program.SLOTS, s_squat: { reps: [5, 8], rest: 150, b1: "squat", b2: "squat" } },
         SESSIONS: [
-          { id: "hautA", name: "Haut A", day: 1, warm: "haut", core: "gainage", ex: [["s_squat", 1]] },
-          { id: "hautB", name: "Haut B", day: 2, warm: "haut", core: "gainage", ex: [["s_squat", 1]] },
-          { id: "hautC", name: "Haut C", day: 3, warm: "haut", core: "gainage", ex: [["s_squat", 1]] },
-          { id: "jambes", name: "Jambes", day: 4, warm: "bas", core: "gainage", ex: [["s_squat", 1]] },
+          { id: "hautA", name: "Haut A", day: 1, warm: "haut", core: "gainage", ex: LEGACY_DEFINITION.program.SESSIONS[0].ex },
+          { id: "hautB", name: "Haut B", day: 2, warm: "haut", core: "gainage", ex: LEGACY_DEFINITION.program.SESSIONS[0].ex },
+          { id: "hautC", name: "Haut C", day: 3, warm: "haut", core: "gainage", ex: LEGACY_DEFINITION.program.SESSIONS[0].ex },
+          { id: "jambes", name: "Jambes", day: 4, warm: "bas", core: "gainage", ex: LEGACY_DEFINITION.program.SESSIONS[0].ex },
         ],
       },
     });
     const s = buildPlan(def).find((sec) => sec.id === "fallback");
+    assert.equal(s.title, "Plan de repli");
     assert.equal(s.meta, "1 cas de figure");
-    const text = s.blocks[0].text;
-    assert.match(text, /À 3 séances/);
-    assert.match(text, /Haut A/);
-    assert.match(text, /Haut C/);
-    assert.match(text, /Jambes \+/);
-    assert.match(text, /Squat barre 3/i);
+    assert.match(s.blocks[0].text, /Si tu ne peux pas tenir le planning/);
+    const fold = s.blocks.find((b) => b.t === "fold");
+    assert.equal(fold.title, "3 séances");
+    assert.deepEqual(fold.blocks[0].items, ["Haut A", "Haut C", "Jambes"]);
     assert.match(s.blocks[s.blocks.length - 1].text, /pas deux semaines de suite/);
   });
 

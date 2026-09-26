@@ -1,23 +1,20 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import {
-  sessionCoverage, rankSessionsForCut, rankExercisesForCut, composeSession, buildFallbackLevels,
-} from "../src/fallback.js";
+import { sessionCoverage, rankSessionsForCut, buildFallbackLevels } from "../src/fallback.js";
 
 /* Fixtures locales, indépendantes du registre : sessionCoverage() ne lit que
-   `entry.muscles` (via contribution(), assertions.js), rankExercisesForCut()
-   que `entry.type`/`entry.cout_systemique`. Pas besoin de générer un vrai
-   programme pour tester la règle elle-même. */
-const entry = (id, type, cout, muscles) => ({ id, type, cout_systemique: cout, muscles });
+   `entry.muscles` (via contribution(), assertions.js). Pas besoin de générer
+   un vrai programme pour tester la règle elle-même. */
+const entry = (id, muscles) => ({ id, muscles });
 const row = (slotId, e, sets) => ({ slotId, vid: e.id, sets, entry: e });
 const session = (id, name, day, rows) => ({ id, name, day, rows, sets: rows.reduce((a, r) => a + r.sets, 0) });
 
-const pec = entry("pec", "compose", 2, { pectoraux: 1 });
-const tri = entry("tri", "isolation", 1, { triceps: 1 });
-const quad = entry("quad", "compose", 3, { quadriceps: 1 });
-const isch = entry("isch", "compose", 3, { ischios_fessiers: 1 });
-const mollets = entry("mollets", "isolation", 1, { mollets: 1 });
+const pec = entry("pec", { pectoraux: 1 });
+const tri = entry("tri", { triceps: 1 });
+const quad = entry("quad", { quadriceps: 1 });
+const isch = entry("isch", { ischios_fessiers: 1 });
+const mollets = entry("mollets", { mollets: 1 });
 
 /* Le cas qui a lancé #120 : trois séances "Haut" qui se recouvrent
    entièrement (pectoraux + triceps chacune), une séance "Jambes" seule sur
@@ -53,45 +50,34 @@ describe("rankSessionsForCut : la moins unique d'abord (#120 decisions Q2)", () 
   });
 });
 
-describe("rankExercisesForCut : isolation avant composé (#120 spec)", () => {
-  test("le triceps (isolation) sort avant les pectoraux (composé)", () => {
-    const ranked = rankExercisesForCut(hautA.rows);
-    assert.equal(ranked[0].entry.type, "isolation");
-    assert.equal(ranked[ranked.length - 1].entry.type, "compose");
-  });
-});
-
-describe("composeSession : recomposition bornée (#120 decisions Q4)", () => {
-  test("garde les composés d'abord, dans la limite du plafond de séries", () => {
-    const merged = [...hautA.rows, ...jambes.rows]; // 3+2 + 3+2+2 = 12 séries au total
-    const composite = composeSession("anchor", "Jambes +", merged, 8);
-    const kept = new Set(composite.ex.map(([slotId]) => slotId));
-    assert.ok(kept.has("s_quad") && kept.has("s_isch") && kept.has("s_pec"), "les composés survivent");
-    const total = composite.ex.reduce((a, [, sets]) => a + sets, 0);
-    assert.ok(total <= 8, `${total} séries, plafond 8`);
-  });
-});
-
-describe("buildFallbackLevels : N-1 niveaux, jusqu'à 1 séance (#120 decisions Q3)", () => {
-  const { levels } = buildFallbackLevels(WEEK, 10);
+describe("buildFallbackLevels : N-1 niveaux, séances existantes intactes (#120, retour de test)", () => {
+  const { levels } = buildFallbackLevels(WEEK);
 
   test("un niveau de moins que de séances", () => {
     assert.equal(levels.length, WEEK.sessions.length - 1);
   });
 
-  test("Jambes n'est jamais dans les séances coupées au premier niveau", () => {
-    assert.ok(!levels[0].merge.from.includes("jambes") || levels[0].merge.from[0] === "jambes");
-    // "jambes" est l'ancre (merge.from[0]) mais n'est jamais parmi les *coupées* :
-    assert.equal(levels[0].merge.from[0], "jambes");
+  test("Jambes reste dans toutes les séances gardées, jamais coupée", () => {
+    for (const level of levels) assert.ok(level.keep.includes("jambes"));
   });
 
-  test("le dernier niveau ne garde qu'une seule entité (l'ancre composite), pas de plancher", () => {
-    const last = levels[levels.length - 1];
-    assert.equal(last.keep.length, 0);
+  test("chaque niveau ne garde que des séances existantes, jamais de séance composite", () => {
+    for (const level of levels) {
+      for (const id of level.keep) assert.ok(WEEK.sessions.some((s) => s.id === id));
+    }
+  });
+
+  test("le premier niveau coupe une seule séance parmi les trois Haut redondantes", () => {
+    assert.equal(levels[0].keep.length, 3);
+    assert.deepEqual(levels[0].keep.sort(), ["hautB", "hautC", "jambes"]);
+  });
+
+  test("le dernier niveau ne garde qu'une seule séance, pas de plancher (Q3)", () => {
+    assert.deepEqual(levels[levels.length - 1].keep, ["jambes"]);
   });
 
   test("aucun niveau avec moins de 2 séances au programme ne plante", () => {
-    const one = buildFallbackLevels({ sessions: [hautA] }, 10);
+    const one = buildFallbackLevels({ sessions: [hautA] });
     assert.deepEqual(one.levels, []);
   });
 });

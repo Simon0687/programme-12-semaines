@@ -277,7 +277,7 @@ export function validateProgram(program) {
     }
   }
 
-  const badFallback = validateFallback(program.fallback, SLOTS, SESSIONS);
+  const badFallback = validateFallback(program.fallback, SESSIONS);
   if (badFallback) return badFallback;
 
   const badCardio = validateCardio(program.cardio, SESSIONS);
@@ -386,9 +386,11 @@ const TEST_MODES = ["manual", "afterNSessions", "afterNDeloads"];
        n'est due que si Simon veut le nouveau comportement, pas subie.
      - un objet { levels } — la forme structurée que `buildFallbackLevels()`
        (fallback.js) produit à la génération. `keep` référence des séances
-       existantes, `merge.into.ex` des paires [slot, séries] comme n'importe
-       quelle séance (mêmes règles que program.SESSIONS[i].ex ci-dessus). */
-function validateFallback(fallback, SLOTS, SESSIONS) {
+       existantes de program.SESSIONS, intactes — jamais fusionnées (retour
+       de test du 2026-09-26 : une séance recomposée pouvait être
+       irréaliste ; chaque niveau ne garde donc que des séances que le
+       programme sait déjà exécuter telles quelles). */
+function validateFallback(fallback, SESSIONS) {
   if (fallback == null) return null;
   if (Array.isArray(fallback)) {
     if (!fallback.every((t) => typeof t === "string")) {
@@ -406,21 +408,6 @@ function validateFallback(fallback, SLOTS, SESSIONS) {
     if (!isObj(level) || !Array.isArray(level.keep)) return { reason: "invalid-program", message: `Champ invalide : ${at}.keep (tableau attendu)` };
     for (const id of level.keep) {
       if (!sessionIds.has(id)) return { reason: "invalid-program", message: `${at}.keep : « ${id} » n'est pas une séance de program.SESSIONS.` };
-    }
-    if (level.merge != null) {
-      if (!isObj(level.merge) || !Array.isArray(level.merge.from) || !isObj(level.merge.into)) {
-        return { reason: "invalid-program", message: `Champ invalide : ${at}.merge (objet { from, into } attendu)` };
-      }
-      for (const id of level.merge.from) {
-        if (!sessionIds.has(id)) return { reason: "invalid-program", message: `${at}.merge.from : « ${id} » n'est pas une séance de program.SESSIONS.` };
-      }
-      const into = level.merge.into;
-      if (typeof into.id !== "string" || into.id === "") return { reason: "invalid-program", message: `Champ invalide : ${at}.merge.into.id (chaîne non vide attendue)` };
-      if (!Array.isArray(into.ex)) return { reason: "invalid-program", message: `Champ invalide : ${at}.merge.into.ex (tableau attendu)` };
-      for (const [j, e] of into.ex.entries()) {
-        if (!isSlotRef(e)) return { reason: "invalid-program", message: `Champ invalide : ${at}.merge.into.ex[${j}] (paire [slot, nombre de séries] attendue)` };
-        if (!(e[0] in SLOTS)) return { reason: "invalid-program", message: `${at}.merge.into.ex : « ${e[0]} » n'est pas un slot de program.SLOTS.` };
-      }
     }
   }
   return null;

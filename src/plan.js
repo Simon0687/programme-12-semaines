@@ -143,35 +143,30 @@ function startLoadsBlocks(startingLoads) {
 }
 
 /* #120 : le plan de repli structuré (`buildFallbackLevels()`, fallback.js).
-   Un paragraphe par niveau — de N-1 séances jusqu'à 1 — qui nomme les
-   séances gardées telles quelles et décrit la séance composite (ses
-   exercices, résolus depuis SLOTS/EXERCISES comme startLoadsBlocks()
-   ci-dessus). Le tableau de strings hérité (le programme personnel de
-   Simon aujourd'hui) reste rendu tel quel : deux formats, jamais
-   mélangés — validateFallback() (journal-shape.js) les distingue déjà. */
-function exerciseLine(slotId, sets, SLOTS) {
-  const slot = SLOTS[slotId];
-  const v = slot && EXERCISES[slot.b1];
-  return `${v ? v.name : slotId} ${sets}`;
-}
-
-function fallbackBlocks(fallback, SLOTS, SESSIONS) {
+   Un niveau repliable par nombre de séances tenables — de N-1 jusqu'à 1 —
+   qui nomme les séances gardées **existantes et intactes** (retour de test
+   du 2026-09-26 : une première version recomposait une séance composite,
+   qui pouvait sortir irréaliste — 21 séries en une fois). Le tableau de
+   strings hérité (le programme personnel de Simon aujourd'hui) reste
+   rendu tel quel : deux formats, jamais mélangés — validateFallback()
+   (journal-shape.js) les distingue déjà. */
+function fallbackBlocks(fallback, SESSIONS) {
   if (Array.isArray(fallback)) return fallback.map((text) => ({ t: "p", text }));
 
   const nameOf = (id) => (SESSIONS.find((s) => s.id === id) || {}).name || id;
-  const total = SESSIONS.length;
-  const paragraphs = fallback.levels.map((level, i) => {
-    const n = total - (i + 1);
-    const kept = level.keep.map(nameOf);
-    const composite = level.merge
-      ? `${nameOf(level.merge.from[0])} + (${level.merge.into.ex.map(([slotId, sets]) => exerciseLine(slotId, sets, SLOTS)).join(", ")})`
-      : null;
-    const names = [...kept, ...(composite ? [composite] : [])].join(", ");
-    return `À ${n} séance${n > 1 ? "s" : ""} : ${names}.`;
+  const folds = fallback.levels.map((level) => {
+    const n = level.keep.length;
+    return {
+      t: "fold",
+      title: `${n} séance${n > 1 ? "s" : ""}`,
+      count: n,
+      blocks: [{ t: "ul", items: level.keep.map(nameOf) }],
+    };
   });
 
   return [
-    ...paragraphs.map((text) => ({ t: "p", text })),
+    { t: "p", text: "Si tu ne peux pas tenir le planning proposé cette semaine, voici un plan selon le nombre de séances qu'il te reste." },
+    ...folds,
     { t: "p", text: "On ne rattrape jamais la semaine suivante, on reprend le plan. Une séance déjà sacrifiée ne l'est pas deux semaines de suite." },
   ];
 }
@@ -490,12 +485,12 @@ export function buildPlan(definition) {
        séances). Section omise si absent, comme avant. */
     program.fallback && (Array.isArray(program.fallback) ? program.fallback.length : program.fallback.levels?.length) ? {
       id: "fallback",
-      title: "Plan de repli (séances manquées)",
+      title: "Plan de repli",
       group: "programme",
       meta: Array.isArray(program.fallback)
         ? `${program.fallback.length} cas de figure`
         : `${program.fallback.levels.length} cas de figure`,
-      blocks: fallbackBlocks(program.fallback, SLOTS, program.SESSIONS || []),
+      blocks: fallbackBlocks(program.fallback, program.SESSIONS || []),
     } : null,
 
     cardioSection(program.cardio, definition.cardioBaseline),

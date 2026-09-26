@@ -633,12 +633,12 @@ function toProgram(plan, ctx, objective) {
     WARM,
     cardio: null,
     volume: volumeTable(plan, ctx.allocated),
-    /* #120 : l'ordre de priorité (quelle séance, quels exercices) est figé
-       ici, comme `volume` — decisions-spec.md #120 Q1. `ctx.capPerSession`
-       (déjà calculé pour plafonner une séance normale) borne la séance
-       composite plutôt qu'un nombre inventé. La non-répétition ne peut pas
-       l'être : elle se calcule à l'affichage, depuis le journal. */
-    fallback: buildFallbackLevels(resolveWeek({ SLOTS, SESSIONS, CORE }, "b1"), ctx.capPerSession),
+    /* #120 : l'ordre de priorité de séance est figé ici, comme `volume` —
+       decisions-spec.md #120 Q1. Chaque niveau ne garde que des séances
+       existantes intactes (retour de test du 2026-09-26 : une séance
+       recomposée pouvait produire un volume irréaliste). La non-répétition
+       ne peut pas l'être : elle se calcule à l'affichage, depuis le journal. */
+    fallback: buildFallbackLevels(resolveWeek({ SLOTS, SESSIONS, CORE }, "b1")),
   };
 }
 

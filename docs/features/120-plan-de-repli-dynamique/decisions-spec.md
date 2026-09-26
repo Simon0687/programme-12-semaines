@@ -167,6 +167,17 @@ fonction de composition, aucune donnée stockée.
 
 **Décision de Simon :** Option B confirmée (2026-09-26).
 
+**Révision après test (2026-09-26, même jour) :** l'implémentation
+d'Option B produisait un cas réel irréaliste — à 3 séances, une séance
+composite à 21 séries (fentes, développé Smith, presse), infaisable en une
+séance. Simon a tranché pour un retour à **Option A** : chaque niveau ne
+garde que des séances existantes, intactes, jamais fusionnées — toujours
+réalisable puisque ce sont des séances que le programme sait déjà
+exécuter. `fallback.js` a été réécrit en conséquence : `composeSession()`
+et `rankExercisesForCut()` ont disparu, `level.merge` n'existe plus (seul
+`level.keep` reste), et la borne de séries par séance composite (question
+ouverte du design.md) n'a donc plus d'objet.
+
 ## Piste pour une suite séparée (hors scope de #120)
 
 En travaillant Q1, Simon a évoqué un besoin plus large : un conseil "vivant"

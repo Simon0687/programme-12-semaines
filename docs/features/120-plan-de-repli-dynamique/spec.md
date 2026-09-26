@@ -19,11 +19,10 @@ personnel de Simon.
 ## Scope
 
 - **In** : une fonction qui, pour un programme donné (`SESSIONS`, registre
-  d'exercices), calcule un ordre de repli par séance et, pour chaque niveau de
-  repli, quels exercices d'une séance fusionnée sont conservés — en
-  recomposant une séance composite à partir des exercices prioritaires de
-  plusieurs séances d'origine (décision Q4), pas seulement en gardant une
-  séance intacte et en supprimant l'autre.
+  d'exercices), calcule un ordre de repli par séance — quelles séances
+  existantes garder, intactes, à chaque niveau (décision Q4 révisée après
+  test le 2026-09-26 : une recomposition en séance composite produisait un
+  cas réel irréaliste, 21 séries en une séance).
 - **In** : une règle de non-répétition portée par le journal (pas par le texte
   du programme) — si la semaine S a été réduite, la semaine S+1 ne réduit pas
   la (les) même(s) séance(s) prioritaire(s) en premier.
@@ -36,11 +35,14 @@ personnel de Simon.
 
 ## Comportement côté utilisateur
 
-Onglet Plan, section "Plan de repli" : apparaît désormais sur *tout*
-programme généré (elle n'apparaît plus seulement sur un programme écrit à la
-main), avec un texte équivalent à ce qui existe pour le programme de Simon
-aujourd'hui — un paragraphe par niveau de repli plausible (N-1 séances, N-2
-séances, …), et la mention du principe de non-répétition.
+Onglet Plan, section "Plan de repli" (titre seul, sans sous-titre — retour
+de test 2026-09-26) : apparaît désormais sur *tout* programme généré (elle
+n'apparaît plus seulement sur un programme écrit à la main). Une phrase
+d'intro simple ("Si tu ne peux pas tenir le planning proposé cette
+semaine, voici un plan selon le nombre de séances qu'il te reste."), puis
+un niveau repliable par nombre de séances (3, 2, 1…), chacun listant les
+séances existantes à garder telles quelles, et la mention du principe de
+non-répétition en bas.
 
 ## Critères d'acceptation
 
@@ -51,10 +53,10 @@ séances, …), et la mention du principe de non-répétition.
       recouvrants (ex. deux séances "haut du corps"), quand on calcule le
       premier niveau de repli, alors l'une d'elles est coupée avant une
       séance qui est la seule à couvrir un groupe (ex. jambes).
-- [ ] Étant donné une séance fusionnée à un niveau de repli, quand on liste
-      ses exercices, alors les exercices `type: "isolation"` sont retirés (ou
-      réduits en séries) avant les `type: "compose"`, en s'appuyant sur
-      `cout_systemique`.
+- [ ] Étant donné un niveau de repli, quand on liste les séances gardées,
+      alors ce sont des séances existantes de `program.SESSIONS`, intactes
+      — aucune séance composite, aucun exercice recombiné (révisé le
+      2026-09-26, voir decisions-spec.md Q4).
 - [ ] Étant donné qu'une semaine S a appliqué un niveau de repli qui a coupé
       la séance X, quand on calcule le repli de la semaine S+1, alors X n'est
       pas la première séance coupée à nouveau.
