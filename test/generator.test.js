@@ -524,7 +524,8 @@ describe("de la collecte à l'avis de Plan (#58)", () => {
   });
 
   test("l'onglet Plan sait le décrire, table de volume comprise", () => {
-    assert.deepEqual(buildPlan(saved).map((s) => s.id), ["structure", "volume", "progression", "deload", "repos"]);
+    // #121 : Nutrition ne disparaît plus sans profil (appel à l'action à la place).
+    assert.deepEqual(buildPlan(saved).map((s) => s.id), ["structure", "volume", "progression", "deload", "repos", "nutrition"]);
   });
 
   test("avec son intention, l'avis n'a plus rien à dire", () => {

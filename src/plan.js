@@ -109,6 +109,7 @@ import { EXERCISES } from "./registry.js";
 import { normalizeCardio, cardioTargets, MODALITIES } from "./cardio.js";
 import { dayName } from "./display.js";
 import { num } from "./progression.js";
+import { adjustmentTable, firstWeeksNote, aiBrief } from "./nutrition.js";
 
 const kg = (n) => String(n).replace(".", ",");                       // 72.5 -> "72,5"
 const sp = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");   // 3150 -> "3 150"
@@ -216,36 +217,18 @@ function cardioSection(spec, baseline) {
   return { id: "cardio", title: "Cardio et mobilité", group: "programme", meta, blocks };
 }
 
-/* ---------- La section nutrition, reprise en tuiles (#109) ----------
+/* ---------- La section nutrition, calculée depuis le profil (#109, #121) ----------
 
    #104 avait déjà rangé cette page — la plus lourde du Plan, 1 658
-   caractères — en intertitres et listes. #109 continue le même geste : le
-   chiffre qui compte en tête (headline), les trois macros en tuiles plutôt
-   qu'une ligne de texte, les ajustements en table Si/Alors, et les trois
-   sujets secondaires (journée type, version minimale, optionnel) repliés,
-   leur compte dérivé du tableau qu'ils replient — jamais recopié à la main,
-   qui aurait pu diverger du contenu le jour où une ligne s'ajoute. Aucun
-   chiffre n'a bougé. */
-function nutritionBlocks(profile) {
-  const meals = [
-    "Matin : 100 g de flocons d'avoine, 300 ml de lait, une banane, 30 g de whey, 20 g d'amandes",
-    "Midi : 150 g de poulet, 120 g de riz basmati (cru), légumes, une cuillère d'huile d'olive, un yaourt grec",
-    "60–90 min avant la séance : 200 g de fromage blanc, 2 tranches de pain complet et de la confiture",
-    "Soir : 150 g de saumon ou de bœuf 5 %, 300 g de pommes de terre, légumes, une cuillère d'huile",
-    "Collation : 250 g de fromage blanc, 30 g de miel, 30 g de noix",
-  ];
-  const minimalRules = [
-    "Quatre repas avec 40 g de protéines",
-    "Pesée chaque matin",
-    "Mètre ruban et bilan copié-collé le dimanche",
-    "Le plancher alimentaire ne dépend pas de la séance : séance ratée = on mange pareil",
-  ];
-  const optional = [
-    "Créatine 3–5 g/j",
-    `Whey pour atteindre ${profile.macros.p} g de protéines`,
-    "Vitamine D 1 000–2 000 UI/j d'octobre à mars",
-    "Caféine 100–200 mg avant séance",
-  ];
+   caractères — en intertitres et listes. #109 a mis le chiffre qui compte en
+   tête (headline), les trois macros en tuiles, les ajustements en table
+   Si/Alors. #121 remplace ce que ces nombres étaient (écrits à la main pour
+   le profil de Simon) par un calcul (nutrition.js) qui suit l'objectif
+   déclaré — masse, sèche ou maintien changent le signe du calcul et le sens
+   de la table Si/Alors, pas seulement ses chiffres. Le repas type disparaît :
+   l'app calcule kcal/macros, pas de recettes — un brief copiable (aiBrief)
+   les transmet à une IA externe pour ça. */
+function nutritionBlocks(profile, sessionsPerWeek) {
   return [
     { t: "headline", text: `${sp(profile.startKcal)} kcal / jour · maintenance ≈ ${sp(profile.maintenanceKcal)}` },
     { t: "tiles", items: [
@@ -258,25 +241,13 @@ function nutritionBlocks(profile) {
       "Quatre repas à 40–50 g de protéines, glucides concentrés autour des séances",
     ] },
     { t: "h", text: "Lecture des deux premières semaines" },
-    { t: "p", text: "+0,5 à 1 kg d'eau et de glycogène en S1, on juge la pente entre la moyenne de S2 et celle de S4. Pente +0,2–0,3 kg/sem → maintenance confirmée." },
+    { t: "p", text: firstWeeksNote(profile.objectif) },
     { t: "h", text: "Ajuster toutes les 2 semaines" },
-    { t: "table", variant: "ifthen", rows: [
-      ["Gain > 0,4 kg/sem sur 2 semaines, ou taille +1 cm sur 2 semaines", "−150 à −200 kcal"],
-      ["Gain < 0,1 kg/sem sur 2 semaines", "+100 à +150 kcal"],
-      ["Taille +3 cm cumulés, ou masse grasse estimée ≥ 15–16 %", "retour à maintenance et réévaluation"],
-    ] },
+    { t: "table", variant: "ifthen", rows: adjustmentTable(profile.objectif) },
     { t: "p", text: `Cible : ${kg(profile.targetWeightKg[0])}–${kg(profile.targetWeightKg[1])} kg fin S12.` },
-    { t: "fold", title: "Journée type", count: meals.length, blocks: [
-      { t: "p", text: `Jour d'entraînement, ~${sp(profile.startKcal)} kcal.` },
-      { t: "ul", items: meals },
-      { t: "p", text: "Jour de repos : mêmes totaux, la collation pré-séance devient un goûter." },
-    ] },
-    { t: "fold", title: "Version minimale", count: minimalRules.length, blocks: [
-      { t: "p", text: "Ce qui tient quand la semaine part en vrille." },
-      { t: "ul", items: minimalRules },
-    ] },
-    { t: "fold", title: "Optionnel", count: optional.length, blocks: [
-      { t: "ul", items: optional },
+    { t: "fold", title: "Brief pour ton IA", count: 1, blocks: [
+      { t: "p", text: "À copier-coller à l'IA de ton choix pour un exemple de repas — l'app calcule les chiffres, pas les recettes." },
+      ...aiBrief(profile, sessionsPerWeek).map((text) => ({ t: "p", text })),
     ] },
   ];
 }
@@ -459,13 +430,23 @@ export function buildPlan(definition) {
 
     cardioSection(program.cardio, definition.cardioBaseline),
 
+    /* #121 : cette section ne disparaît plus quand `profile` est absent —
+       contrairement à Cardio ou au Plan de repli, son absence n'est pas
+       « rien à dire » mais « quelque chose à faire ». `blocks` vide est le
+       signal que App.jsx lit pour afficher l'appel à l'action à la place. */
     profile ? {
       id: "nutrition",
       title: "Nutrition",
       group: "programme",
       meta: `${sp(profile.startKcal)} kcal · ${profile.macros.p}/${profile.macros.f}/${profile.macros.c} g`,
-      blocks: nutritionBlocks(profile),
-    } : null,
+      blocks: nutritionBlocks(profile, (program.SESSIONS || []).length),
+    } : {
+      id: "nutrition",
+      title: "Nutrition",
+      group: "programme",
+      meta: "Profil non renseigné",
+      blocks: [],
+    },
 
     Object.keys(startingLoads).length ? {
       id: "startloads",

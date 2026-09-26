@@ -86,9 +86,16 @@ describe("adjustmentTable / firstWeeksNote : variante miroir en sèche (#121)", 
 });
 
 describe("aiBrief : kcal/macros/objectif + rythme d'entraînement (#121 Q4)", () => {
+  test("rend un tableau de phrases courtes (300 caractères max par bloc)", () => {
+    const p = compute({ ...base, objectif: "masse" });
+    const lines = aiBrief(p, 4);
+    assert.ok(Array.isArray(lines));
+    for (const line of lines) assert.ok(line.length <= 300, line);
+  });
+
   test("contient les chiffres calculés et le nombre de séances", () => {
     const p = compute({ ...base, objectif: "masse" });
-    const brief = aiBrief(p, 4);
+    const brief = aiBrief(p, 4).join(" ");
     assert.ok(brief.includes(String(p.startKcal)));
     assert.ok(brief.includes(String(p.macros.p)));
     assert.ok(brief.includes("4"));
@@ -97,7 +104,14 @@ describe("aiBrief : kcal/macros/objectif + rythme d'entraînement (#121 Q4)", ()
 
   test("ne prescrit aucun repas précis (laissé à l'IA externe)", () => {
     const p = compute({ ...base, objectif: "seche" });
-    const brief = aiBrief(p, 3);
+    const brief = aiBrief(p, 3).join(" ");
     assert.ok(!/riz|poulet|avoine/i.test(brief));
+  });
+
+  test("omet la ligne « Objectif » quand le profil n'en porte pas (profil d'avant #121)", () => {
+    const p = compute({ ...base, objectif: "masse" });
+    delete p.objectif;
+    const brief = aiBrief(p, 4).join(" ");
+    assert.ok(!/objectif/i.test(brief));
   });
 });

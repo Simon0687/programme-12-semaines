@@ -120,14 +120,17 @@ export function firstWeeksNote(objectif) {
    (decisions-spec.md #121 Q4) — déjà connu de l'app, ne coûte rien de plus
    et évite de perdre l'information que le texte hardcodé donnait (jour
    d'entraînement vs repos). Pas de génération de repas : c'est le rôle
-   d'une IA externe, l'app ne porte pas de base d'aliments. */
+   d'une IA externe, l'app ne porte pas de base d'aliments.
+
+   Rend un tableau de phrases courtes plutôt qu'un seul bloc de texte : un
+   profil d'avant ce ticket (les 4 champs calculés seuls, sans `objectif`)
+   omet la première ligne plutôt que d'afficher "Objectif : undefined". */
 export function aiBrief(profile, sessionsPerWeek) {
   const { startKcal, macros, objectif } = profile;
-  const objectifTxt = OBJECTIVE_LABELS[objectif] ?? objectif;
-  return [
-    `Objectif : ${objectifTxt}.`,
-    `Cible : ${startKcal} kcal/jour, ${macros.p} g de protéines, ${macros.f} g de lipides, ${macros.c} g de glucides.`,
-    `Rythme d'entraînement : ${sessionsPerWeek} séance${sessionsPerWeek > 1 ? "s" : ""} par semaine.`,
-    "Propose-moi un exemple de journée alimentaire (jour d'entraînement et jour de repos) qui atteint ces chiffres, sans base d'aliments imposée — à toi de choisir des repas réalistes.",
-  ].join("\n");
+  const lines = [];
+  if (OBJECTIVE_LABELS[objectif]) lines.push(`Objectif : ${OBJECTIVE_LABELS[objectif]}.`);
+  lines.push(`Cible : ${startKcal} kcal/jour, ${macros.p} g de protéines, ${macros.f} g de lipides, ${macros.c} g de glucides.`);
+  lines.push(`Rythme d'entraînement : ${sessionsPerWeek} séance${sessionsPerWeek > 1 ? "s" : ""} par semaine.`);
+  lines.push("Propose un exemple de journée alimentaire (jour d'entraînement et jour de repos) qui atteint ces chiffres, sans base d'aliments imposée.");
+  return lines;
 }
