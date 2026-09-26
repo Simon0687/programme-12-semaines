@@ -33,6 +33,7 @@
 import { EXERCISE_IDS } from "./registry.js";
 import { DEFINITION_FORMAT_VERSION, parseLocalDate } from "./definition.js";
 import { AFTER_KINDS, MODALITY_IDS, CARDIO_KINDS, BASELINE_KEYS } from "./cardio.js";
+import { ACTIVITY_FACTORS, OBJECTIVES } from "./nutrition.js";
 
 const isNum = (x) => typeof x === "number" && Number.isFinite(x);
 const isObj = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
@@ -576,6 +577,31 @@ export function validateDefinition(definition) {
     if (p.targetWeightKg == null) return { reason: "missing-field", message: "Champ manquant : profile.targetWeightKg" };
     if (!Array.isArray(p.targetWeightKg) || p.targetWeightKg.length < 2 || !p.targetWeightKg.slice(0, 2).every(isNum)) {
       return { reason: "invalid-field", message: "Champ invalide : profile.targetWeightKg (deux nombres attendus)" };
+    }
+
+    /* #121 : les champs bruts sont optionnels, et indépendants les uns des
+       autres — un profil peut porter certains sans les autres (celui de
+       Simon, public/programs/haut-bas-5j.json, porte déjà bodyweightKg/
+       heightCm/birthdate depuis #5 sans sexe/activite/objectif, qui sont
+       nouveaux). Chacun se valide seul, s'il est présent ; aucun n'exige la
+       présence d'un autre. Un profil d'avant ce ticket (les 4 champs
+       calculés ci-dessus seulement) continue de valider à l'identique. */
+    for (const field of ["bodyweightKg", "heightCm"]) {
+      if (p[field] != null && (!isNum(p[field]) || p[field] <= 0)) {
+        return { reason: "invalid-field", message: `Champ invalide : profile.${field} (nombre positif attendu)` };
+      }
+    }
+    if (p.birthdate != null && (typeof p.birthdate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(p.birthdate))) {
+      return { reason: "invalid-field", message: "Champ invalide : profile.birthdate (AAAA-MM-JJ attendu)" };
+    }
+    if (p.sexe != null && p.sexe !== "h" && p.sexe !== "f") {
+      return { reason: "invalid-field", message: `Champ invalide : profile.sexe (« h » ou « f » attendu)` };
+    }
+    if (p.activite != null && !Object.keys(ACTIVITY_FACTORS).includes(p.activite)) {
+      return { reason: "invalid-field", message: `Champ invalide : profile.activite (attendu : ${Object.keys(ACTIVITY_FACTORS).join(", ")})` };
+    }
+    if (p.objectif != null && !OBJECTIVES.includes(p.objectif)) {
+      return { reason: "invalid-field", message: `Champ invalide : profile.objectif (attendu : ${OBJECTIVES.join(", ")})` };
     }
   }
 

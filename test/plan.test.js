@@ -212,9 +212,15 @@ describe("buildPlan : sections pilotées par la définition (#26)", () => {
     },
   };
 
-  test("sans profil, sans charges, sans cardio : ces sections disparaissent", () => {
+  test("sans profil, sans charges, sans cardio : ces sections disparaissent (sauf Nutrition, #121)", () => {
     const ids = buildPlan(bare).map((s) => s.id);
-    assert.deepEqual(ids, ["structure", "progression", "deload", "repos"]);
+    /* #121 : Nutrition ne disparaît plus quand le profil est absent — son
+       absence appelle une action (renseigner le profil), pas rien à dire.
+       Elle reste, avec des blocs vides que App.jsx lit comme le signal
+       d'afficher l'appel à l'action à la place. */
+    assert.deepEqual(ids, ["structure", "progression", "deload", "repos", "nutrition"]);
+    const nutrition = buildPlan(bare).find((s) => s.id === "nutrition");
+    assert.deepEqual(nutrition.blocks, []);
   });
 
   test("les sections restantes sont de la méthode, pas du programme", () => {

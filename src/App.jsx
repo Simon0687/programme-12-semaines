@@ -44,6 +44,7 @@ import { emptyDraft, draftFrom, nextCycleFrom, withNewId, toDefinition, isDirty,
 import { carriedLoad } from "./carryover.js";
 import { cycleReview } from "./cycle-review.js";
 import { buildPlan, PHASE_NOTES } from "./plan.js";
+import { ACTIVITY_FACTORS, ACTIVITY_LABELS, OBJECTIVES, OBJECTIVE_LABELS, computeNutritionProfile, aiBrief } from "./nutrition.js";
 import { buildBilan } from "./bilan.js";
 import { bodyMeasures } from "./measures.js";
 import MeasureCharts from "./MeasureChart.jsx";
@@ -154,6 +155,75 @@ function Btn({ children, onClick, primary, small, disabled }) {
         ${primary ? "bg-accent text-ink-inverse" : "bg-surface-raised text-ink border border-rule"}`}>
       {children}
     </button>
+  );
+}
+
+/* #121 : le formulaire de profil nutrition — 6 champs, saisis/modifiés
+   uniquement depuis la section Nutrition du Plan (pas d'écran séparé, pas
+   de question forcée à la création). `initial` porte le profil existant
+   (bruts + calculés) ou `undefined` : les deux se traitent pareil, un champ
+   vide reste vide. Aucun calcul ici — `onSave` reçoit les 6 champs bruts
+   tels quels, `computeNutritionProfile()` (nutrition.js) fait le calcul
+   côté appelant, seul chemin d'écriture des champs dérivés. */
+function NutritionProfileForm({ initial, onSave, onCancel }) {
+  const [f, setF] = useState({
+    heightCm: initial?.heightCm ?? "", bodyweightKg: initial?.bodyweightKg ?? "",
+    /* Retour de test (2026-09-26) : l'année suffit au calcul (ageFrom ne
+       lit que l'année pour l'essentiel), demander le jour et le mois est
+       une précision dont personne n'a besoin ici. */
+    birthYear: initial?.birthdate ? initial.birthdate.slice(0, 4) : "", sexe: initial?.sexe ?? "h",
+    activite: initial?.activite ?? "modere", objectif: initial?.objectif ?? "masse",
+  });
+  const set = (k) => (v) => setF({ ...f, [k]: v });
+  const validYear = Number.isInteger(Number(f.birthYear)) && Number(f.birthYear) > 1900 && Number(f.birthYear) <= new Date().getFullYear();
+  const valid = Number(f.heightCm) > 0 && Number(f.bodyweightKg) > 0 && validYear;
+  const save = () => onSave({ ...f, birthdate: `${f.birthYear}-01-01` });
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Taille (cm)" value={f.heightCm} onChange={set("heightCm")} type="number" />
+        <Field label="Poids (kg)" value={f.bodyweightKg} onChange={set("bodyweightKg")} type="number" />
+      </div>
+      <Field label="Année de naissance" value={f.birthYear} onChange={set("birthYear")} type="number" placeholder="1990" />
+      <div>
+        <span className="text-xs text-ink-muted">Sexe (pour le calcul du métabolisme)</span>
+        <div className="mt-1 flex gap-2">
+          {[["h", "Homme"], ["f", "Femme"]].map(([v, label]) => (
+            <button key={v} type="button" onClick={() => set("sexe")(v)} aria-pressed={f.sexe === v}
+              className={`h-10 px-3.5 rounded-md border text-[13px] ${f.sexe === v ? "border-accent text-accent-ink" : "border-rule text-ink"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <span className="text-xs text-ink-muted">Niveau d'activité</span>
+        <div className="mt-1 flex gap-2 flex-wrap">
+          {Object.keys(ACTIVITY_FACTORS).map((v) => (
+            <button key={v} type="button" onClick={() => set("activite")(v)} aria-pressed={f.activite === v}
+              className={`h-10 px-3.5 rounded-md border text-[13px] ${f.activite === v ? "border-accent text-accent-ink" : "border-rule text-ink"}`}>
+              {ACTIVITY_LABELS[v]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <span className="text-xs text-ink-muted">Objectif</span>
+        <div className="mt-1 flex gap-2 flex-wrap">
+          {OBJECTIVES.map((v) => (
+            <button key={v} type="button" onClick={() => set("objectif")(v)} aria-pressed={f.objectif === v}
+              className={`h-10 px-3.5 rounded-md border text-[13px] ${f.objectif === v ? "border-accent text-accent-ink" : "border-rule text-ink"}`}>
+              {OBJECTIVE_LABELS[v]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex gap-3 pt-1">
+        <Btn primary disabled={!valid} onClick={save}>Enregistrer</Btn>
+        {onCancel && <Btn onClick={onCancel}>Annuler</Btn>}
+      </div>
+    </div>
   );
 }
 
@@ -328,6 +398,10 @@ export default function Programme() {
      barre du bas ramène à l'index, comme on l'attend d'un onglet. */
   const [planTopic, setPlanTopic] = useState(null);
   const goPlan = () => { setPlanTopic(null); setNav({ screen: "plan", sessionId: null }); };
+  /* #121 : ouvert d'office si aucun profil n'existe encore — évite un aller-
+     retour "CTA -> clic -> formulaire" pour le premier remplissage. */
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [briefStatus, setBriefStatus] = useState("");
   /* #106 : le ⚙ de l'en-tête Programme. Écran plein, sans onglets du bas —
      rien d'autre ne se passe ici — et fermé par « Fermer » plutôt que par un
      retour, puisqu'on peut y arriver depuis l'index sans avoir choisi un
@@ -900,6 +974,29 @@ export default function Programme() {
     });
   };
 
+  /* #121 : le recalcul (computeNutritionProfile) est le seul chemin
+     d'écriture des 4 champs dérivés (decisions-spec.md #121 Q1) — jamais une
+     saisie manuelle directe. `today` sert de référence pour dériver l'âge
+     depuis birthdate (ageFrom, nutrition.js), comme le reste de l'app le
+     fait déjà pour la date du jour. */
+  const setProfile = ({ birthYear, ...raw }) => {
+    const profile = computeNutritionProfile({
+      ...raw, heightCm: Number(raw.heightCm), bodyweightKg: Number(raw.bodyweightKg),
+    }, today);
+    updateActive((st) => ({ definition: { ...st.definition, profile } }));
+    setEditingProfile(false);
+  };
+
+  /* Même geste que le bilan (#41) : un fichier, pas le presse-papier — qui
+     n'existe pas hors contexte sécurisé (voir downloadBilan ci-dessous). */
+  const downloadNutritionBrief = () => {
+    const name = `nutrition-brief-${toIsoDate(new Date())}.txt`;
+    saveFile(FILE_ENV, { name, content: aiBrief(definition.profile, prog.SESSIONS.length).join("\n"), type: "text/plain" }).then((res) => {
+      if (!res.ok) setBriefStatus(res.reason === "cancelled" ? "" : "Impossible d'écrire un fichier sur cet appareil.");
+      else setBriefStatus(name);
+    });
+  };
+
   /* #15 : saveFile() doit être atteint de façon synchrone depuis le clic —
      Safari abandonne navigator.share si l'appel passe derrière un await.
      Rien n'est attendu avant l'appel ; la suite se traite dans le .then(). */
@@ -1233,7 +1330,7 @@ export default function Programme() {
       <div className="min-h-screen bg-surface text-ink" style={{ fontVariantNumeric: "tabular-nums" }}>
         <Welcome
           onGenerate={() => setNav({ screen: "generateur", sessionId: null })}
-          onCompose={() => openEditor(emptyDraft(today))}
+          onCompose={() => openEditor({ ...emptyDraft(today), profile: definition.profile })}
           onLoadFile={() => fileInputRef.current && fileInputRef.current.click()}
           /* Retenir le programme fourni est un choix, pas un défaut : c'est le
              seul geste qui le fait entrer dans le journal, et il est explicite. */
@@ -1465,8 +1562,13 @@ export default function Programme() {
 
         {/* #58 : la collecte ne possède rien de stocké et ne passe la main
             qu'à l'éditeur — c'est lui, et lui seul, qui écrit. */}
+        {/* Retour de test (2026-09-26) : le profil nutrition (taille, poids,
+            année de naissance...) ne change pas d'un programme à l'autre —
+            il ne doit pas se réinitialiser à chaque nouveau cycle. Le
+            générateur ne produit pas de profil, donc `draftFrom(def)` en
+            écrirait un vide sans ce report explicite depuis le cycle actif. */}
         {screen === "generateur" && (
-          <GenerateProgram today={today} onBack={goPlan} onAccept={(def) => openEditor(draftFrom(def))} />
+          <GenerateProgram today={today} onBack={goPlan} onAccept={(def) => openEditor({ ...draftFrom(def), profile: definition.profile })} />
         )}
 
         {/* #114 : le manuel de méthode, en une page à sommaire ancré — Structure,
@@ -1555,7 +1657,7 @@ export default function Programme() {
                   condition, contrairement à ce que #111 envisageait sinon. */}
               <Route icon={<Copy size={18} />} onClick={() => openEditor(nextCycleFrom(definition, today))}
                 title="Partir du programme actif" note={`Copie de ${definition.name}, charges reprises`} />
-              <Route icon={<PenLine size={18} />} onClick={() => openEditor(emptyDraft(today))}
+              <Route icon={<PenLine size={18} />} onClick={() => openEditor({ ...emptyDraft(today), profile: definition.profile })}
                 title="Composer le mien" note="Séance par séance" />
               <Route icon={<Upload size={18} />} onClick={() => fileInputRef.current.click()}
                 title="Charger un fichier" note="Programme déjà écrit (.json)" />
@@ -1851,8 +1953,29 @@ export default function Programme() {
 
         {screen === "plan" && (
           planPage ? (
-            <PlanPage title={planPage.title} onBack={() => setPlanTopic(null)}>
-              {(plan.find((s) => s.id === planPage.id) || { blocks: [] }).blocks.map((b, i) => <Block key={i} block={b} />)}
+            <PlanPage title={planPage.title} onBack={() => { setPlanTopic(null); setEditingProfile(false); }}>
+              {/* #121 : Nutrition sort du rendu générique par blocs — c'est la
+                  seule section du Plan qui a besoin d'écrire dans le journal
+                  (le profil), ce que <Block> ne fait jamais (§2.6, aucune
+                  logique React dans plan.js). Les autres pages restent sur le
+                  chemin générique ci-dessous, inchangé. */}
+              {planPage.id === "nutrition" ? (
+                !definition.profile || editingProfile ? (
+                  <NutritionProfileForm initial={definition.profile} onSave={setProfile}
+                    onCancel={definition.profile ? () => setEditingProfile(false) : null} />
+                ) : (
+                  <>
+                    {plan.find((s) => s.id === "nutrition").blocks.map((b, i) => <Block key={i} block={b} />)}
+                    <div className="flex flex-wrap gap-3 pt-2">
+                      <Btn small onClick={() => setEditingProfile(true)}>Modifier mon profil</Btn>
+                      <Btn small onClick={downloadNutritionBrief}>Télécharger le brief</Btn>
+                    </div>
+                    {briefStatus && <p className="text-xs text-ink-faint">{briefStatus}</p>}
+                  </>
+                )
+              ) : (
+                (plan.find((s) => s.id === planPage.id) || { blocks: [] }).blocks.map((b, i) => <Block key={i} block={b} />)
+              )}
             </PlanPage>
           ) : (
             <>

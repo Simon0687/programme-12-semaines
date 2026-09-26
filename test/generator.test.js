@@ -525,7 +525,8 @@ describe("de la collecte à l'avis de Plan (#58)", () => {
 
   test("l'onglet Plan sait le décrire, table de volume comprise", () => {
     // #120 : program.fallback est désormais toujours produit (≥ 2 séances).
-    assert.deepEqual(buildPlan(saved).map((s) => s.id), ["structure", "volume", "progression", "deload", "repos", "fallback"]);
+    // #121 : Nutrition ne disparaît plus sans profil (appel à l'action à la place).
+    assert.deepEqual(buildPlan(saved).map((s) => s.id), ["structure", "volume", "progression", "deload", "repos", "fallback", "nutrition"]);
   });
 
   test("avec son intention, l'avis n'a plus rien à dire", () => {
