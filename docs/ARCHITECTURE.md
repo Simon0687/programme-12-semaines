@@ -228,13 +228,12 @@ side instead: `normalizeSets()` (`progression.js`, #23) turns any payload into
 an array of sets, and the engine reads through it - `history()`,
 `exerciseHistory()` and the display summaries no longer throw on that row.
 
-What remains is the readers that bypass it. In `App.jsx`, `onSet`,
-`sessionSets`, `dropsOf`, `bilanText` and the `rows` handed to `ExerciseCard`
-read `ex[vid]` raw, and `|| []` guards nothing, since a non-empty string is
-truthy: `.map` on a string throws during session validation, and spreading
-one splits it into characters. A throw during render unmounts the whole app. It
-takes a hand-edited or imported journal to get there, and it is tracked by #86 -
-one accessor, `setsOf(log, vid)`, for every reader.
+#86 closed the remaining gap: `onSet`, `sessionSets`, `dropsOf`, `bilanText`
+and the `rows` handed to `ExerciseCard` now all read through `setsOf(log, vid)`
+(`progression.js`), the one accessor that normalizes whatever `ex[vid]` holds
+before any reader touches it. `test/progression.test.js` exercises `setsOf`
+over malformed payloads (a string, a bare object) so the invariant is checked,
+not just asserted.
 
 Everything else holds. #32 closed the stored-journal half (see 2.9) and #33
 closed the last one: `validateProgram` destructures no pair it has not checked
