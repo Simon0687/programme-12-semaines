@@ -4,6 +4,14 @@ Source : [`spec.md`](spec.md), [`decisions-spec.md`](decisions-spec.md)
 (Q1 hybride, Q2 ordre de déclaration, Q3 pas de plancher, Q4 recomposition —
 validées par Simon le 2026-09-26).
 
+> **Révisé le 2026-09-26, après test en local.** Q4 (recomposition en
+> séance composite) produisait un cas réel irréaliste — voir
+> `decisions-spec.md` Q4, section "Révision après test". Ce document
+> décrit la version d'origine ; `composeSession()`, `rankExercisesForCut()`
+> et `level.merge` n'existent plus dans le code livré. Seule la partie
+> priorité de séance (`sessionCoverage`, `rankSessionsForCut`) reste telle
+> que décrite ci-dessous.
+
 ## Résumé
 
 Un nouveau module `src/fallback.js` (méthode pure, comme `cardio.js` :
