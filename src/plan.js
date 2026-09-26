@@ -26,8 +26,9 @@
        deload       toujours (méthode).
        repos        toujours (méthode) — sorti de progression en #114 pour
                     porter sa propre ancre dans le manuel de Référence.
-       fallback     program.fallback (tableau de paragraphes) — absent =>
-                    section omise.
+       fallback     program.fallback — tableau de paragraphes (hérité) ou
+                    objet { levels } structuré (#120, buildFallbackLevels())
+                    — absent => section omise.
        cardio       omise quand program.cardio vaut null (#25/#13).
        nutrition    omise quand la définition n'a pas de profil (#27).
        startloads   omise quand startingLoads est vide ; le texte est
@@ -138,6 +139,40 @@ function startLoadsBlocks(startingLoads) {
   return [
     { t: "ul", items },
     { t: "p", text: "Tout le reste en paliers : 50 → 75 → 100 % de la charge devinée, la première série dans la fourchette à 2–3 RIR devient la charge de travail." },
+  ];
+}
+
+/* #120 : le plan de repli structuré (`buildFallbackLevels()`, fallback.js).
+   Un paragraphe par niveau — de N-1 séances jusqu'à 1 — qui nomme les
+   séances gardées telles quelles et décrit la séance composite (ses
+   exercices, résolus depuis SLOTS/EXERCISES comme startLoadsBlocks()
+   ci-dessus). Le tableau de strings hérité (le programme personnel de
+   Simon aujourd'hui) reste rendu tel quel : deux formats, jamais
+   mélangés — validateFallback() (journal-shape.js) les distingue déjà. */
+function exerciseLine(slotId, sets, SLOTS) {
+  const slot = SLOTS[slotId];
+  const v = slot && EXERCISES[slot.b1];
+  return `${v ? v.name : slotId} ${sets}`;
+}
+
+function fallbackBlocks(fallback, SLOTS, SESSIONS) {
+  if (Array.isArray(fallback)) return fallback.map((text) => ({ t: "p", text }));
+
+  const nameOf = (id) => (SESSIONS.find((s) => s.id === id) || {}).name || id;
+  const total = SESSIONS.length;
+  const paragraphs = fallback.levels.map((level, i) => {
+    const n = total - (i + 1);
+    const kept = level.keep.map(nameOf);
+    const composite = level.merge
+      ? `${nameOf(level.merge.from[0])} + (${level.merge.into.ex.map(([slotId, sets]) => exerciseLine(slotId, sets, SLOTS)).join(", ")})`
+      : null;
+    const names = [...kept, ...(composite ? [composite] : [])].join(", ");
+    return `À ${n} séance${n > 1 ? "s" : ""} : ${names}.`;
+  });
+
+  return [
+    ...paragraphs.map((text) => ({ t: "p", text })),
+    { t: "p", text: "On ne rattrape jamais la semaine suivante, on reprend le plan. Une séance déjà sacrifiée ne l'est pas deux semaines de suite." },
   ];
 }
 
@@ -449,12 +484,18 @@ export function buildPlan(definition) {
       ],
     },
 
-    program.fallback && program.fallback.length ? {
+    /* #120 : deux formes valides pour program.fallback — le tableau de
+       strings hérité (`.length` est son propre compte), ou l'objet
+       structuré `{ levels }` (`.levels.length`, un niveau de moins que de
+       séances). Section omise si absent, comme avant. */
+    program.fallback && (Array.isArray(program.fallback) ? program.fallback.length : program.fallback.levels?.length) ? {
       id: "fallback",
       title: "Plan de repli (séances manquées)",
       group: "programme",
-      meta: `${program.fallback.length} cas de figure`,
-      blocks: program.fallback.map((text) => ({ t: "p", text })),
+      meta: Array.isArray(program.fallback)
+        ? `${program.fallback.length} cas de figure`
+        : `${program.fallback.levels.length} cas de figure`,
+      blocks: fallbackBlocks(program.fallback, SLOTS, program.SESSIONS || []),
     } : null,
 
     cardioSection(program.cardio, definition.cardioBaseline),

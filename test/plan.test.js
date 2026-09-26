@@ -244,6 +244,51 @@ describe("buildPlan : sections pilotées par la définition (#26)", () => {
   });
 });
 
+/* ---------- La section fallback, deux formats (#120) ---------- */
+describe("buildPlan : plan de repli, deux formes valides (#120)", () => {
+  test("le tableau de strings hérité (programme de Simon) reste rendu tel quel", () => {
+    const s = buildPlan(LEGACY_DEFINITION).find((sec) => sec.id === "fallback");
+    assert.ok(s, "section fallback absente");
+    assert.equal(s.blocks.length, LEGACY_DEFINITION.program.fallback.length);
+    assert.equal(s.blocks[0].text, LEGACY_DEFINITION.program.fallback[0]);
+  });
+
+  test("l'objet structuré { levels } produit un paragraphe par niveau, plus la règle de non-répétition", () => {
+    const structured = {
+      levels: [
+        { keep: ["hautA", "hautC"], merge: { from: ["jambes", "hautB"], into: { id: "j1", ex: [["s_squat", 3]] } } },
+      ],
+    };
+    const def = withDef({
+      program: {
+        ...LEGACY_DEFINITION.program,
+        fallback: structured,
+        SLOTS: { ...LEGACY_DEFINITION.program.SLOTS, s_squat: { reps: [5, 8], rest: 150, b1: "squat", b2: "squat" } },
+        SESSIONS: [
+          { id: "hautA", name: "Haut A", day: 1, warm: "haut", core: "gainage", ex: [["s_squat", 1]] },
+          { id: "hautB", name: "Haut B", day: 2, warm: "haut", core: "gainage", ex: [["s_squat", 1]] },
+          { id: "hautC", name: "Haut C", day: 3, warm: "haut", core: "gainage", ex: [["s_squat", 1]] },
+          { id: "jambes", name: "Jambes", day: 4, warm: "bas", core: "gainage", ex: [["s_squat", 1]] },
+        ],
+      },
+    });
+    const s = buildPlan(def).find((sec) => sec.id === "fallback");
+    assert.equal(s.meta, "1 cas de figure");
+    const text = s.blocks[0].text;
+    assert.match(text, /À 3 séances/);
+    assert.match(text, /Haut A/);
+    assert.match(text, /Haut C/);
+    assert.match(text, /Jambes \+/);
+    assert.match(text, /Squat barre 3/i);
+    assert.match(s.blocks[s.blocks.length - 1].text, /pas deux semaines de suite/);
+  });
+
+  test("absent (fallback: undefined) : la section reste omise, comme avant #120", () => {
+    const def = withDef({ program: { ...LEGACY_DEFINITION.program, fallback: undefined } });
+    assert.equal(buildPlan(def).find((s) => s.id === "fallback"), undefined);
+  });
+});
+
 /* ---------- La section cardio, dérivée (#34) ----------
 
    Trois paragraphes écrits en dur décrivaient le rameur de Simon sous tout
