@@ -6,7 +6,16 @@
    les blocs de la section Nutrition ; `App.jsx` les appelle pour calculer
    les champs dérivés avant d'écrire le profil (le recalcul est le seul
    chemin d'écriture des 4 champs dérivés — decisions-spec.md #121 Q1).
+
+   `bodyweightKg`, `heightCm` reprennent les noms déjà posés sur le profil
+   de Simon (public/programs/haut-bas-5j.json, depuis #5) plutôt que d'en
+   inventer d'autres — jusqu'ici présents mais jamais lus par aucun calcul.
+   `birthdate` (déjà présent aussi) donne l'âge, dérivé plutôt que stocké à
+   part : un champ "âge" faudrait le corriger à la main chaque année,
+   `birthdate` ne change jamais.
    ========================================================= */
+
+import { parseLocalDate } from "./definition.js";
 
 /* Trois paliers (decisions-spec.md #121 Q3) : la table Si/Alors corrige déjà
    l'estimation initiale sur la base de mesures réelles, la précision du
@@ -17,11 +26,20 @@ export const ACTIVITY_LABELS = { sedentaire: "Sédentaire", modere: "Modéré", 
 export const OBJECTIVES = ["masse", "seche", "maintien"];
 export const OBJECTIVE_LABELS = { masse: "Prise de masse", seche: "Sèche", maintien: "Maintien" };
 
+export function ageFrom(birthdate, today) {
+  const b = parseLocalDate(birthdate);
+  let age = today.getFullYear() - b.getFullYear();
+  const beforeBirthdayThisYear = today.getMonth() < b.getMonth()
+    || (today.getMonth() === b.getMonth() && today.getDate() < b.getDate());
+  if (beforeBirthdayThisYear) age -= 1;
+  return age;
+}
+
 /* Mifflin-St Jeor : la formule la plus citée aujourd'hui. A besoin du sexe
    biologique en plus de taille/poids/âge — les deux seules variantes
    qu'elle porte (décision de Simon, 2026-09-26). */
-function bmr({ tailleCm, poidsKg, age, sexe }) {
-  const base = 10 * poidsKg + 6.25 * tailleCm - 5 * age;
+function bmr({ heightCm, bodyweightKg, age, sexe }) {
+  const base = 10 * bodyweightKg + 6.25 * heightCm - 5 * age;
   return Math.round(sexe === "f" ? base - 161 : base + 5);
 }
 
@@ -43,20 +61,21 @@ const KCAL_DELTA_FRACTION = { masse: 0.10, seche: -0.18, maintien: 0 };
 const PROTEIN_PER_KG = { masse: 2.0, seche: 2.2, maintien: 1.8 };
 const FAT_PER_KG = 0.8;
 
-export function computeNutritionProfile(raw) {
-  const { tailleCm, poidsKg, age, sexe, activite, objectif } = raw;
-  const maintenanceKcal = Math.round(bmr(raw) * (ACTIVITY_FACTORS[activite] ?? ACTIVITY_FACTORS.modere));
+export function computeNutritionProfile(raw, today) {
+  const age = ageFrom(raw.birthdate, today);
+  const { bodyweightKg, objectif } = raw;
+  const maintenanceKcal = Math.round(bmr({ ...raw, age }) * (ACTIVITY_FACTORS[raw.activite] ?? ACTIVITY_FACTORS.modere));
   const fraction = KCAL_DELTA_FRACTION[objectif] ?? 0;
   const startKcal = Math.round(maintenanceKcal * (1 + fraction));
 
-  const p = Math.round(poidsKg * (PROTEIN_PER_KG[objectif] ?? PROTEIN_PER_KG.maintien));
-  const f = Math.round(poidsKg * FAT_PER_KG);
+  const p = Math.round(bodyweightKg * (PROTEIN_PER_KG[objectif] ?? PROTEIN_PER_KG.maintien));
+  const f = Math.round(bodyweightKg * FAT_PER_KG);
   const c = Math.max(0, Math.round((startKcal - p * 4 - f * 9) / 4));
 
   const [lo, hi] = WEEKLY_RATE[objectif] ?? WEEKLY_RATE.maintien;
   const targetWeightKg = [
-    Math.round((poidsKg + 12 * Math.min(lo, hi)) * 10) / 10,
-    Math.round((poidsKg + 12 * Math.max(lo, hi)) * 10) / 10,
+    Math.round((bodyweightKg + 12 * Math.min(lo, hi)) * 10) / 10,
+    Math.round((bodyweightKg + 12 * Math.max(lo, hi)) * 10) / 10,
   ];
 
   return { ...raw, maintenanceKcal, startKcal, macros: { p, f, c }, targetWeightKg };
