@@ -524,9 +524,10 @@ describe("de la collecte à l'avis de Plan (#58)", () => {
   });
 
   test("l'onglet Plan sait le décrire, table de volume comprise", () => {
-    // #120 : program.fallback est désormais toujours produit (≥ 2 séances).
+    // #120 : plus de section "fallback" dans le Plan (retour de test du
+    // 2026-09-26, remplacé par le conseil vivant de l'onglet Semaine).
     // #121 : Nutrition ne disparaît plus sans profil (appel à l'action à la place).
-    assert.deepEqual(buildPlan(saved).map((s) => s.id), ["structure", "volume", "progression", "deload", "repos", "fallback", "nutrition"]);
+    assert.deepEqual(buildPlan(saved).map((s) => s.id), ["structure", "volume", "progression", "deload", "repos", "nutrition"]);
   });
 
   test("avec son intention, l'avis n'a plus rien à dire", () => {

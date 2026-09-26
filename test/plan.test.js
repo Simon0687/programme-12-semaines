@@ -251,40 +251,14 @@ describe("buildPlan : sections pilotées par la définition (#26)", () => {
 });
 
 /* ---------- La section fallback, deux formats (#120) ---------- */
-describe("buildPlan : plan de repli, deux formes valides (#120)", () => {
-  test("le tableau de strings hérité (programme de Simon) reste rendu tel quel", () => {
-    const s = buildPlan(LEGACY_DEFINITION).find((sec) => sec.id === "fallback");
-    assert.ok(s, "section fallback absente");
-    assert.equal(s.blocks.length, LEGACY_DEFINITION.program.fallback.length);
-    assert.equal(s.blocks[0].text, LEGACY_DEFINITION.program.fallback[0]);
+describe("buildPlan : plan de repli retiré du Plan (#120, retour de test du 2026-09-26)", () => {
+  test("aucune section 'fallback' n'apparaît, même sur le programme de Simon qui porte program.fallback", () => {
+    assert.ok(LEGACY_DEFINITION.program.fallback, "le fixture n'a plus de fallback à ignorer");
+    assert.equal(buildPlan(LEGACY_DEFINITION).find((s) => s.id === "fallback"), undefined);
   });
 
-  test("l'objet structuré { levels } produit un fold par niveau (séances existantes, jamais fusionnées)", () => {
-    const structured = { levels: [{ keep: ["hautA", "hautC", "jambes"] }] };
-    const def = withDef({
-      program: {
-        ...LEGACY_DEFINITION.program,
-        fallback: structured,
-        SESSIONS: [
-          { id: "hautA", name: "Haut A", day: 1, warm: "haut", core: "gainage", ex: LEGACY_DEFINITION.program.SESSIONS[0].ex },
-          { id: "hautB", name: "Haut B", day: 2, warm: "haut", core: "gainage", ex: LEGACY_DEFINITION.program.SESSIONS[0].ex },
-          { id: "hautC", name: "Haut C", day: 3, warm: "haut", core: "gainage", ex: LEGACY_DEFINITION.program.SESSIONS[0].ex },
-          { id: "jambes", name: "Jambes", day: 4, warm: "bas", core: "gainage", ex: LEGACY_DEFINITION.program.SESSIONS[0].ex },
-        ],
-      },
-    });
-    const s = buildPlan(def).find((sec) => sec.id === "fallback");
-    assert.equal(s.title, "Plan de repli");
-    assert.equal(s.meta, "1 cas de figure");
-    assert.match(s.blocks[0].text, /Si tu ne peux pas tenir le planning/);
-    const fold = s.blocks.find((b) => b.t === "fold");
-    assert.equal(fold.title, "3 séances");
-    assert.deepEqual(fold.blocks[0].items, ["Haut A", "Haut C", "Jambes"]);
-    assert.match(s.blocks[s.blocks.length - 1].text, /pas deux semaines de suite/);
-  });
-
-  test("absent (fallback: undefined) : la section reste omise, comme avant #120", () => {
-    const def = withDef({ program: { ...LEGACY_DEFINITION.program, fallback: undefined } });
+  test("un programme avec program.fallback structuré n'affiche pas non plus la section", () => {
+    const def = withDef({ program: { ...LEGACY_DEFINITION.program, fallback: { levels: [{ keep: ["hautA"] }] } } });
     assert.equal(buildPlan(def).find((s) => s.id === "fallback"), undefined);
   });
 });
@@ -369,7 +343,8 @@ describe("buildPlan : groupes et comptes", () => {
        Programme = ce qui vient de la donnée, et qui disparaît avec elle. */
     const L = byId(LEGACY_DEFINITION);
     for (const id of ["structure", "progression", "deload", "repos"]) assert.equal(L[id].group, "methode", id);
-    for (const id of ["volume", "fallback", "cardio", "nutrition", "startloads"]) assert.equal(L[id].group, "programme", id);
+    // #120 : "fallback" retiré (plus de section Plan, voir plus haut).
+    for (const id of ["volume", "cardio", "nutrition", "startloads"]) assert.equal(L[id].group, "programme", id);
   });
 
   test("les comptes du programme mesurent ce programme-là", () => {

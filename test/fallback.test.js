@@ -1,7 +1,9 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { sessionCoverage, rankSessionsForCut, buildFallbackLevels } from "../src/fallback.js";
+import {
+  sessionCoverage, rankSessionsForCut, buildFallbackLevels, recommendRemaining, lastSkipped,
+} from "../src/fallback.js";
 
 /* Fixtures locales, indépendantes du registre : sessionCoverage() ne lit que
    `entry.muscles` (via contribution(), assertions.js). Pas besoin de générer
@@ -79,5 +81,50 @@ describe("buildFallbackLevels : N-1 niveaux, séances existantes intactes (#120,
   test("aucun niveau avec moins de 2 séances au programme ne plante", () => {
     const one = buildFallbackLevels({ sessions: [hautA] });
     assert.deepEqual(one.levels, []);
+  });
+});
+
+describe("recommendRemaining : le conseil vivant (#120, retour de test)", () => {
+  test("assez de jours pour tout finir -> garde tout ce qui reste, rien à couper", () => {
+    const r = recommendRemaining(WEEK.sessions, ["hautA"], 3);
+    assert.deepEqual(r.keep.sort(), ["hautB", "hautC", "jambes"]);
+    assert.deepEqual(r.cut, []);
+  });
+
+  test("pas assez de jours -> coupe une Haut redondante avant Jambes", () => {
+    // hautA déjà faite ; il reste hautB, hautC, jambes pour 2 jours.
+    const r = recommendRemaining(WEEK.sessions, ["hautA"], 2);
+    assert.equal(r.keep.length, 2);
+    assert.ok(r.keep.includes("jambes"));
+    assert.equal(r.cut.length, 1);
+    assert.ok(!r.cut.includes("jambes"));
+  });
+
+  test("protectId protège la séance ratée la semaine passée, même sous contrainte", () => {
+    // hautB a été coupée la semaine dernière : elle ne doit pas l'être encore.
+    const r = recommendRemaining(WEEK.sessions, [], 1, "hautB");
+    assert.ok(!r.cut.includes("hautB") || r.keep.includes("hautB"));
+  });
+
+  test("0 jour restant -> tout ce qui n'est pas fait est coupé, sans planter", () => {
+    const r = recommendRemaining(WEEK.sessions, ["hautA"], 0);
+    assert.deepEqual(r.keep, []);
+    assert.equal(r.cut.length, 3);
+  });
+});
+
+describe("lastSkipped : la séance à protéger cette semaine (#120)", () => {
+  test("une seule séance ratée la semaine passée -> elle est identifiée", () => {
+    const doneLastWeek = WEEK.sessions.filter((s) => s.id !== "hautB").map((s) => s.id);
+    assert.equal(lastSkipped(WEEK.sessions, doneLastWeek), "hautB");
+  });
+
+  test("tout validé la semaine passée -> rien à protéger", () => {
+    assert.equal(lastSkipped(WEEK.sessions, WEEK.sessions.map((s) => s.id)), null);
+  });
+
+  test("plusieurs séances ratées -> ambigu, rien à protéger en particulier", () => {
+    const doneLastWeek = ["jambes"];
+    assert.equal(lastSkipped(WEEK.sessions, doneLastWeek), null);
   });
 });

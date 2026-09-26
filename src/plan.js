@@ -26,9 +26,6 @@
        deload       toujours (méthode).
        repos        toujours (méthode) — sorti de progression en #114 pour
                     porter sa propre ancre dans le manuel de Référence.
-       fallback     program.fallback — tableau de paragraphes (hérité) ou
-                    objet { levels } structuré (#120, buildFallbackLevels())
-                    — absent => section omise.
        cardio       omise quand program.cardio vaut null (#25/#13).
        nutrition    omise quand la définition n'a pas de profil (#27).
        startloads   omise quand startingLoads est vide ; le texte est
@@ -143,34 +140,6 @@ function startLoadsBlocks(startingLoads) {
   ];
 }
 
-/* #120 : le plan de repli structuré (`buildFallbackLevels()`, fallback.js).
-   Un niveau repliable par nombre de séances tenables — de N-1 jusqu'à 1 —
-   qui nomme les séances gardées **existantes et intactes** (retour de test
-   du 2026-09-26 : une première version recomposait une séance composite,
-   qui pouvait sortir irréaliste — 21 séries en une fois). Le tableau de
-   strings hérité (le programme personnel de Simon aujourd'hui) reste
-   rendu tel quel : deux formats, jamais mélangés — validateFallback()
-   (journal-shape.js) les distingue déjà. */
-function fallbackBlocks(fallback, SESSIONS) {
-  if (Array.isArray(fallback)) return fallback.map((text) => ({ t: "p", text }));
-
-  const nameOf = (id) => (SESSIONS.find((s) => s.id === id) || {}).name || id;
-  const folds = fallback.levels.map((level) => {
-    const n = level.keep.length;
-    return {
-      t: "fold",
-      title: `${n} séance${n > 1 ? "s" : ""}`,
-      count: n,
-      blocks: [{ t: "ul", items: level.keep.map(nameOf) }],
-    };
-  });
-
-  return [
-    { t: "p", text: "Si tu ne peux pas tenir le planning proposé cette semaine, voici un plan selon le nombre de séances qu'il te reste." },
-    ...folds,
-    { t: "p", text: "On ne rattrape jamais la semaine suivante, on reprend le plan. Une séance déjà sacrifiée ne l'est pas deux semaines de suite." },
-  ];
-}
 
 
 /* ---------- La section cardio, dérivée (#34) ----------
@@ -450,19 +419,17 @@ export function buildPlan(definition) {
       ],
     },
 
-    /* #120 : deux formes valides pour program.fallback — le tableau de
-       strings hérité (`.length` est son propre compte), ou l'objet
-       structuré `{ levels }` (`.levels.length`, un niveau de moins que de
-       séances). Section omise si absent, comme avant. */
-    program.fallback && (Array.isArray(program.fallback) ? program.fallback.length : program.fallback.levels?.length) ? {
-      id: "fallback",
-      title: "Plan de repli",
-      group: "programme",
-      meta: Array.isArray(program.fallback)
-        ? `${program.fallback.length} cas de figure`
-        : `${program.fallback.levels.length} cas de figure`,
-      blocks: fallbackBlocks(program.fallback, program.SESSIONS || []),
-    } : null,
+    /* #120 : retiré du Plan le 2026-09-26, retour de test — un texte
+       statique ("voici tes options") ne dit rien de la semaine réelle et
+       n'apportait pas assez pour son coût. Remplacé par un conseil vivant
+       dans l'onglet Semaine (App.jsx, recommendRemaining()/fallback.js),
+       qui lit ce qui est déjà validé cette semaine plutôt que d'énumérer
+       des cas hypothétiques. `buildFallbackLevels()` continue de calculer
+       program.fallback à la génération (fondation réutilisée par le
+       conseil vivant), mais plus aucune section du Plan ne l'affiche tel
+       quel — y compris le texte hérité du programme personnel de Simon,
+       qui portait la même limite (une liste figée, pas une réaction à la
+       semaine en cours). */
 
     cardioSection(program.cardio, definition.cardioBaseline),
 

@@ -11,7 +11,8 @@ import { readLastExport, writeLastExport, toIsoDate, isExportStale, journalHasCo
 import { unusableProgramIds, validateDefinition } from "./journal-shape.js";
 /* #57 : journal-shape juge la donnée et peut refuser un fichier ; assertions
    juge l'entraînement et ne fait que conseiller (ARCHITECTURE §2, §2.9). */
-import { assess, targetsFor } from "./assertions.js";
+import { assess, targetsFor, resolveWeek } from "./assertions.js";
+import { recommendRemaining, lastSkipped } from "./fallback.js";
 import { buildProgram, getKeySlots, hasCardioContent, hasCardioItems, hasMobilityDays } from "./program.js";
 import { AFTER_HINTS } from "./cardio.js";
 import { withForcedDeloads, evaluateDeload } from "./policies.js";
@@ -679,6 +680,36 @@ export default function Programme() {
     return m;
   }, [prog, state, dateOf]);
   const weekDoneCount = useMemo(() => Object.values(doneMap).filter(Boolean).length, [doneMap]);
+
+  /* #120 : le conseil vivant, retour de test du 2026-09-26 — un texte
+     statique ("voici tes options") ne disait rien de la semaine réelle.
+     Ne se calcule que sur la semaine en cours (`week === curWeek` — une
+     semaine passée ou future n'a pas de "jours qu'il reste"), et seulement
+     si le rythme actuel ne suffit plus à finir toutes les séances d'ici
+     dimanche. `protectId` vient de la semaine précédente : la séance ratée
+     la semaine passée (s'il n'y en a qu'une, sans ambiguïté) ne doit pas
+     l'être une deuxième fois de suite. */
+  const weeklyAdvice = useMemo(() => {
+    if (week !== curWeek || todayDay == null) return null;
+    const remainingSlots = 8 - todayDay;
+    const doneIds = Object.keys(doneMap).filter((id) => doneMap[id]);
+    if (prog.SESSIONS.length - doneIds.length <= remainingSlots) return null;
+
+    const resolved = resolveWeek(prog, "b1");
+    if (!resolved) return null;
+
+    let protectId = null;
+    if (week > 1) {
+      const prevDoneIds = prog.SESSIONS
+        .filter((s) => (findLog(state.logs, dateForSlot(definition.startDate, week - 1, s.day), s.id) || {}).done)
+        .map((s) => s.id);
+      protectId = lastSkipped(resolved.sessions, prevDoneIds);
+    }
+
+    const { keep, cut } = recommendRemaining(resolved.sessions, doneIds, remainingSlots, protectId);
+    const nameOf = (id) => (prog.SESSIONS.find((s) => s.id === id) || {}).name || id;
+    return { keep: keep.map(nameOf), cut: cut.map(nameOf), remainingSlots };
+  }, [week, curWeek, todayDay, doneMap, prog, state.logs, definition.startDate]);
 
   /* #41 : l'effet qui devinait la séance à afficher est supprimé. Il n'existait
      que parce qu'on atterrissait sur Séance sans avoir choisi — il essayait le
@@ -1842,6 +1873,20 @@ export default function Programme() {
               <span className="text-sm text-ink-muted">Séances de la semaine</span>
               <span className={`text-sm ${weekDoneCount === prog.SESSIONS.length ? "text-done" : "text-ink-muted"}`}>{weekDoneCount} sur {prog.SESSIONS.length} validées</span>
             </div>
+            {/* #120 : le conseil vivant — n'apparaît que si le rythme actuel
+                ne suffit plus à finir la semaine, jamais comme une liste
+                d'options hypothétiques (retour de test du 2026-09-26). */}
+            {weeklyAdvice && (
+              <div className="mt-2 rounded-md border border-rule bg-surface-raised p-3 text-sm space-y-1.5">
+                <p className="text-ink">
+                  Plus que {weeklyAdvice.remainingSlots} jour{weeklyAdvice.remainingSlots > 1 ? "s" : ""} cette semaine :
+                  priorité à {weeklyAdvice.keep.join(", ")}.
+                </p>
+                {weeklyAdvice.cut.length > 0 && (
+                  <p className="text-ink-muted">Repoussable si besoin : {weeklyAdvice.cut.join(", ")}.</p>
+                )}
+              </div>
+            )}
             <div className="mt-2 divide-y divide-rule border-y border-rule">
               {prog.SESSIONS.map((s) => {
                 const l = findLog(state.logs, dateOf(s.id), s.id);

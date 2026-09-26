@@ -77,3 +77,39 @@ export function buildFallbackLevels(week, protectId = null) {
 
   return { levels };
 }
+
+/* ---------- Le conseil vivant (#120, retour de test du 2026-09-26) ----------
+
+   Retour de test : le texte statique ci-dessus ("voici tes options") ne
+   dit rien de la semaine réelle — Simon l'a jugé peu utile sans
+   reconnexion à l'état réel. Ces deux fonctions lisent ce que le journal
+   sait déjà (quelles séances sont validées) plutôt que d'inventer un
+   nouveau champ stocké ; l'écran (App.jsx) les appelle avec l'état de la
+   semaine en cours.
+   ========================================================= */
+
+/* Parmi les séances pas encore faites, lesquelles garder si le nombre de
+   jours qu'il reste dans la semaine (`remainingSlots`) ne suffit pas à
+   toutes les faire. Sous ce plancher, tout reste faisable tel quel — la
+   fonction ne dit rien, `keep` est juste "tout ce qui n'est pas fait". */
+export function recommendRemaining(sessions, doneIds, remainingSlots, protectId = null) {
+  const done = new Set(doneIds);
+  const remaining = sessions.filter((s) => !done.has(s.id));
+  if (remaining.length <= Math.max(0, remainingSlots)) {
+    return { keep: remaining.map((s) => s.id), cut: [] };
+  }
+  const order = rankSessionsForCut(remaining, protectId);
+  const cutCount = remaining.length - Math.max(0, remainingSlots);
+  const cut = order.slice(0, cutCount).map((s) => s.id);
+  const cutSet = new Set(cut);
+  return { keep: remaining.filter((s) => !cutSet.has(s.id)).map((s) => s.id), cut };
+}
+
+/* La séance à protéger cette semaine : celle, et une seule, qui n'a pas été
+   validée la semaine passée. Ambigu (aucune séance ratée, ou plusieurs) =>
+   rien à protéger en particulier, la règle de couverture suffit seule. */
+export function lastSkipped(sessions, doneIdsLastWeek) {
+  const done = new Set(doneIdsLastWeek);
+  const skipped = sessions.filter((s) => !done.has(s.id));
+  return skipped.length === 1 ? skipped[0].id : null;
+}
