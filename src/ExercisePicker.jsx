@@ -32,7 +32,11 @@ import { MUSCLE_LABELS, PATTERN_LABELS, EQUIPMENT_LABELS } from "./display.js";
 
 const FIELD = "h-11 w-full px-3 rounded-md bg-surface-raised border border-rule text-ink focus:outline-none focus:ring-2 focus:ring-focus";
 
-const NO_FACETS = { muscle: "", pattern: "", equipment: "" };
+/* Muscle et Mouvement se partagent la ligne à parts égales. Le matériel
+   n'a plus sa facette : un choix de plus pour une distinction que le nom de
+   l'exercice donne déjà à la lecture (même choix que ReferenceExercises.jsx,
+   qui lit le même registre pour la même question). */
+const NO_FACETS = { muscle: "", pattern: "" };
 
 export default function ExercisePicker({ onChoose, onClose, initialFacets, disabledIds, disabledNote = "déjà dans cette séance" }) {
   const [q, setQ] = useState("");
@@ -42,15 +46,15 @@ export default function ExercisePicker({ onChoose, onClose, initialFacets, disab
      permet de décocher la facette pré-sélectionnée. */
   const [facets, setFacets] = useState(() => ({ ...NO_FACETS, ...(initialFacets || {}) }));
   const results = useMemo(() => filterExercises(q, facets), [q, facets]);
-  /* #64 : ce que chaque liste déroulante propose dépend de ce qui est déjà
-     coché — « Pectoraux » ne laisse plus choisir « Dominante genou ». Le
-     calcul est dans exercise-filter.js : l'écran reçoit des listes, jamais une
-     règle (ARCHITECTURE §2.6). */
-  const values = useMemo(() => facetValues(facets), [facets]);
+  /* Les listes déroulantes sont fixes : elles ne dépendent pas de ce qui est
+     déjà coché sur les autres facettes (voir exercise-filter.js). C'est
+     `applyFacet`, plus bas, qui absorbe le conflit si la nouvelle valeur
+     contredit une facette déjà posée. */
+  const values = useMemo(() => facetValues(), []);
   const blocked = disabledIds instanceof Set ? disabledIds : new Set(disabledIds || []);
   const facet = (key, label, labels) => (
     <select value={facets[key]} onChange={(e) => setFacets(applyFacet(facets, key, e.target.value))} aria-label={label}
-      className="h-10 px-2 shrink-0 rounded-md bg-surface-raised border border-rule text-sm text-ink focus:outline-none focus:ring-2 focus:ring-focus">
+      className="h-10 flex-1 min-w-0 px-2 rounded-md bg-surface-raised border border-rule text-sm text-ink focus:outline-none focus:ring-2 focus:ring-focus">
       <option value="">{label}</option>
       {values[key].map((v) => <option key={v} value={v}>{labels[v] || v}</option>)}
     </select>
@@ -73,10 +77,9 @@ export default function ExercisePicker({ onChoose, onClose, initialFacets, disab
               <X size={18} />
             </button>
           </div>
-          <div className="flex gap-2 mt-2 overflow-x-auto">
+          <div className="flex gap-2 mt-2">
             {facet("muscle", "Muscle", MUSCLE_LABELS)}
             {facet("pattern", "Mouvement", PATTERN_LABELS)}
-            {facet("equipment", "Matériel", EQUIPMENT_LABELS)}
           </div>
         </div>
         {results.length === 0 ? (

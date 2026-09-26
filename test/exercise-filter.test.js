@@ -120,47 +120,28 @@ describe("FACET_VALUES : ce que le sélecteur propose", () => {
     assert.deepEqual(FACET_VALUES.equipment, EQUIPMENT.filter((e) => e !== "kettlebell"));
   });
 
-  test("FACET_VALUES est exactement ce que facetValues rend sans rien de coché", () => {
-    assert.deepEqual(FACET_VALUES, facetValues({}));
+  test("FACET_VALUES est exactement ce que facetValues rend", () => {
+    assert.deepEqual(FACET_VALUES, facetValues());
   });
 });
 
-/* ---------- #64 : les facettes dépendent les unes des autres ---------- */
+/* ---------- les facettes ne dépendent plus les unes des autres ----------
 
-describe("facetValues : ce que le sélecteur propose compte tenu du reste", () => {
-  test("le cas de l'issue : « Pectoraux » ne laisse plus choisir « Dominante genou »", () => {
-    const values = facetValues({ muscle: "pectoraux" });
-    assert.equal(values.pattern.includes("dominante_genou"), false);
+   #64 avait fait dépendre chaque liste de ce qui était déjà coché sur les
+   autres. Reverti : ça bloquait un changement de facette dès que la nouvelle
+   valeur était incompatible avec l'ancienne, puisque cette valeur n'était
+   alors même plus proposée. `applyFacet` absorbe seul ce conflit après le
+   clic — les listes n'ont plus besoin de l'anticiper. */
+
+describe("facetValues : les listes sont fixes, quelle que soit la facette déjà cochée", () => {
+  test("« Dominante genou » reste proposé même une fois « Pectoraux » coché", () => {
+    const values = facetValues();
+    assert.ok(values.pattern.includes("dominante_genou"));
     assert.ok(values.pattern.includes("poussee_horizontale"));
   });
 
-  test("aucune valeur proposée ne rend une liste vide, quelle que soit la facette déjà cochée", () => {
-    for (const key of FACET_KEYS) {
-      for (const v of FACET_VALUES[key]) {
-        const values = facetValues({ [key]: v });
-        for (const [other, list] of Object.entries(values)) {
-          if (other === key) continue;
-          for (const w of list) {
-            assert.ok(filterExercises("", { [key]: v, [other]: w }).length > 0, `${key}=${v} + ${other}=${w}`);
-          }
-        }
-      }
-    }
-  });
-
-  test("la valeur cochée reste proposée par sa propre facette — on peut toujours en changer", () => {
-    const values = facetValues({ muscle: "pectoraux", pattern: "poussee_horizontale" });
-    assert.ok(values.muscle.includes("pectoraux"));
-    assert.ok(values.pattern.includes("poussee_horizontale"));
-    /* Et la facette voisine reste élargissable : « triceps » avec cette
-       poussée horizontale existe, « quadriceps » non. */
-    assert.ok(values.muscle.includes("triceps"));
-    assert.equal(values.muscle.includes("quadriceps"), false);
-  });
-
-  test("rien de coché : les trois vocabulaires complets, kettlebell excepté", () => {
-    assert.deepEqual(facetValues({}), FACET_VALUES);
-    assert.deepEqual(facetValues({ muscle: "", pattern: "", equipment: "" }), FACET_VALUES);
+  test("aucun argument n'est pris en compte : facetValues() ne varie pas", () => {
+    assert.deepEqual(facetValues(), FACET_VALUES);
   });
 });
 

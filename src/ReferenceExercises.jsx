@@ -6,46 +6,50 @@
    parcourir le premier sans passer par une séance. C'est la dernière ancre
    du manuel de Référence.
 
-   Contrôlé, comme ExercisePicker.jsx : la recherche et le filtre arrivent en
-   props, parce que la page qui l'héberge démonte quand on ouvre une fiche
-   (App.jsx tient l'état, voir le commentaire à `exerciseQuery`). Aucun
-   calcul propre — filterExercises() (exercise-filter.js) fait la recherche,
-   matchesBucket() (exercise-groups.js) le filtre par groupe, ce fichier
-   n'émet que du balisage (§2.6).
+   Les deux facettes croisées (muscle, mouvement) sont celles du sélecteur
+   d'exercices de l'éditeur (ExercisePicker.jsx) plutôt qu'un vocabulaire à
+   part : même comportement partout où on cherche dans le registre, et une
+   seule règle de croisement à tenir (exercise-filter.js). Avant #12x, cette
+   page avait ses six « jetons » musculaires propres (exercise-groups.js,
+   #116) — écartés au profit de la cohérence avec l'éditeur. Le matériel n'en
+   fait pas partie : un choix de plus pour une distinction que le nom de
+   l'exercice donne déjà à la lecture.
+
+   Contrôlé, comme ExercisePicker.jsx : la recherche et les facettes arrivent
+   en props, parce que la page qui l'héberge démonte quand on ouvre une
+   fiche (App.jsx tient l'état, voir le commentaire à `exerciseQuery`).
+   Aucun calcul propre — filterExercises()/facetValues()/applyFacet()
+   (exercise-filter.js) font tout le travail, ce fichier n'émet que du
+   balisage (§2.6).
    ========================================================= */
 
+import { useMemo } from "react";
 import { Search } from "lucide-react";
-import { filterExercises } from "./exercise-filter.js";
-import { MUSCLE_BUCKETS, matchesBucket } from "./exercise-groups.js";
-import { EXERCISES } from "./registry.js";
-import { PATTERN_LABELS, EQUIPMENT_LABELS } from "./display.js";
+import { filterExercises, facetValues, applyFacet } from "./exercise-filter.js";
+import { MUSCLE_LABELS, PATTERN_LABELS, EQUIPMENT_LABELS } from "./display.js";
 
 const FIELD = "h-11 w-full px-3 rounded-md bg-surface-raised border border-rule text-ink focus:outline-none focus:ring-2 focus:ring-focus";
-const REGISTRY_SIZE = Object.keys(EXERCISES).length;
 
-function Chip({ selected, onClick, children }) {
-  return (
-    <button type="button" onClick={onClick} aria-pressed={selected}
-      className={`shrink-0 h-8 px-3 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-focus ${selected ? "bg-accent text-ink-inverse font-medium" : "bg-surface-raised text-ink-soft border border-rule"}`}>
-      {children}
-    </button>
+export default function ReferenceExercises({ q, onQueryChange, facets, onFacetsChange, onProgramIds, onOpen }) {
+  const results = useMemo(() => filterExercises(q, facets), [q, facets]);
+  const values = useMemo(() => facetValues(), []);
+  const facet = (key, label, labels) => (
+    <select value={facets[key]} onChange={(e) => onFacetsChange(applyFacet(facets, key, e.target.value))} aria-label={label}
+      className="h-10 flex-1 min-w-0 px-2 rounded-md bg-surface-raised border border-rule text-sm text-ink focus:outline-none focus:ring-2 focus:ring-focus">
+      <option value="">{label}</option>
+      {values[key].map((v) => <option key={v} value={v}>{labels[v] || v}</option>)}
+    </select>
   );
-}
-
-export default function ReferenceExercises({ q, onQueryChange, bucket, onBucketChange, onProgramIds, onOpen }) {
-  const results = filterExercises(q, {}).filter((e) => matchesBucket(e, bucket));
   return (
     <div className="mt-2">
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
-        <input value={q} onChange={(e) => onQueryChange(e.target.value)} placeholder={`Chercher parmi ${REGISTRY_SIZE}`}
+        <input value={q} onChange={(e) => onQueryChange(e.target.value)} placeholder="Chercher un exercice"
           aria-label="Chercher un exercice" className={`${FIELD} pl-9`} />
       </div>
-      <div className="flex gap-2 mt-2 overflow-x-auto">
-        <Chip selected={!bucket} onClick={() => onBucketChange("")}>Tous</Chip>
-        {MUSCLE_BUCKETS.map(([key, label]) => (
-          <Chip key={key} selected={bucket === key} onClick={() => onBucketChange(bucket === key ? "" : key)}>{label}</Chip>
-        ))}
+      <div className="flex gap-2 mt-2">
+        {facet("muscle", "Muscle", MUSCLE_LABELS)}
+        {facet("pattern", "Mouvement", PATTERN_LABELS)}
       </div>
       {results.length === 0 ? (
         <p className="text-sm text-ink-muted py-4">Aucun exercice ne correspond.</p>

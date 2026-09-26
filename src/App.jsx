@@ -40,7 +40,7 @@ import { programSummaries, removeProgram, journalSessionCount } from "./program-
 import { facetsOf } from "./exercise-filter.js";
 import ProgramEditor from "./ProgramEditor.jsx";
 import GenerateProgram from "./GenerateProgram.jsx";
-import { emptyDraft, draftFrom, nextCycleFrom, withNewId, toDefinition, isDirty, withCarriedLoads, referencedExercises } from "./program-editor.js";
+import { emptyDraft, draftFrom, nextCycleFrom, withNewId, toDefinition, isDirty, withCarriedLoads } from "./program-editor.js";
 import { carriedLoad } from "./carryover.js";
 import { cycleReview } from "./cycle-review.js";
 import { buildPlan, PHASE_NOTES } from "./plan.js";
@@ -358,11 +358,18 @@ export default function Programme() {
      survivrait pas l'aller-retour. C'est ce qui tient « même filtre » au
      retour, sans rien écrire au stockage. */
   const [exerciseQuery, setExerciseQuery] = useState("");
-  const [exerciseBucket, setExerciseBucket] = useState("");
-  /* Les exercices que le programme actif fait tourner, pour le repère
-     « au prog. » — dérivé de `prog`, jamais recalculé autrement (même
-     source que le reste de l'écran). */
-  const onProgramIds = useMemo(() => new Set(referencedExercises(prog)), [prog]);
+  const [exerciseFacets, setExerciseFacets] = useState({ muscle: "", pattern: "" });
+  /* Les exercices que le programme actif fait *tourner cette semaine*, pour
+     le repère « au prog. » — referencedExercises() prend b1 ET b2 de chaque
+     créneau (utile à l'éditeur, qui doit couvrir toute charge de départ à
+     venir), donc un créneau qui change de variante en S7 (plan.js:22)
+     marquerait aussi bien celle qu'on n'a pas encore atteinte. Ici on ne veut
+     que ce que blockOf(curWeek) prescrit réellement, comme le reste de
+     l'écran Séance (prescribedVid, session-sub.js). */
+  const onProgramIds = useMemo(
+    () => new Set(Object.keys(prog.SLOTS).map((id) => prescribedVid(prog, id, curWeek)).filter(Boolean)),
+    [prog, curWeek]
+  );
   const openReference = (anchor, ret) => {
     setReferenceAnchor(anchor || null);
     setReferenceReturn(ret || null);
@@ -1470,7 +1477,7 @@ export default function Programme() {
         {screen === "reference" && (
           <ReferenceView sections={plan.filter((s) => s.group === "methode")} onBack={closeReference}
             backLabel={referenceReturn ? referenceReturn.label : "Programme"} initialAnchor={referenceAnchor}>
-            <ReferenceExercises q={exerciseQuery} onQueryChange={setExerciseQuery} bucket={exerciseBucket} onBucketChange={setExerciseBucket}
+            <ReferenceExercises q={exerciseQuery} onQueryChange={setExerciseQuery} facets={exerciseFacets} onFacetsChange={setExerciseFacets}
               onProgramIds={onProgramIds} onOpen={(vid) => openExercise(vid, "reference")} />
           </ReferenceView>
         )}

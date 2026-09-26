@@ -78,28 +78,28 @@ export function filterExercises(query, facets = {}) {
    porte (test/exercise-filter.test.js) — et une facette qui rend une liste
    vide se lit comme une panne.
 
-   #64 : la même règle, mais **compte tenu de ce qui est déjà coché**.
-   « Pectoraux » et « Dominante genou » étaient tous deux proposables, et
-   ensemble ne rendaient rien : le sélecteur affichait alors « le registre est
-   fermé », une phrase sur le registre pour un vide qu'il avait produit
-   lui-même. Chaque facette n'énumère donc que les valeurs viables avec les
-   autres.
+   Chaque facette n'énumère que les valeurs qu'au moins une entrée porte,
+   indépendamment de ce qui est déjà coché sur les autres facettes.
 
-   La requête texte n'entre pas dans ce calcul, délibérément : elle se corrige
-   lettre à lettre, et des options qui bougent pendant la frappe rendraient
-   l'écran instable. Elle porte d'ailleurs sur les 73 entrées, facettes
-   comprises ou non (note d'en-tête).
+   #64 avait tenté l'inverse : restreindre chaque liste à ce qui reste
+   viable compte tenu des autres, pour éviter d'afficher deux facettes qui
+   ensemble ne rendent rien. Mais `applyFacet` sait déjà résoudre ce
+   conflit après le clic — il garde la facette qu'on vient de toucher et
+   lâche l'autre — et la restriction empêchait justement de cliquer sur la
+   valeur qui aurait déclenché cette résolution : choisir un autre muscle
+   obligeait à d'abord remettre le mouvement à zéro. Les listes restent
+   donc fixes, et c'est `applyFacet` qui absorbe le conflit.
 
-   Le coût est trois passes sur 73 entrées par changement de facette, soit
-   l'ordre de grandeur d'un rendu — l'écran le mémoïse sur `facets`. */
+   La requête texte n'entre pas dans ce calcul non plus, pour la même
+   raison de stabilité : elle se corrige lettre à lettre, et des options
+   qui bougent pendant la frappe rendraient l'écran instable. Elle porte
+   d'ailleurs sur les 73 entrées, facettes comprises ou non (note
+   d'en-tête). */
 export const FACET_KEYS = ["muscle", "pattern", "equipment"];
 const VOCAB = { muscle: MUSCLE_GROUPS, pattern: PATTERNS, equipment: EQUIPMENT };
 
-export function facetValues(facets = {}) {
-  const viable = (key) => {
-    const others = { ...facets, [key]: "" };
-    return VOCAB[key].filter((v) => filterExercises("", { ...others, [key]: v }).length > 0);
-  };
+export function facetValues() {
+  const viable = (key) => VOCAB[key].filter((v) => filterExercises("", { [key]: v }).length > 0);
   return { muscle: viable("muscle"), pattern: viable("pattern"), equipment: viable("equipment") };
 }
 
