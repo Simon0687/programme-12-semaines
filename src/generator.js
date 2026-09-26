@@ -50,8 +50,9 @@
    ========================================================= */
 
 import { EXERCISES, EQUIPMENT } from "./registry.js";
-import { VOLUME, PRIMARY, LEVELS, contribution, targetsFor } from "./assertions.js";
+import { VOLUME, PRIMARY, LEVELS, contribution, targetsFor, resolveWeek } from "./assertions.js";
 import { DEFINITION_FORMAT_VERSION } from "./definition.js";
+import { buildFallbackLevels } from "./fallback.js";
 /* Le lundi qui vient : la règle appartient à l'éditeur, qui possède la date
    de départ d'un brouillon, et le moteur produit un brouillon. Une copie
    locale de ce calcul serait une deuxième vérité sur la même question. */
@@ -545,9 +546,10 @@ const slug = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "")
   .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 /* La table de volume de l'onglet Plan, écrite depuis ce que la boucle a
-   réellement posé — pas depuis les cibles. `fallback` n'est pas émis : c'est
-   de la prose sur ce qu'on sacrifierait, et un moteur qui invente de la prose
-   est exactement ce que cet épic refuse. Plan omet la section de lui-même. */
+   réellement posé — pas depuis les cibles. (`program.fallback`, la donnée
+   structurée du plan de repli, est calculée séparément par
+   `buildFallbackLevels()` — #120 — à partir des séances réellement posées,
+   jamais de la prose écrite par ce module.) */
 function volumeTable(plan, allocated) {
   const rows = [];
   for (const m of MUSCLES) {
@@ -617,6 +619,8 @@ function toProgram(plan, ctx, objective) {
     });
   }
 
+  const CORE = { gainage: { label: "Gainage", ex: [] } };
+
   return {
     SLOTS,
     SESSIONS,
@@ -625,10 +629,16 @@ function toProgram(plan, ctx, objective) {
        partagé par toutes les séances multiplierait leur volume par le nombre
        de séances. Le bloc reste là parce qu'une séance doit référencer une
        clé de CORE, et parce que c'est là qu'on ajoute son gainage à la main. */
-    CORE: { gainage: { label: "Gainage", ex: [] } },
+    CORE,
     WARM,
     cardio: null,
     volume: volumeTable(plan, ctx.allocated),
+    /* #120 : l'ordre de priorité (quelle séance, quels exercices) est figé
+       ici, comme `volume` — decisions-spec.md #120 Q1. `ctx.capPerSession`
+       (déjà calculé pour plafonner une séance normale) borne la séance
+       composite plutôt qu'un nombre inventé. La non-répétition ne peut pas
+       l'être : elle se calcule à l'affichage, depuis le journal. */
+    fallback: buildFallbackLevels(resolveWeek({ SLOTS, SESSIONS, CORE }, "b1"), ctx.capPerSession),
   };
 }
 
