@@ -277,6 +277,9 @@ export function validateProgram(program) {
     }
   }
 
+  const badFallback = validateFallback(program.fallback, SLOTS, SESSIONS);
+  if (badFallback) return badFallback;
+
   const badCardio = validateCardio(program.cardio, SESSIONS);
   if (badCardio) return badCardio;
 
@@ -377,6 +380,52 @@ const TEST_MODES = ["manual", "afterNSessions", "afterNDeloads"];
    Les messages nomment le champ fautif et énoncent la contrainte, sans
    référence au code — la règle de #19, qui vaut toujours sans IA au bout du
    fil : elle a simplement pour lecteur une personne. */
+/* #120 : deux formes valides, jamais confondues.
+     - un tableau de chaînes — l'ancien format, du texte écrit à la main
+       (le programme de Simon aujourd'hui). Laissé tel quel : la migration
+       n'est due que si Simon veut le nouveau comportement, pas subie.
+     - un objet { levels } — la forme structurée que `buildFallbackLevels()`
+       (fallback.js) produit à la génération. `keep` référence des séances
+       existantes, `merge.into.ex` des paires [slot, séries] comme n'importe
+       quelle séance (mêmes règles que program.SESSIONS[i].ex ci-dessus). */
+function validateFallback(fallback, SLOTS, SESSIONS) {
+  if (fallback == null) return null;
+  if (Array.isArray(fallback)) {
+    if (!fallback.every((t) => typeof t === "string")) {
+      return { reason: "invalid-program", message: "Champ invalide : program.fallback (tableau de chaînes attendu, ancien format)" };
+    }
+    return null;
+  }
+  if (!isObj(fallback) || !Array.isArray(fallback.levels)) {
+    return { reason: "invalid-program", message: "Champ invalide : program.fallback (tableau de chaînes, ou objet { levels } attendu)" };
+  }
+
+  const sessionIds = new Set((SESSIONS || []).map((s) => s.id));
+  for (const [i, level] of fallback.levels.entries()) {
+    const at = `program.fallback.levels[${i}]`;
+    if (!isObj(level) || !Array.isArray(level.keep)) return { reason: "invalid-program", message: `Champ invalide : ${at}.keep (tableau attendu)` };
+    for (const id of level.keep) {
+      if (!sessionIds.has(id)) return { reason: "invalid-program", message: `${at}.keep : « ${id} » n'est pas une séance de program.SESSIONS.` };
+    }
+    if (level.merge != null) {
+      if (!isObj(level.merge) || !Array.isArray(level.merge.from) || !isObj(level.merge.into)) {
+        return { reason: "invalid-program", message: `Champ invalide : ${at}.merge (objet { from, into } attendu)` };
+      }
+      for (const id of level.merge.from) {
+        if (!sessionIds.has(id)) return { reason: "invalid-program", message: `${at}.merge.from : « ${id} » n'est pas une séance de program.SESSIONS.` };
+      }
+      const into = level.merge.into;
+      if (typeof into.id !== "string" || into.id === "") return { reason: "invalid-program", message: `Champ invalide : ${at}.merge.into.id (chaîne non vide attendue)` };
+      if (!Array.isArray(into.ex)) return { reason: "invalid-program", message: `Champ invalide : ${at}.merge.into.ex (tableau attendu)` };
+      for (const [j, e] of into.ex.entries()) {
+        if (!isSlotRef(e)) return { reason: "invalid-program", message: `Champ invalide : ${at}.merge.into.ex[${j}] (paire [slot, nombre de séries] attendue)` };
+        if (!(e[0] in SLOTS)) return { reason: "invalid-program", message: `${at}.merge.into.ex : « ${e[0]} » n'est pas un slot de program.SLOTS.` };
+      }
+    }
+  }
+  return null;
+}
+
 function validateCardio(cardio, SESSIONS) {
   if (cardio === undefined || cardio === "default" || cardio === null) return null;
   if (typeof cardio === "string") {
