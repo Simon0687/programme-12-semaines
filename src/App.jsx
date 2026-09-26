@@ -168,11 +168,16 @@ function Btn({ children, onClick, primary, small, disabled }) {
 function NutritionProfileForm({ initial, onSave, onCancel }) {
   const [f, setF] = useState({
     heightCm: initial?.heightCm ?? "", bodyweightKg: initial?.bodyweightKg ?? "",
-    birthdate: initial?.birthdate ?? "", sexe: initial?.sexe ?? "h",
+    /* Retour de test (2026-09-26) : l'année suffit au calcul (ageFrom ne
+       lit que l'année pour l'essentiel), demander le jour et le mois est
+       une précision dont personne n'a besoin ici. */
+    birthYear: initial?.birthdate ? initial.birthdate.slice(0, 4) : "", sexe: initial?.sexe ?? "h",
     activite: initial?.activite ?? "modere", objectif: initial?.objectif ?? "masse",
   });
   const set = (k) => (v) => setF({ ...f, [k]: v });
-  const valid = Number(f.heightCm) > 0 && Number(f.bodyweightKg) > 0 && /^\d{4}-\d{2}-\d{2}$/.test(f.birthdate);
+  const validYear = Number.isInteger(Number(f.birthYear)) && Number(f.birthYear) > 1900 && Number(f.birthYear) <= new Date().getFullYear();
+  const valid = Number(f.heightCm) > 0 && Number(f.bodyweightKg) > 0 && validYear;
+  const save = () => onSave({ ...f, birthdate: `${f.birthYear}-01-01` });
 
   return (
     <div className="space-y-3">
@@ -180,11 +185,7 @@ function NutritionProfileForm({ initial, onSave, onCancel }) {
         <Field label="Taille (cm)" value={f.heightCm} onChange={set("heightCm")} type="number" />
         <Field label="Poids (kg)" value={f.bodyweightKg} onChange={set("bodyweightKg")} type="number" />
       </div>
-      <label className="block">
-        <span className="text-xs text-ink-muted">Date de naissance</span>
-        <input type="date" value={f.birthdate} onChange={(e) => set("birthdate")(e.target.value)}
-          className="mt-1 w-full h-11 px-3 rounded-md bg-surface-raised border border-rule text-ink focus:outline-none focus:ring-2 focus:ring-focus" />
-      </label>
+      <Field label="Année de naissance" value={f.birthYear} onChange={set("birthYear")} type="number" placeholder="1990" />
       <div>
         <span className="text-xs text-ink-muted">Sexe (pour le calcul du métabolisme)</span>
         <div className="mt-1 flex gap-2">
@@ -219,7 +220,7 @@ function NutritionProfileForm({ initial, onSave, onCancel }) {
         </div>
       </div>
       <div className="flex gap-3 pt-1">
-        <Btn primary disabled={!valid} onClick={() => onSave(f)}>Enregistrer</Btn>
+        <Btn primary disabled={!valid} onClick={save}>Enregistrer</Btn>
         {onCancel && <Btn onClick={onCancel}>Annuler</Btn>}
       </div>
     </div>
@@ -978,7 +979,7 @@ export default function Programme() {
      saisie manuelle directe. `today` sert de référence pour dériver l'âge
      depuis birthdate (ageFrom, nutrition.js), comme le reste de l'app le
      fait déjà pour la date du jour. */
-  const setProfile = (raw) => {
+  const setProfile = ({ birthYear, ...raw }) => {
     const profile = computeNutritionProfile({
       ...raw, heightCm: Number(raw.heightCm), bodyweightKg: Number(raw.bodyweightKg),
     }, today);
@@ -1329,7 +1330,7 @@ export default function Programme() {
       <div className="min-h-screen bg-surface text-ink" style={{ fontVariantNumeric: "tabular-nums" }}>
         <Welcome
           onGenerate={() => setNav({ screen: "generateur", sessionId: null })}
-          onCompose={() => openEditor(emptyDraft(today))}
+          onCompose={() => openEditor({ ...emptyDraft(today), profile: definition.profile })}
           onLoadFile={() => fileInputRef.current && fileInputRef.current.click()}
           /* Retenir le programme fourni est un choix, pas un défaut : c'est le
              seul geste qui le fait entrer dans le journal, et il est explicite. */
@@ -1561,8 +1562,13 @@ export default function Programme() {
 
         {/* #58 : la collecte ne possède rien de stocké et ne passe la main
             qu'à l'éditeur — c'est lui, et lui seul, qui écrit. */}
+        {/* Retour de test (2026-09-26) : le profil nutrition (taille, poids,
+            année de naissance...) ne change pas d'un programme à l'autre —
+            il ne doit pas se réinitialiser à chaque nouveau cycle. Le
+            générateur ne produit pas de profil, donc `draftFrom(def)` en
+            écrirait un vide sans ce report explicite depuis le cycle actif. */}
         {screen === "generateur" && (
-          <GenerateProgram today={today} onBack={goPlan} onAccept={(def) => openEditor(draftFrom(def))} />
+          <GenerateProgram today={today} onBack={goPlan} onAccept={(def) => openEditor({ ...draftFrom(def), profile: definition.profile })} />
         )}
 
         {/* #114 : le manuel de méthode, en une page à sommaire ancré — Structure,
@@ -1651,7 +1657,7 @@ export default function Programme() {
                   condition, contrairement à ce que #111 envisageait sinon. */}
               <Route icon={<Copy size={18} />} onClick={() => openEditor(nextCycleFrom(definition, today))}
                 title="Partir du programme actif" note={`Copie de ${definition.name}, charges reprises`} />
-              <Route icon={<PenLine size={18} />} onClick={() => openEditor(emptyDraft(today))}
+              <Route icon={<PenLine size={18} />} onClick={() => openEditor({ ...emptyDraft(today), profile: definition.profile })}
                 title="Composer le mien" note="Séance par séance" />
               <Route icon={<Upload size={18} />} onClick={() => fileInputRef.current.click()}
                 title="Charger un fichier" note="Programme déjà écrit (.json)" />

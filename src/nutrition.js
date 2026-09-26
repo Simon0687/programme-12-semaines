@@ -122,15 +122,21 @@ export function firstWeeksNote(objectif) {
    d'entraînement vs repos). Pas de génération de repas : c'est le rôle
    d'une IA externe, l'app ne porte pas de base d'aliments.
 
+   Retour de test (2026-09-26) : « sans base d'aliments imposée » se lisait,
+   côté IA, comme « l'utilisateur n'impose rien » — l'inverse du sens voulu
+   (l'app n'en a pas, pas l'utilisateur). Retiré, remplacé par un cadrage
+   explicite en tête (rôle du coach + besoin de la personne), qui donne à
+   l'IA le contexte dont elle manquait plutôt qu'une négation ambiguë.
+
    Rend un tableau de phrases courtes plutôt qu'un seul bloc de texte : un
    profil d'avant ce ticket (les 4 champs calculés seuls, sans `objectif`)
-   omet la première ligne plutôt que d'afficher "Objectif : undefined". */
+   omet la ligne d'objectif plutôt que d'afficher "undefined". */
 export function aiBrief(profile, sessionsPerWeek) {
   const { startKcal, macros, objectif } = profile;
-  const lines = [];
+  const lines = ["Tu es coach en nutrition sportive. Voici le profil et le besoin de la personne :"];
   if (OBJECTIVE_LABELS[objectif]) lines.push(`Objectif : ${OBJECTIVE_LABELS[objectif]}.`);
-  lines.push(`Cible : ${startKcal} kcal/jour, ${macros.p} g de protéines, ${macros.f} g de lipides, ${macros.c} g de glucides.`);
-  lines.push(`Rythme d'entraînement : ${sessionsPerWeek} séance${sessionsPerWeek > 1 ? "s" : ""} par semaine.`);
-  lines.push("Propose un exemple de journée alimentaire (jour d'entraînement et jour de repos) qui atteint ces chiffres, sans base d'aliments imposée.");
+  lines.push(`Cible quotidienne : ${startKcal} kcal, ${macros.p} g de protéines, ${macros.f} g de lipides, ${macros.c} g de glucides.`);
+  lines.push(`Entraînement : ${sessionsPerWeek} séance${sessionsPerWeek > 1 ? "s" : ""} par semaine.`);
+  lines.push("Propose un exemple de journée alimentaire (jour d'entraînement et jour de repos) qui atteint ces chiffres.");
   return lines;
 }

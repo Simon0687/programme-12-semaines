@@ -102,6 +102,13 @@ describe("aiBrief : kcal/macros/objectif + rythme d'entraînement (#121 Q4)", ()
     assert.ok(/masse/i.test(brief));
   });
 
+  test("cadre l'IA en coach nutrition, sans la formule ambiguë retirée en test (2026-09-26)", () => {
+    const p = compute({ ...base, objectif: "masse" });
+    const brief = aiBrief(p, 4).join(" ");
+    assert.match(brief, /coach en nutrition sportive/i);
+    assert.doesNotMatch(brief, /sans base d'aliments imposée/i);
+  });
+
   test("ne prescrit aucun repas précis (laissé à l'IA externe)", () => {
     const p = compute({ ...base, objectif: "seche" });
     const brief = aiBrief(p, 3).join(" ");
