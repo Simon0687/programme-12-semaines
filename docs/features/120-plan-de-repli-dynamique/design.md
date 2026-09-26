@@ -130,11 +130,18 @@ famille de fonctions (donnée structurée → blocs `{t, text}` pour `<Block>`).
    ajoute la validation. Module sensible, tests de régression complets.
 4. `feat(plan): afficher program.fallback structuré` — remplace la lecture
    actuelle dans `plan.js`, ajoute `fallbackBlocks()`.
-5. `feat(app): dériver le niveau de repli actif depuis le journal` — calcul
-   de `lastCutId`/niveau appliqué, passé à `fallbackBlocks()` pour
-   l'ajustement de non-répétition.
-6. `test: couvrir fallback.js et la section Plan de repli` — si pas déjà
-   fait au fil des étapes précédentes.
+5. ~~`feat(app): dériver le niveau de repli actif depuis le journal`~~ —
+   **retirée du périmètre de #120** (2026-09-26, en cours d'implémentation) :
+   ce calcul n'a de sens que pour un "conseil vivant" qui réagit à la
+   semaine réelle (combien de séances déjà validées) — exactement la piste
+   déjà notée en "Hors scope / suites possibles" de spec.md comme une
+   issue séparée, distincte du texte de référence générique que #120
+   produit. `fallback.js` livre et teste le mécanisme (`rankSessionsForCut`
+   accepte un `protectId`, testé à repousser une répétition), mais rien
+   dans le Plan actuel n'a besoin de lire le journal pour l'appliquer tant
+   que ce texte reste une référence statique, pas une recommandation datée.
+6. `test: couvrir fallback.js et la section Plan de repli` — fait aux
+   étapes 1 et 4.
 
 ## Tests
 
